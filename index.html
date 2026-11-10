@@ -366,6 +366,9 @@
     font-size:11.5px;color:var(--ink);outline:none;transition:.15s;
   }
   .fld select:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(217,123,141,.14);}
+  .fld-row{display:flex;align-items:center;gap:6px;}
+  .fld-row input{flex:1 1 auto;min-width:0;}
+  .fld-row select{flex:0 0 88px;width:88px;text-align:center;font-family:ui-monospace,Menlo,monospace;}
   .add-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;}
   .add-grid .fld{margin-top:10px;}
   .add-grid .full{grid-column:1 / -1;}
@@ -522,6 +525,12 @@
   }
   .calc-mf input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(217,123,141,.14);}
   .calc-mf input:disabled{background:#faf5f6;color:#b7a3a8;}
+  .calc-mf select{
+    width:74px;padding:3px 2px;border:1px solid var(--line);border-radius:7px;background:#fff;
+    font-size:11px;color:var(--ink);outline:none;font-family:ui-monospace,Menlo,monospace;
+  }
+  .calc-mf select:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(217,123,141,.14);}
+  .calc-mf select:disabled{background:#faf5f6;color:#b7a3a8;}
   .calc-mdays{
     font-size:10px;color:#b98d5a;background:#fdf8f3;border:1px dashed #f0e0cd;
     border-radius:10px;padding:2px 8px;white-space:nowrap;
@@ -821,6 +830,7 @@
     .res-period-table td:first-child,.res-period-table th:first-child{width:84px;}
     .calc-mf{flex:1 1 140px;}
     .calc-mf input{flex:1;width:100%;min-width:0;}
+    .calc-mf select{flex:0 0 68px;width:68px;}
     .calc-mdays{flex:0 0 auto;}
   }
   @media (max-width:560px){
@@ -854,7 +864,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞本丸管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.7</div>
+        <div class="brand-sub">HONMARU KEEPER V2.9</div>
       </div>
     </div>
 
@@ -2948,7 +2958,9 @@ function normCalc(c){
         created: Number(s.created) || Date.now(),
         closed: Number(s.closed) || 0,
         start: /^\d{4}-\d{2}-\d{2}$/.test(String(s.start || '')) ? String(s.start) : '',
+        startT: validHour(String(s.startT || '')),
         end: /^\d{4}-\d{2}-\d{2}$/.test(String(s.end || '')) ? String(s.end) : '',
+        endT: validHour(String(s.endT || '')),
         koban: clampNum(s.koban, 0, RES_MAX, 0),
         resId: s.resId ? String(s.resId) : '',
         daily: daily,
@@ -3116,6 +3128,34 @@ function sesSpan(s){
   if(end < start) end = start;
   return [start, end];
 }
+/* 整点下拉：空 + 00:00 ~ 23:00，活动开始多为 15:00/16:00，结束多为 12:00 */
+function hourOptsHTML(cur){
+  const v = cur || '';
+  let h = '<option value=""' + (v ? '' : ' selected') + '>—</option>';
+  for(let i = 0; i < 24; i++){
+    const t = (i < 10 ? '0' : '') + i + ':00';
+    h += '<option value="' + t + '"' + (t === v ? ' selected' : '') + '>' + t + '</option>';
+  }
+  return h;
+}
+function validHour(v){ return /^([01]\d|2[0-3]):[0-5]\d$/.test(v || '') ? v : ''; }
+
+/* 有起止整点时按「X 天 Y 小时」算时长，没有就退回按自然日算 */
+function sesSpanText(ses, sp){
+  if(ses.end && ses.startT && ses.endT){
+    const a = new Date(sp[0] + 'T' + ses.startT + ':00');
+    const b = new Date(ses.end + 'T' + ses.endT + ':00');
+    const mins = Math.round((b - a) / 60000);
+    if(mins >= 0){
+      const d = Math.floor(mins / 1440), h = Math.round((mins % 1440) / 60);
+      if(!h) return '共 ' + d + ' 天';
+      if(!d) return '共 ' + h + ' 小时';
+      return '共 ' + d + ' 天 ' + h + ' 小时';
+    }
+  }
+  const days = Math.round((new Date(sp[1] + 'T00:00:00') - new Date(sp[0] + 'T00:00:00')) / 86400000) + 1;
+  return '共 ' + days + ' 天';
+}
 function isDungeonAct(act){
   return /大阪城|千两箱|地下城/.test(String((act && act.name) || ''));
 }
@@ -3123,11 +3163,12 @@ function calcSesMetaHTML(act, ses){
   const sp = sesSpan(ses);
   const closed = !!ses.closed;
   const dis = closed ? ' disabled' : '';
-  const days = Math.round((new Date(sp[1] + 'T00:00:00') - new Date(sp[0] + 'T00:00:00')) / 86400000) + 1;
   let h = '<div class="calc-meta">' +
-    '<label class="calc-mf"><span>开始</span><input type="date" data-sesf="start" value="' + sp[0] + '"></label>' +
-    '<label class="calc-mf"><span>结束</span><input type="date" data-sesf="end" value="' + (ses.end || '') + '"></label>' +
-    '<span class="calc-mdays">共 ' + days + ' 天' + (ses.end ? '' : ' · 进行中') + '</span>' +
+    '<label class="calc-mf"><span>开始</span><input type="date" data-sesf="start" value="' + sp[0] + '">' +
+      '<select data-sesf="startT" title="开始整点（常见 15:00 / 16:00）">' + hourOptsHTML(ses.startT) + '</select></label>' +
+    '<label class="calc-mf"><span>结束</span><input type="date" data-sesf="end" value="' + (ses.end || '') + '">' +
+      '<select data-sesf="endT" title="结束整点（常见 12:00）">' + hourOptsHTML(ses.endT) + '</select></label>' +
+    '<span class="calc-mdays">' + sesSpanText(ses, sp) + (ses.end ? '' : ' · 进行中') + '</span>' +
     '<button class="calc-edit-btn" data-sesact="edit" title="改记录名称与起止日期">✎ 记录资料</button>';
   if(isDungeonAct(act)){
     const d = curData();
@@ -3296,8 +3337,8 @@ function calcHistHTML(){
       return '<div class="calc-drop-item" data-hist="' + it.act.id + '|' + it.ses.id + '">' +
         '<span class="calc-drop-name">' + esc(it.ses.name) + '</span>' +
         '<span class="calc-drop-type">' + esc(it.act.name) + '</span>' +
-        '<span class="calc-drop-count">' + sp[0].slice(5).replace('-', '/') + '–' +
-          sp[1].slice(5).replace('-', '/') + ' · ' + t.total + ' 振</span>' +
+        '<span class="calc-drop-count">' + sp[0].slice(5).replace('-', '/') + (it.ses.startT ? ' ' + it.ses.startT : '') + '–' +
+          sp[1].slice(5).replace('-', '/') + (it.ses.endT ? ' ' + it.ses.endT : '') + ' · ' + t.total + ' 振</span>' +
         '</div>';
     }).join('') +
     '</div>';
@@ -3716,14 +3757,18 @@ function calcNewSes(){
   const validDate = function(v){ return /^\d{4}-\d{2}-\d{2}$/.test(v || ''); };
   openModal({
     title:'📒 新建记录',
-    sub:'这次「' + act.name + '」的记录起个名字，再填上活动的开始和结束日期。',
+    sub:'这次「' + act.name + '」的记录起个名字，再填上活动的开始和结束时间。',
     body:'<div class="add-grid">' +
         '<label class="fld full"><span>记录名称</span><input type="text" id="nsName" maxlength="30" ' +
           'placeholder="例如 11.5秘宝之里" value="' + esc(calcDefaultSesName(act)) + '"></label>' +
-        '<label class="fld"><span>开始日期</span><input type="date" id="nsStart" value="' + today + '"></label>' +
-        '<label class="fld"><span>结束日期</span><input type="date" id="nsEnd" value=""></label>' +
+        '<label class="fld full"><span>开始（日期 + 整点）</span><div class="fld-row">' +
+          '<input type="date" id="nsStart" value="' + today + '">' +
+          '<select id="nsStartT" title="活动开始的整点">' + hourOptsHTML('15:00') + '</select></div></label>' +
+        '<label class="fld full"><span>结束（日期 + 整点）</span><div class="fld-row">' +
+          '<input type="date" id="nsEnd" value="">' +
+          '<select id="nsEndT" title="活动结束的整点">' + hourOptsHTML('12:00') + '</select></div></label>' +
         '</div>' +
-        '<p class="calc-form-tip">结束日期可以留空，表示这次活动还在进行；建好之后也能随时在记录上方的「✎ 记录资料」里改。</p>',
+        '<p class="calc-form-tip">开始默认 15:00、结束默认 12:00（整点可改，活动一般是 15:00 / 16:00 开、12:00 收）。结束日期留空表示还在进行；建好后也能在「✎ 记录资料」里改。</p>',
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
       {text:'建好开记', cls:'btn primary', onClick:function(){
@@ -3732,12 +3777,16 @@ function calcNewSes(){
         let start = validDate($('#nsStart').value) ? $('#nsStart').value : today;
         let end = validDate($('#nsEnd').value) ? $('#nsEnd').value : '';
         if(end && end < start) end = start;
+        const startT = validHour($('#nsStartT').value) || '15:00';
+        const endT = end ? validHour($('#nsEndT').value) : '';
         const ses = {id:uid(), name:name.slice(0, 30), created:Date.now(), closed:0,
-                     start:start, end:end, koban:0, resId:'', daily:{}, firsts:{}};
+                     start:start, startT:startT, end:end, endT:endT,
+                     koban:0, resId:'', daily:{}, firsts:{}};
         act.sessions.push(ses);
         c.curS = ses.id;
         save(); closeModal(); renderCalc();
-        calcStatus('已新建记录「' + ses.name + '」 · ' + start + (end ? ' ~ ' + end : ' 起') + '，搜刀名就能开始记了');
+        calcStatus('已新建记录「' + ses.name + '」 · ' + start + (startT ? ' ' + startT : '') +
+          (end ? ' ~ ' + end + (endT ? ' ' + endT : '') : ' 起') + '，搜刀名就能开始记了');
       }}
     ]
   });
@@ -3752,13 +3801,17 @@ function calcEditSes(){
   const validDate = function(v){ return /^\d{4}-\d{2}-\d{2}$/.test(v || ''); };
   openModal({
     title:'✎ 记录资料',
-    sub:'改的是这条记录本身（名称、活动起止日期），不影响已经登记的掉落。',
+    sub:'改的是这条记录本身（名称、活动起止日期与整点），不影响已经登记的掉落。',
     body:'<div class="add-grid">' +
         '<label class="fld full"><span>记录名称</span><input type="text" id="esName" maxlength="30" value="' + esc(ses.name) + '"></label>' +
-        '<label class="fld"><span>开始日期</span><input type="date" id="esStart" value="' + sp[0] + '"></label>' +
-        '<label class="fld"><span>结束日期</span><input type="date" id="esEnd" value="' + (ses.end || '') + '"></label>' +
+        '<label class="fld full"><span>开始（日期 + 整点）</span><div class="fld-row">' +
+          '<input type="date" id="esStart" value="' + sp[0] + '">' +
+          '<select id="esStartT" title="活动开始的整点">' + hourOptsHTML(ses.startT || '15:00') + '</select></div></label>' +
+        '<label class="fld full"><span>结束（日期 + 整点）</span><div class="fld-row">' +
+          '<input type="date" id="esEnd" value="' + (ses.end || '') + '">' +
+          '<select id="esEndT" title="活动结束的整点">' + hourOptsHTML(ses.endT || '12:00') + '</select></div></label>' +
         '</div>' +
-        '<p class="calc-form-tip">结束日期留空 = 进行中。记录结束锁定后，日期照样可以回来改。</p>',
+        '<p class="calc-form-tip">开始多为 15:00 / 16:00，结束多为 12:00。结束日期留空 = 进行中；记录锁定后，日期照样可以回来改。</p>',
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
       {text:'保存', cls:'btn primary', onClick:function(){
@@ -3770,7 +3823,9 @@ function calcEditSes(){
         const oldName = ses.name;
         ses.name = name.slice(0, 30);
         ses.start = start;
+        ses.startT = validHour($('#esStartT').value) || (ses.startT || '15:00');
         ses.end = end;
+        ses.endT = end ? (validHour($('#esEndT').value) || ses.endT || '12:00') : '';
         syncSesResDate(ses);
         /* 资源记录里带的活动名跟着改，免得对不上 */
         if(oldName !== ses.name && Array.isArray(curData().res)){
@@ -3809,7 +3864,7 @@ function calcCloseSes(){
       {text:'取消', cls:'btn', onClick:closeModal},
       {text:'结束并锁定', cls:'btn primary', onClick:function(){
         ses.closed = Date.now();
-        if(!ses.end) ses.end = calcDayKey();
+        if(!ses.end){ ses.end = calcDayKey(); if(!ses.endT) ses.endT = '12:00'; }
         save(); closeModal(); renderCalc(); toast('已结束并锁定，可在历史总表查看');
       }}
     ]
@@ -3983,7 +4038,8 @@ function buildCalcCanvas(act, ses, st){
   const firstDay = sp[0];
   const lastDay = sp[1];
   g.fillStyle = '#a98f95'; g.font = '13px ' + FONT;
-  g.fillText(firstDay.replace(/-/g, '.') + ' — ' + lastDay.replace(/-/g, '.') + ' · ' + st.days + ' 天 · ' +
+  g.fillText(firstDay.replace(/-/g, '.') + (ses.startT ? ' ' + ses.startT : '') + ' — ' +
+    lastDay.replace(/-/g, '.') + (ses.endT ? ' ' + ses.endT : '') + ' · ' + st.days + ' 天 · ' +
     (ses.closed ? '已结束' : '进行中'), PAD, yMeta);
 
   /* 四个数字 */
@@ -4147,6 +4203,9 @@ function bindCalc(){
       ses[f] = v;
       if(ses.start && ses.end && ses.end < ses.start) ses.end = ses.start;
       syncSesResDate(ses);
+    }else if(f === 'startT' || f === 'endT'){
+      /* 整点同样属于记录资料，随日期一起改 */
+      ses[f] = validHour(el.value);
     }
     save();
     /* 事件派发过程中不替换容器内的 DOM，避免 blur 与 innerHTML 竞争 */
@@ -4283,16 +4342,78 @@ function applyPayload(obj){
   save();
   return true;
 }
-function openSyncGen(){
+/* ---------- 同步码：deflate 压缩 + base64url，老 TRB2 码照样能读 ---------- */
+function b64urlEncode(u8){
+  let s = '';
+  const CH = 0x8000;
+  for(let i = 0; i < u8.length; i += CH){
+    s += String.fromCharCode.apply(null, u8.subarray(i, i + CH));
+  }
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function b64urlDecode(str){
+  let s = String(str || '').replace(/-/g, '+').replace(/_/g, '/');
+  while(s.length % 4) s += '=';
+  const bin = atob(s);
+  const u8 = new Uint8Array(bin.length);
+  for(let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return u8;
+}
+async function deflateRawBytes(str){
+  const cs = new CompressionStream('deflate-raw');
+  const stream = new Blob([new TextEncoder().encode(str)]).stream().pipeThrough(cs);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+async function inflateRawText(u8){
+  const ds = new DecompressionStream('deflate-raw');
+  const stream = new Blob([u8]).stream().pipeThrough(ds);
+  return await new Response(stream).text();
+}
+async function buildSyncCode(){
+  const json = JSON.stringify(payload());
+  const plainLen = 5 + Math.ceil(new TextEncoder().encode(json).length / 3) * 4;
+  if(typeof CompressionStream === 'function'){
+    try{
+      const bytes = await deflateRawBytes(json);
+      return {code:'TRB3.' + b64urlEncode(bytes), plainLen:plainLen, zipped:true};
+    }catch(e){ /* 压缩失败就退回老格式 */ }
+  }
+  return {code:'TRB2.' + btoa(unescape(encodeURIComponent(json))), plainLen:plainLen, zipped:false};
+}
+async function parseSyncCode(input){
+  let raw = String(input || '').trim().replace(/^["']|["']$/g, '');
+  /* 允许连同「同步码：」前缀、换行、引号一起粘贴：先定位开头，再去掉所有空白 */
+  const at = raw.search(/TRB[123]\./);
+  if(at >= 0){
+    const hit = raw.slice(at).replace(/\s+/g, '').match(/^TRB[123]\.[A-Za-z0-9+/_\-=]+/);
+    raw = hit ? hit[0] : raw.slice(at);
+  }
+  const code = raw.replace(/\s+/g, '');
+  if(!code) throw new Error('EMPTY');
+  if(code.indexOf('TRB3.') === 0){
+    if(typeof DecompressionStream !== 'function') throw new Error('NO_INFLATE');
+    return JSON.parse(await inflateRawText(b64urlDecode(code.slice(5))));
+  }
+  let body = code;
+  if(body.indexOf('TRB2.') === 0 || body.indexOf('TRB1.') === 0) body = body.slice(5);
+  if(body.charAt(0) === '{') return JSON.parse(body);
+  return JSON.parse(decodeURIComponent(escape(atob(body))));
+}
+async function openSyncGen(){
   const d = curData();
   if(!d){ toast('请先新建账号', true); return; }
-  const json = JSON.stringify(payload());
-  const code = 'TRB2.' + btoa(unescape(encodeURIComponent(json)));
+  let pack;
+  try{ pack = await buildSyncCode(); }
+  catch(e){ toast('生成同步码失败，请重试', true); return; }
+  const code = pack.code;
+  const less = pack.zipped && pack.plainLen > code.length
+    ? Math.round((1 - code.length / pack.plainLen) * 100) : 0;
   openModal({
     title:'生成同步码',
-    sub:'复制这段码发给另一台设备，用「读码」即可还原图鉴、资源与记录。码中不含任何账号密码。',
+    sub:'把当前账号压成一段短码，复制给另一台设备，用「读码」还原图鉴、资源与记录。码里不含账号密码。',
     body:'<textarea class="code-area" id="syncBox" readonly>'+esc(code)+'</textarea>' +
-         '<p style="font-size:11px;color:var(--sub);margin:8px 0 0;">长度 '+code.length+' 字符</p>',
+         '<p style="font-size:11px;color:var(--sub);margin:8px 0 0;">长度 ' + fmtNum(code.length) + ' 字符' +
+         (less ? ' · 压缩后比原来短 ' + less + '%（原 ' + fmtNum(pack.plainLen) + ' 字符）' : '') + '</p>',
     actions:[
       {text:'关闭', cls:'btn', onClick:closeModal},
       {text:'复制同步码', cls:'btn primary', onClick:function(){
@@ -4307,24 +4428,24 @@ function openSyncGen(){
 function openSyncRead(){
   openModal({
     title:'读取同步码',
-    sub:'把另一台设备生成的同步码粘贴进来。读取后会覆盖当前账号的图鉴、资源与记录。',
-    body:'<textarea id="syncIn" placeholder="TRB2.xxxxxxxx" style="min-height:92px;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;word-break:break-all;"></textarea>',
+    sub:'粘贴另一台设备生成的同步码（TRB3 / TRB2 都认）。读取后会覆盖当前账号的图鉴、资源与记录。',
+    body:'<textarea id="syncIn" placeholder="TRB3.xxxxxxxx" style="min-height:92px;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;word-break:break-all;"></textarea>',
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
       {text:'读取并覆盖', cls:'btn primary', onClick:function(){
-        let code = ($('#syncIn').value || '').trim();
-        if(!code){ toast('请先粘贴同步码', true); return; }
-        if(code.indexOf('TRB2.') === 0) code = code.slice(5);
-        else if(code.indexOf('TRB1.') === 0) code = code.slice(5);
-        let obj = null;
-        try{
-          obj = JSON.parse(decodeURIComponent(escape(atob(code))));
-        }catch(e){
-          try{ obj = JSON.parse(code); }catch(e2){ toast('同步码无法解析', true); return; }
-        }
-        if(applyPayload(obj)){
-          closeModal(); renderAll(); toast('已读取同步码，数据已更新');
-        }
+        const btn = this;
+        const raw = ($('#syncIn').value || '').trim();
+        if(!raw){ toast('请先粘贴同步码', true); return; }
+        btn.disabled = true;
+        parseSyncCode(raw).then(function(obj){
+          if(applyPayload(obj)){
+            closeModal(); renderAll(); toast('已读取同步码，数据已更新');
+          }
+        }).catch(function(err){
+          toast(err && err.message === 'NO_INFLATE'
+            ? '这段码需要解压，请用新版 Chrome / Edge / Safari 打开'
+            : '同步码无法解析，确认有没有复制完整', true);
+        }).then(function(){ btn.disabled = false; });
       }}
     ]
   });
@@ -4363,6 +4484,8 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.9 同步码短了一大截','<p>同步码现在<b>先压缩再编码</b>：同样是 130 振 + 资源 + 活动记录 + 变动记录的数据，从 3 万多字符缩到 5 千字符左右（约短 85%），复制、粘贴都轻快很多。粘贴时中间被换行断开、带着「同步码：」前缀、两边有引号都能认；老的 TRB2 码照样能读，浏览器不支持压缩时会自动退回旧格式。</p>','2026.11'],
+    ['V2.8 活动起止带整点','<p>活动记录的开始 / 结束现在能连<b>整点</b>一起选（00:00–23:00）：新建记录时开始默认 <b>15:00</b>、结束默认 <b>12:00</b>，也可以改成 16:00 等；建好后在记录上方或「✎ 记录资料」里都能改。填了起止整点后，「共 X 天 Y 小时」按真实时长算，历史总表和分享图也会带上时间；点「结束本次活动」如果还没填结束时间，会自动补 12:00。</p>','2026.11'],
     ['V2.7 置顶固定按编号','<p>多振同时收藏置顶时，置顶区内部<b>固定按编号升序</b>排列（No.005 → No.060 → No.120），不再跟着「等级 / 乱舞 / 名称」这些排序变来变去；置顶之后的普通卡片仍按你选的排序。</p>','2026.11'],
     ['V2.6 收藏置顶','<p>每张卡片左上角多了一颗星：点一下就把这振<b>收藏置顶</b>，卡片加金色边、列表里永远排在最前；<b>可以同时置顶多振</b>，置顶之间按编号升序排列。再点一次取消置顶，顶部会显示「⭐ 置顶 N」。置顶会跟着导出、导入、同步码一起走。</p>','2026.11'],
     ['V2.5 输入一个字就能挑刀','<p>「＋ 新增刀剑」的名称框现在<b>边打边列候选</b>：输「小」就列出刀帐里所有名字带小的刀（小狐丸、小竜景光、小夜左文字、小烏丸、小豆長光…），每行标着 <b>花数</b> 和当前状态（已在图鉴 / 未拥有 / 图鉴没有），<b>点一行就按刀帐反填</b>。列表最后一项是「都不对，把「小」作为新刀添加」，想加刀帐外的刀就点它。</p>','2026.11'],
@@ -4397,7 +4520,7 @@ function openNotice(){
     ['排班计划已移除','<p>按你的要求删掉了「排班计划」模块，侧栏现在是图鉴、资源记录、活动记录三块，界面更清爽。</p>','变更'],
     ['乱舞写成 10 就是 MAX','<p>表格里的「✓」统一按乱舞 10 录入，下拉框显示为「10 ✓」；筛选里可以直接挑「乱舞 MAX」。</p>','小贴士'],
     ['资源记录会自动算增长','<p>木炭、玉钢、冷却材、砥石、小判五项，每次保存都会和上一条对比，红色是增加、绿色是减少，还能看到从第一条到现在的累计变化。</p>','小贴士'],
-    ['换设备不用重来','<p>「同步码」把当前账号打包成一段字符，在新设备粘贴即可还原；「导出」会生成 JSON 备份文件。</p>','小贴士']
+    ['换设备不用重来','<p>「同步码」把当前账号压缩打包成一段字符（TRB3，比原来短约 85%），在新设备粘贴即可还原；「导出」会生成 JSON 备份文件。</p>','小贴士']
   ];
   openModal({
     title:'📢 公告与更新',
