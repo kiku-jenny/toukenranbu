@@ -927,7 +927,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞本丸管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.23</div>
+        <div class="brand-sub">HONMARU KEEPER V2.24</div>
       </div>
     </div>
 
@@ -4022,13 +4022,17 @@ function openSwordRestore(no){
                      type: TYPES.indexOf($('#srType').value) >= 0 ? $('#srType').value : '打刀',
                      k:0, r:1, rp:0, lv:1, exp:0, src:'',
                      fl: clampNum($('#srFl').value, 0, 6, 0), own:1};
+        const beforeR = d.tw.length;
         d.tw.push(row);
         d.tw.sort(function(a, b){ return a.no - b.no; });
         if(!Array.isArray(d.open)) d.open = [];
         if(d.open.indexOf(no) < 0) d.open.push(no);
+        pushLog({kind:'new', no:no, name:row.name,
+                 act:(curAct() && curAct().name) || '', ses:(curSes() && curSes().name) || '',
+                 changes:[{f:'roster', from:beforeR, to:d.tw.length}]});
         save(); closeModal();
         renderCatalog(); renderStats(); renderFilters(); renderSidebar(); renderCalc();
-        toast('「' + row.name + '」已补录回图鉴');
+        toast('「' + row.name + '」已补录回图鉴 · 刀帐 ' + beforeR + '→' + d.tw.length);
       }}
     ]
   });
@@ -4051,7 +4055,7 @@ function calcNewSwordFromCalc(){
         '<label class="fld full"><span>名称</span><input type="text" id="csName" maxlength="20" placeholder="如 山姥切国広" value="' + esc(preName.slice(0, 20)) + '"></label>' +
         '<label class="fld"><span>刀种</span><select id="csType">' + typeOptions('打刀') + '</select></label>' +
         '</div>' +
-        '<p class="calc-form-tip">花数之后还能在掉落明细里点名字改；不确定就先选「未知」。</p>',
+        '<p class="calc-form-tip" id="csTip">花数之后还能在掉落明细里点名字改；不确定就先选「未知」。</p>',
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
       {text:'补录并登记', cls:'btn primary', onClick:function(){
@@ -4137,6 +4141,36 @@ function calcNewSwordFromCalc(){
       }}
     ]
   });
+  /* 边输边提示：这次到底是「新增」还是「标记已有」，免得补完以为没记日志 */
+  const csN = $('#csName'), csTip = $('#csTip');
+  const csBtn = document.querySelector('#modalRoot .modal-foot .btn.primary');
+  const csHint = function(){
+    if(!csN || !csTip) return;
+    const nm = (csN.value || '').trim();
+    if(!nm){
+      csTip.textContent = '花数之后还能在掉落明细里点名字改；不确定就先选「未知」。';
+      if(csBtn) csBtn.textContent = '补录并登记';
+      return;
+    }
+    const raw = rawOfInput('', nm);
+    const ex = d.tw.filter(function(x){ return x.name === nm; })[0] ||
+               (raw ? d.tw.filter(function(x){ return x.no === raw.no; })[0] : null);
+    if(ex){
+      csTip.innerHTML = '图鉴里已经有「' + esc(ex.name) + '」' +
+        (Number(ex.own) === 0 ? '（未拥有）' : '') +
+        '，保存后只标记为已拥有并登记，不会新增，也不记「新刀」日志。';
+      if(csBtn) csBtn.textContent = '标记并登记';
+    }else if(raw){
+      csTip.innerHTML = '刀帐里有「' + esc(raw.name) + '」（No.' + padNo(raw.no) +
+        '），保存后按刀帐补回图鉴并登记，记一条「新刀」日志。';
+      if(csBtn) csBtn.textContent = '补回并登记';
+    }else{
+      csTip.innerHTML = '会作为新刀补进图鉴（刀帐 +1），并记一条「新刀」日志。';
+      if(csBtn) csBtn.textContent = '补录并登记';
+    }
+  };
+  if(csN) csN.addEventListener('input', csHint);
+  csHint();
   setTimeout(function(){ const el = $('#csName'); if(el){ el.focus(); el.select(); } }, 60);
 }
 
@@ -5053,6 +5087,7 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.24 活动里补录的刀一定留日志','<p>从活动记录补刀有两条路：<b>＋ 图鉴没有？补录一把</b>、以及点掉落明细里的刀名补回来。前者本来就有日志，后者（图鉴里被删过的刀）以前补完不写；现在两条都会记一条 <b>新刀</b>，写 <b>刀帐变动 N→N+1</b>、变动值 <b style="color:#c2455e">+1</b>。补录弹窗还会边输边说明这次是「新刀入库」还是「图鉴里已有，只标记为已拥有」——后一种不会新增，所以不记新刀日志，免得误以为漏记。</p>','2026.11'],
     ['V2.23 刀帐统一按总数显示','<p>新增弹窗只写「刀帐（当前 N 振）」，候选列表也不再多加小标，所有刀一视同仁。后续游戏上新刀，直接按正常流程加进图鉴就行，检索、计数、筛选都会自动跟上。</p>','2026.11'],
     ['V2.22 新增弹窗按当前全部刀检索','<p>「＋ 新增刀剑」以前只查内置的 130 振：已经入过图鉴的刀再输一次，会提示「130 振刀帐里没有」，数字也永远停在 130。现在检索覆盖图鉴里<b>当前的全部刀</b>，提示里的振数按实际数量算（例如 132 振）。输入已有的名字或编号，会直接命中那一振并提示「已在图鉴」或「未拥有 → 保存后改成已拥有」，不会再误加一条同名记录。候选列表会列出全部命中的刀，花数取它自己填的值。</p>','2026.11'],
     ['V2.21 日志改为一页 10 条','<p>日志明细从每页 20 条改成 <b>10 条</b>，翻页更快、单页不用滚太久；页码条右侧仍会写「第 X / Y 页 · 每页 10 条」。切换筛选、搜索关键字、增删日志时都会自动回到第 1 页，不会停在空白页上。</p>','2026.11'],
