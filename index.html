@@ -927,7 +927,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞本丸管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.24</div>
+        <div class="brand-sub">HONMARU KEEPER V2.25</div>
       </div>
     </div>
 
@@ -1826,6 +1826,17 @@ function normalize(d){
     // 已极化的必然已开放，做一次并集，避免历史数据不一致
     d.tw.forEach(function(x){ if(x.k === 1 && d.open.indexOf(x.no) < 0) d.open.push(x.no); });
   }
+  /* V2.25：旧版会把新增的刀默认算成「已开放极化」，这里一次性纠正回未开放。
+     只保留内置开放名单里的刀，以及确实已经极化的刀；之后新增的刀不再自动开放。 */
+  if(!d.openFix){
+    const base = {};
+    (typeof seedOpen === 'function' ? seedOpen() : []).forEach(function(no){ base[Number(no)] = 1; });
+    d.open = d.open.filter(function(no){
+      const row = d.tw.filter(function(x){ return x.no === no; })[0];
+      return base[no] || (row && row.k === 1);
+    });
+    d.openFix = 1;
+  }
   if(!Array.isArray(d.res)) d.res = seedRes();
   if(!Array.isArray(d.records)) d.records = [];
   d.calc = normCalc(d.calc);
@@ -2545,6 +2556,12 @@ function showSwordAfterAdd(no){
   if(ui.own === '1' && Number(row.own) === 0){ ui.own = ''; relax = true; }
   if(ui.own === '0' && Number(row.own) !== 0){ ui.own = ''; relax = true; }
   if(ui.type && ui.type !== row.type){ ui.type = ''; relax = true; }
+  /* 新增的刀默认极化未开放，极化档位对不上就先放宽，免得新刀藏在筛掉的列表里 */
+  const isKw = Number(row.k) === 1, opened = isOpen(no);
+  if(ui.kiwame === '1' && !isKw){ ui.kiwame = ''; relax = true; }
+  if(ui.kiwame === '0' && isKw){ ui.kiwame = ''; relax = true; }
+  if(ui.kiwame === 'na' && opened){ ui.kiwame = ''; relax = true; }
+  if(ui.kiwame === 'open' && (!opened || isKw)){ ui.kiwame = ''; relax = true; }
   if(ui.q && row.name.toLowerCase().indexOf(String(ui.q).toLowerCase()) < 0){
     ui.q = '';
     const el = $('#fSearch');
@@ -2593,7 +2610,8 @@ function openAddSword(){
         '<label class="fld"><span>总经验</span><input type="number" id="aswExp" min="0" max="999999999" step="any" value="0"></label>' +
         '<label class="fld"><span>获取方式</span><input type="text" id="aswSrc" maxlength="24" placeholder="如 8-4王点"></label>' +
         '<label class="fld"><span>乱舞进度</span><input type="number" id="aswRp" min="0" max="999" step="1" value="0"></label>' +
-      '</div>',
+      '</div>' +
+      '<p class="calc-form-tip">新增的刀默认<b>极化未开放</b>，之后在「⚙ 极化开放」里勾选才能点「极」；本次直接填「极」会自动加入名单。</p>',
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
       {text:'保存并入库', cls:'btn primary', onClick:function(){
@@ -2659,13 +2677,14 @@ function openAddSword(){
         d.tw.push(row);
         d.tw.sort(function(a,b){ return a.no - b.no; });
         if(!Array.isArray(d.open)) d.open = [];
-        /* 新入库的刀默认算「已开放极化」，否则卡片里的「极」点不了 */
-        if(d.open.indexOf(no) < 0) d.open.push(no);
+        /* 新入库的刀默认「极化未开放」，只有这次直接选了「极」才顺带开放 */
+        if(k === 1 && d.open.indexOf(no) < 0) d.open.push(no);
         pushLog({kind:'new', no:row.no, name:row.name,
                  changes:[{f:'roster', from:before, to:d.tw.length}]});
         save(); closeModal();
         showSwordAfterAdd(row.no); renderSidebar();
         toast('「' + row.name + '」已入库 · ' + (row.own ? '已拥有' : '未拥有') +
+              ' · 极化' + (k === 1 ? '已开放' : '未开放') +
               ' · 刀帐 ' + before + '→' + d.tw.length);
       }}
     ]
@@ -4012,7 +4031,7 @@ function openSwordRestore(no){
         '<label class="fld full"><span>名称</span><input type="text" id="srName" maxlength="20" placeholder="这把刀的名字"></label>' +
         '<label class="fld"><span>刀种</span><select id="srType">' + typeOptions('打刀') + '</select></label>' +
         '</div>' +
-        '<p class="calc-form-tip">补录后会按「乱舞 1、普、Lv1」重新进图鉴，掉落次数保持不变。</p>',
+        '<p class="calc-form-tip">补录后会按「乱舞 1、普、Lv1」重新进图鉴，极化默认<b>未开放</b>，掉落次数保持不变。</p>',
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
       {text:'补录回图鉴', cls:'btn primary', onClick:function(){
@@ -4025,8 +4044,8 @@ function openSwordRestore(no){
         const beforeR = d.tw.length;
         d.tw.push(row);
         d.tw.sort(function(a, b){ return a.no - b.no; });
+        /* 补录的刀按普刀重建，极化保持未开放 */
         if(!Array.isArray(d.open)) d.open = [];
-        if(d.open.indexOf(no) < 0) d.open.push(no);
         pushLog({kind:'new', no:no, name:row.name,
                  act:(curAct() && curAct().name) || '', ses:(curSes() && curSes().name) || '',
                  changes:[{f:'roster', from:beforeR, to:d.tw.length}]});
@@ -4120,8 +4139,7 @@ function calcNewSwordFromCalc(){
                  ses:(curSes() && curSes().name) || '',
                  changes:[{f:'roster', from:beforeC, to:d.tw.length}]});
         d.tw.sort(function(a, b){ return a.no - b.no; });
-        if(!Array.isArray(d.open)) d.open = [];
-        if(d.open.indexOf(no) < 0) d.open.push(no);
+        /* 补录的新刀默认极化未开放 */
         save(); closeModal();
         renderCatalog(); renderStats(); renderFilters(); renderSidebar();
         const ses = curSes();
@@ -4227,7 +4245,7 @@ function addDrop(){
     const pk = $('#calcPicker');
     if(pk) pk.classList.add('has-text');
     justAdded = true;
-    addedTip = ' · ＋ 新刀已补录（普刀 · 乱舞 1 · Lv1，下次登记开始喂乱舞）';
+    addedTip = ' · ＋ 新刀已补录（普刀 · 乱舞 1 · Lv1 · 极化未开放，下次登记开始喂乱舞）';
     renderCatalog();
   }
   const day = calcDayKey();
@@ -5087,6 +5105,7 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.25 新增的刀默认极化未开放','<p>从「＋ 新增刀剑」「活动里补录」「掉落明细里补回」入库的刀，极化一律先按<b>未开放</b>处理：卡片上会标「未开放」，「✎ 修改」里的「极」暂时点不了，极化进度环也只统计已开放的刀。等游戏真的开了这一振的极化，去「⚙ 极化开放」里勾上就能选「极」。若是新增时直接就把极化填成「极」，说明这振已经开过极化，会自动补进开放名单，不会出现「极化却是未开放」的矛盾状态。</p><p>升级后还会做一次纠正：以前因为新增被自动算成「已开放」的刀，会退回<b>未开放</b>（确实已经极化的刀不受影响）。如果你之前手动勾过某把新刀，升级后再勾一次即可。</p>','2026.11'],
     ['V2.24 活动里补录的刀一定留日志','<p>从活动记录补刀有两条路：<b>＋ 图鉴没有？补录一把</b>、以及点掉落明细里的刀名补回来。前者本来就有日志，后者（图鉴里被删过的刀）以前补完不写；现在两条都会记一条 <b>新刀</b>，写 <b>刀帐变动 N→N+1</b>、变动值 <b style="color:#c2455e">+1</b>。补录弹窗还会边输边说明这次是「新刀入库」还是「图鉴里已有，只标记为已拥有」——后一种不会新增，所以不记新刀日志，免得误以为漏记。</p>','2026.11'],
     ['V2.23 刀帐统一按总数显示','<p>新增弹窗只写「刀帐（当前 N 振）」，候选列表也不再多加小标，所有刀一视同仁。后续游戏上新刀，直接按正常流程加进图鉴就行，检索、计数、筛选都会自动跟上。</p>','2026.11'],
     ['V2.22 新增弹窗按当前全部刀检索','<p>「＋ 新增刀剑」以前只查内置的 130 振：已经入过图鉴的刀再输一次，会提示「130 振刀帐里没有」，数字也永远停在 130。现在检索覆盖图鉴里<b>当前的全部刀</b>，提示里的振数按实际数量算（例如 132 振）。输入已有的名字或编号，会直接命中那一振并提示「已在图鉴」或「未拥有 → 保存后改成已拥有」，不会再误加一条同名记录。候选列表会列出全部命中的刀，花数取它自己填的值。</p>','2026.11'],
