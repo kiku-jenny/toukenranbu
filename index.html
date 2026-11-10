@@ -854,7 +854,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞本丸管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.6</div>
+        <div class="brand-sub">HONMARU KEEPER V2.7</div>
       </div>
     </div>
 
@@ -1745,9 +1745,12 @@ function sortedRows(list){
   else if(ui.sort === 'ranbuDesc') arr.sort(function(a,b){ return b.r - a.r || a.no - b.no; });
   else if(ui.sort === 'name') arr.sort(function(a,b){ return a.name.localeCompare(b.name, 'zh'); });
   else arr.sort(function(a,b){ return a.no - b.no; });
-  /* 收藏（置顶）的永远排最前，可以有多振，它们之间沿用上面的排序 */
+  /* 收藏（置顶）的永远排最前，可以有多振；置顶之间固定按编号升序，不随上方排序变化 */
   const favs = arr.filter(function(x){ return Number(x.fav) === 1; });
-  if(favs.length) return favs.concat(arr.filter(function(x){ return Number(x.fav) !== 1; }));
+  if(favs.length){
+    favs.sort(function(a,b){ return a.no - b.no; });
+    return favs.concat(arr.filter(function(x){ return Number(x.fav) !== 1; }));
+  }
   return arr;
 }
 
@@ -2464,6 +2467,8 @@ function renderCatalog(){
   }
   renderStats();
   renderFilters();
+  const fSortEl = $('#fSort');
+  if(fSortEl && fSortEl.value !== ui.sort) fSortEl.value = ui.sort;
   const list = sortedRows(filteredRows());
   const ownedN = d.tw.filter(function(x){ return Number(x.own) !== 0; }).length;
   const favN = d.tw.filter(function(x){ return Number(x.fav) === 1; }).length;
@@ -4358,7 +4363,8 @@ function closeModal(){
 
 function openNotice(){
   const items = [
-    ['V2.6 收藏置顶','<p>每张卡片左上角多了一颗星：点一下就把这振<b>收藏置顶</b>，卡片加金色边、列表里永远排在最前；<b>可以同时置顶多振</b>，它们之间还是按你选的排序（编号 / 等级 / 乱舞…）排。再点一次取消置顶，顶部会显示「⭐ 置顶 N」。置顶会跟着导出、导入、同步码一起走。</p>','2026.11'],
+    ['V2.7 置顶固定按编号','<p>多振同时收藏置顶时，置顶区内部<b>固定按编号升序</b>排列（No.005 → No.060 → No.120），不再跟着「等级 / 乱舞 / 名称」这些排序变来变去；置顶之后的普通卡片仍按你选的排序。</p>','2026.11'],
+    ['V2.6 收藏置顶','<p>每张卡片左上角多了一颗星：点一下就把这振<b>收藏置顶</b>，卡片加金色边、列表里永远排在最前；<b>可以同时置顶多振</b>，置顶之间按编号升序排列。再点一次取消置顶，顶部会显示「⭐ 置顶 N」。置顶会跟着导出、导入、同步码一起走。</p>','2026.11'],
     ['V2.5 输入一个字就能挑刀','<p>「＋ 新增刀剑」的名称框现在<b>边打边列候选</b>：输「小」就列出刀帐里所有名字带小的刀（小狐丸、小竜景光、小夜左文字、小烏丸、小豆長光…），每行标着 <b>花数</b> 和当前状态（已在图鉴 / 未拥有 / 图鉴没有），<b>点一行就按刀帐反填</b>。列表最后一项是「都不对，把「小」作为新刀添加」，想加刀帐外的刀就点它。</p>','2026.11'],
     ['V2.4 未拥有的刀也能记了','<p>图鉴多了<b>拥有状态</b>：卡片右上会挂「未拥有」、整张压暗；筛选里新增「拥有」一栏（全部 / 已拥有 / 未拥有，都带振数），顶部也会显示 <b>已拥有 x / 全 y</b>。点「✎ 修改」里的<b>状态</b>就能在已拥有 / 未拥有之间切，改动会记进变动记录。「📋 填入 130 振刀帐」铺出来的刀默认都是未拥有。</p>','2026.11'],
     ['V2.4 新增刀剑先查刀帐','<p>「＋ 新增刀剑」现在先输名称或编号，自动查 130 振刀帐：<b>刀帐里有的</b>直接反填刀种和花数——图鉴里没有就按刀帐补回，标着未拥有就改成已拥有，已经有的会提示不重复新增；<b>刀帐里没有的</b>才作为新刀入库（编号留空自动排最后）。</p>','2026.11'],
