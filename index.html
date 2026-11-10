@@ -350,17 +350,24 @@
   .card-del:hover{background:#fdeeee;border-color:#e3b6b6;color:#c25151;}
   /* 极化后等级预估 */
   .kw-pre{
-    display:flex;align-items:center;gap:5px;margin-top:9px;padding:5px 8px;
+    display:flex;flex-wrap:wrap;align-items:center;gap:2px 5px;margin-top:9px;padding:5px 8px;
     border-radius:8px;background:#fdf3f6;border:1px dashed #f1d2da;
     font-size:10px;color:#a98f95;letter-spacing:.02em;line-height:1.4;
-    white-space:nowrap;overflow:hidden;
   }
   .kw-pre span{flex:0 0 auto;}
   .kw-pre b{flex:0 0 auto;font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--accent-deep);}
   .kw-pre i{
-    margin-left:auto;min-width:0;font-style:normal;font-size:9px;color:#bda4ab;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    flex:1 0 100%;min-width:0;font-style:normal;font-size:9px;color:#bda4ab;
+    text-align:right;white-space:nowrap;
   }
+  .kw-pre i.kw-left{color:#9b8b90;}
+  .kw-pre i.kw-left.done{color:#5f9a74;}
+  .kw-swap{
+    flex:0 0 auto;margin-left:auto;width:18px;height:18px;padding:0;border-radius:50%;
+    border:1px solid #efcdd7;background:#fff;color:var(--accent-deep);
+    font-size:10px;line-height:1;cursor:pointer;transition:.15s;
+  }
+  .kw-swap:hover{background:#fdeef2;border-color:var(--accent);}
   .fld select{
     width:100%;padding:5px 6px;border:1px solid var(--line);border-radius:7px;background:#fff;
     font-size:11.5px;color:var(--ink);outline:none;transition:.15s;
@@ -849,7 +856,7 @@
     .ring{width:56px;height:56px;flex-basis:56px;}
     .ring-txt{width:56px;height:56px;font-size:11px;}
     .progress-card::after{display:none;}      /* 小屏水印会压住右侧统计 */
-    .kw-pre i{display:none;}                  /* 卡片窄，只留「极化后预估 Lv N」 */
+    .kw-pre{font-size:9.5px;}
   }
 </style>
 </head>
@@ -864,7 +871,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞本丸管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.9</div>
+        <div class="brand-sub">HONMARU KEEPER V2.13</div>
       </div>
     </div>
 
@@ -1333,18 +1340,28 @@ const WEEK = ['周一','周二','周三','周四','周五','周六','周日'];
    ========================================================= */
 const CUM_SHORT = [0,588,1305,2194,3296,4653,6307,8300,10673,13468,16727,20491,24802,29702,35233,41436,48354,56027,64498,73808,84000,95114,107193,120278,134411,149634,165989,183517,202260,222260,307195,454335,660950,924310,1241685,1610345,2027560,2490600,2996735,3543235,4127370,4746410,5397625,6078285,6785660,7517020,8269635,9040775,9827710,10627710,11429400,12233306,13039953,13849865,14663567,15481584,16304441,17132662,17966772,18807296,19654759,20509686,21372601,22244029,23124495,24014524,24914640,25825368,26747233,27680760,28626474,29584899,30556560,31541982,32541690,33556208,34586062,35631776,36693875,37772883,38869326,39983728,41116614,42268509,43439937,44631423,45843492,47076669,48331479,49608446,50908096,52230953,53577541,54948386,56344012,57764944,59211707,60684826,62184826,63712232];
 const DELTA_100_199 = 95898554;
-/* ded = 极化门槛扣除量（普99 与 极99 的差值） */
+/* ded = 极化门槛扣除量（普99 与 极99 的差值）
+   打刀按花数分两条经验条：2 花普打 → 3 花极打（1.2），3 花普打 → 4 花极打（1.3），
+   两条的极化门槛相同（打刀 70 级 = 648,800）。花数没设时先按 3 花打算。 */
 const EXP_TYPES = {
-  '短刀':  {f:1.0, ded:445300},
-  '胁差':  {f:1.1, ded:540800},
-  '枪':    {f:1.1, ded:540800},
-  '薙刀':  {f:1.1, ded:540800},
-  '打刀':  {f:1.3, ded:648800},   // 按三花普打 → 四花极打
-  '太刀':  {f:1.4, ded:770800},
-  '大太刀':{f:1.5, ded:907800}
+  '短刀':  {f:1.0, ded:445300, label:'短刀'},
+  '胁差':  {f:1.1, ded:540800, label:'胁差'},
+  '枪':    {f:1.1, ded:540800, label:'枪'},
+  '薙刀':  {f:1.1, ded:540800, label:'薙刀'},
+  '打刀':  {f:1.3, ded:648800, label:'3花打'},
+  '太刀':  {f:1.4, ded:770800, label:'太刀'},
+  '大太刀':{f:1.5, ded:907800, label:'大太刀'},
+  '剑':    {f:1.5, ded:907800, label:'剑'}      // 剑与大太刀同一条经验条
 };
-function cumExp(type, lv){
-  const m = EXP_TYPES[type];
+function expProfile(type, fl){
+  const t = String(type || '');
+  const base = EXP_TYPES[t];
+  if(!base) return null;
+  if(t === '打刀' && Number(fl) === 2) return {f:1.2, ded:base.ded, label:'2花打'};
+  return base;
+}
+function cumExp(type, lv, fl){
+  const m = expProfile(type, fl);
   if(!m) return 0;
   if(lv <= 1) return 0;
   if(lv <= 100) return Math.round(CUM_SHORT[lv-1] * m.f);
@@ -1352,28 +1369,168 @@ function cumExp(type, lv){
   return c100 + Math.round(DELTA_100_199 * (Math.min(lv,199) - 100) / 99);
 }
 /* 普刀：按总经验推算极化后的等级（1-199） */
-function kiwameLv(type, exp){
-  const m = EXP_TYPES[type];
-  if(!m) return null;                       // 剑等无极化刀种不估算
+function kiwameLv(type, exp, fl){
+  const m = expProfile(type, fl);
+  if(!m) return null;                       // 没有经验条配置的刀种不估算
   const after = Math.max(0, Number(exp) || 0) - m.ded;
-  if(after <= 0) return {lv:1, after:0};
+  if(after <= 0) return {lv:1, after:0, ded:m.ded, label:m.label};
   let lo = 1, hi = 199, ans = 1;
   while(lo <= hi){
     const mid = (lo + hi) >> 1;
-    if(cumExp(type, mid) <= after){ ans = mid; lo = mid + 1; }
+    if(cumExp(type, mid, fl) <= after){ ans = mid; lo = mid + 1; }
     else hi = mid - 1;
   }
-  return {lv:ans, after:after};
+  return {lv:ans, after:after, ded:m.ded, label:m.label};
 }
-/* 卡片里的「极化后预估」小条 */
-function estHTML(type, exp){
-  const est = kiwameLv(type, exp);
+/* 极化满级（Lv199）所需的总经验 */
+function expMaxTotal(type, fl){
+  const m = expProfile(type, fl);
+  if(!m) return 0;
+  return cumExp(type, 199, fl) + m.ded;
+}
+/* 已极化刀：按极化后的累计经验查等级（不扣极化门槛） */
+function lvFromRawExp(type, exp, fl){
+  const m = expProfile(type, fl);
+  if(!m) return 1;
+  const v0 = Math.max(0, Number(exp) || 0);
+  if(v0 <= 0) return 1;
+  let lo = 1, hi = 199, ans = 1;
+  while(lo <= hi){
+    const mid = (lo + hi) >> 1;
+    if(cumExp(type, mid, fl) <= v0){ ans = mid; lo = mid + 1; }
+    else hi = mid - 1;
+  }
+  return ans;
+}
+/* 卡片小条：
+   普刀 → 「极化后预估 Lv N」+ 距 Lv199 还差多少总经验（含极化门槛）
+   已极化 → 「极化 Lv N」+ 距 Lv199 还差多少极化经验（不含门槛） */
+function estHTML(type, exp, fl, opt){
+  const est = kiwameLv(type, exp, fl);
   if(!est) return '';
-  const ded = EXP_TYPES[type].ded;
-  const tip = '总经验 ' + fmtNum(exp) + ' − 极化门槛 ' + fmtNum(ded) + ' = ' + fmtNum(est.after) +
-              '，按' + type + '经验条为 Lv ' + est.lv;
-  return '<div class="kw-pre" data-pre="1" title="' + esc(tip) + '"><span>极化后预估</span><b>Lv ' + est.lv + '</b>' +
-         '<i>总经验 − ' + fmtNum(ded) + '</i></div>';
+  opt = opt || {};
+  const k = opt.k === 1 ? 1 : 0;
+  const m = expProfile(type, fl);
+  let lv, cap, at;
+  if(k === 1){
+    /* 已极化：等级是准的，经验只作记录；距离一律按等级算，避免旧数据串味 */
+    lv = clampNum(opt.lv, 1, 199, lvFromRawExp(type, exp, fl));
+    cap = cumExp(type, 199, fl);
+    at = cumExp(type, lv, fl);
+  }else{
+    lv = est.lv;
+    cap = expMaxTotal(type, fl);
+    at = Number(exp) || 0;
+  }
+  const left = Math.max(0, cap - at);
+  const unsure = k === 0 && String(type) === '打刀' && !(Number(fl) > 0);
+  const tip = k === 1
+    ? '已极化 · 当前 Lv ' + lv + '（' + est.label + ' 经验条，已填极化经验 ' + fmtNum(exp) + '），距 Lv199 还需 ' +
+      fmtNum(left) + ' 极化后经验；Lv199 共需 ' + fmtNum(cap) + '（不含极化门槛 ' + fmtNum(m.ded) + '）'
+    : '总经验 ' + fmtNum(exp) + ' − 极化门槛 ' + fmtNum(m.ded) + ' = ' + fmtNum(est.after) +
+      '，按' + est.label + '经验条为 Lv ' + est.lv +
+      '；极化满级 Lv199 共需 ' + fmtNum(cap) + ' 总经验，还差 ' + fmtNum(left) +
+      (unsure ? '（花数未设，暂按 3 花打算；2 花打请先选花数）' : '');
+  return '<div class="kw-pre" data-pre="1" title="' + esc(tip) + '">' +
+         '<span>' + (k === 1 ? '极化' : '极化后预估') + '</span><b>Lv ' + lv + '</b>' +
+         (opt.editable && opt.no ? '<button class="kw-swap" data-act="expcalc" data-no="' + opt.no +
+           '" title="按' + (k === 1 ? '极化后等级' : '目标极化等级') + '反填经验">⇄</button>' : '') +
+         '<i class="kw-left' + (left ? '' : ' done') + '">' +
+           (left ? '距 Lv199 还需 ' + fmtNum(left) : '已达 Lv199') + '</i>' +
+         '</div>';
+}
+
+/* 把换算结果写回编辑态：exp 必填，lv 只在已极化时一起写 */
+function applyExpToDraft(no, val, lvVal){
+  const draft = ui.edit[no];
+  if(!draft) return;
+  draft.exp = val;
+  if(lvVal) draft.lv = clampNum(lvVal, 1, draft.k === 1 ? 199 : 99, draft.lv);
+  const card = document.querySelector('#grid .card[data-no="' + no + '"]');
+  if(card){
+    const inp = card.querySelector('input[data-f="exp"]');
+    if(inp) inp.value = val;
+    if(lvVal){
+      const lvInp = card.querySelector('input[data-f="lv"]');
+      if(lvInp) lvInp.value = draft.lv;
+    }
+    refreshEstimate(card, draft);
+  }
+}
+/* 极化经验双向换算：
+   普刀 → 填「目标极化等级」算总经验（含门槛）
+   已极化 → 填等级算极化经验、填经验算等级（不含门槛），确认后两者一起写回 */
+function openExpCalc(no){
+  const draft = ui.edit[no];
+  if(!draft) return;
+  const m = expProfile(draft.type, draft.fl);
+  if(!m){ toast('这个刀种没有极化经验条', true); return; }
+  const isK = draft.k === 1;
+  const ded = isK ? 0 : m.ded;
+  const cap = cumExp(draft.type, 199, draft.fl) + ded;
+  const lv0 = isK
+    ? clampNum(draft.lv, 1, 199, 1)
+    : (kiwameLv(draft.type, draft.exp, draft.fl) || {lv:1}).lv;
+  const cur = isK
+    ? Math.max(Number(draft.exp) || 0, cumExp(draft.type, lv0, draft.fl))
+    : clampFloat(draft.exp, 0, RES_MAX, 0);
+  const needFor = function(lv){ return cumExp(draft.type, lv, draft.fl) + ded; };
+  const lvFor = function(v){
+    return isK ? lvFromRawExp(draft.type, v, draft.fl)
+               : (kiwameLv(draft.type, v, draft.fl) || {lv:1}).lv;
+  };
+  const expName = isK ? '极化经验' : '总经验';
+  const flTxt = m.label === '2花打' ? '（2 花）' : '';
+  openModal({
+    title: isK ? '极化等级换算' : '极化经验换算',
+    sub: draft.type + flTxt + ' · 经验条 ×' + m.f +
+         (isK ? ' · 已极化，按极化后经验条算（不含极化门槛 ' + fmtNum(m.ded) + '）'
+              : ' · 极化门槛 ' + fmtNum(m.ded)) +
+         '。填等级能算出需要多少经验，填经验能算出等级，确认后写回这振的' + expName + '。',
+    body:'<div class="add-grid">' +
+        '<label class="fld full"><span>' + (isK ? '极化后等级（1–199）' : '目标极化等级（1–199）') + '</span>' +
+          '<input type="number" id="ecLv" min="1" max="199" step="1" value="' + lv0 + '"></label>' +
+        '<label class="fld full"><span>' + expName + '</span>' +
+          '<input type="number" id="ecExp" min="0" max="' + RES_MAX + '" step="any" value="' + cur + '"></label>' +
+        '</div>' +
+        '<p class="calc-form-tip" id="ecTip"></p>',
+    actions:[
+      {text:'取消', cls:'btn', onClick:closeModal},
+      {text: isK ? '填入等级 + 经验' : '填入总经验', cls:'btn primary', onClick:function(){
+        const v = clampFloat($('#ecExp').value, 0, RES_MAX, cur);
+        const lv = lvFor(v);
+        applyExpToDraft(no, v, isK ? lv : 0);
+        closeModal();
+        toast(isK ? '已填成 Lv ' + lv + ' · 极化经验 ' + fmtNum(v)
+                  : '已把总经验填成 ' + fmtNum(v) + '，极化后预估 Lv ' + lv);
+      }}
+    ]
+  });
+  const lvEl = $('#ecLv'), expEl = $('#ecExp'), tip = $('#ecTip');
+  function tipOf(lv){
+    const need = needFor(lv);
+    return 'Lv ' + lv + ' 需要' + expName + ' <b>' + fmtNum(need) + '</b>' +
+      (need > cur ? '（比现在多 ' + fmtNum(need - cur) + '）'
+                  : (need < cur ? '（比现在少 ' + fmtNum(cur - need) + '）' : '（与现在相同）')) +
+      ' · Lv199 共需 <b>' + fmtNum(cap) + '</b>';
+  }
+  lvEl.oninput = function(){
+    if(lvEl.value === '') return;
+    const lv = clampNum(lvEl.value, 1, 199, lv0);
+    if(String(lv) !== lvEl.value) lvEl.value = lv;
+    expEl.value = needFor(lv);
+    tip.innerHTML = tipOf(lv);
+  };
+  expEl.oninput = function(){
+    if(expEl.value === '') return;
+    const v = clampFloat(expEl.value, 0, RES_MAX, cur);
+    const lv = lvFor(v);
+    const left = Math.max(0, cap - v);
+    lvEl.value = lv;
+    tip.innerHTML = expName + ' <b>' + fmtNum(v) + '</b> → <b>Lv ' + lv + '</b>；' +
+      (left ? '距 199 还需 <b>' + fmtNum(left) + '</b>' : '已经够 Lv199');
+  };
+  tip.innerHTML = tipOf(lv0);
 }
 
 /* 资源五项 */
@@ -1489,13 +1646,14 @@ function fixLegacyExp(d){
 /* 单条刀剑数据规整：名称 / 刀种允许改，编号保持不变 */
 function normRow(o, dft){
   const base = dft || {no:Number(o && o.no) || 0, name:'未命名', type:'打刀', k:0, r:1, lv:1, exp:0, src:''};
+  const kk = Number(o && o.k) === 1 ? 1 : 0;
   return {
     no: base.no,
     name: String((o && o.name) || base.name).trim().slice(0, 20) || base.name,
     type: TYPES.indexOf(o && o.type) >= 0 ? o.type : base.type,
-    k: Number(o && o.k) === 1 ? 1 : 0,
+    k: kk,
     r: clampNum(o && o.r, 1, 10, base.r),
-    lv: clampNum(o && o.lv, 1, 999, base.lv),
+    lv: clampNum(o && o.lv, 1, kk === 1 ? 199 : 99, base.lv),
     exp: clampFloat(o && o.exp, 0, RES_MAX, base.exp),
     src: String((o && o.src) || '').slice(0, 24),
     fl: clampNum(o && o.fl, 0, 6, Number(base.fl) || 0),
@@ -1865,7 +2023,7 @@ function cardHTML(x){
   const editing = !!draft;
   const v = editing ? draft : x;
   const srcTxt = (v.src || '').trim();
-  const showEst = v.k === 0 && Number(v.exp) > 0;
+  const showEst = (v.k === 0 && Number(v.exp) > 0) || v.k === 1;
   const fl = clampNum(v.fl, 0, 6, 0);
   const r = clampNum(v.r, 1, 10, 1);
   const rp = clampNum(v.rp, 0, ranbuNeed(fl, r) || 999, 0);
@@ -1893,7 +2051,7 @@ function cardHTML(x){
   if(!editing){
     const rbLine = (r >= 10 || !fl)
       ? '<span>乱舞</span>' + loop
-      : '<span>乱舞</span><b>' + r + '<em class="rb-p" title="已喂 ' + rp + ' 把 · 升乱舞 ' + (r+1) + ' 需 ' + (needNext || '?') + ' 把"> · ' + rp + '/' + (needNext || '?') + '</em></b>';
+      : '<span>乱舞</span><b>' + r + '<em class="rb-p" title="已喂 ' + rp + ' 把 · 升乱舞 ' + (r+1) + ' 共需 ' + (needNext || '?') + ' 把，还差 ' + Math.max(0, (needNext || 0) - rp) + ' 把"> · ' + rp + '/' + (needNext || '?') + '</em></b>';
     return '<div class="card' + (v.k===1?' kw':'') + (owned?'':' unowned') + (fav?' fav':'') + '" data-no="'+x.no+'">' + head +
       '<div class="ro">' +
         '<span>极化</span><b class="'+(v.k===1?'k-on':'')+'">'+(v.k===1?'极':'普') +
@@ -1902,10 +2060,10 @@ function cardHTML(x){
         '<span title="从当前乱舞喂到 10 还需多少把">满乱舞</span><b class="rb-need">' +
           (!fl ? '先设花数' : (r >= 10 ? '已满' : '还差 ' + remain + ' 把')) + '</b>' +
         '<span>等级</span><b>Lv '+v.lv+'</b>' +
-        '<span>总经验</span><b title="'+fmtNum(v.exp)+'">'+fmtNum(v.exp)+'</b>' +
+        '<span>'+(v.k===1?'极化经验':'总经验')+'</span><b title="'+fmtNum(v.exp)+'">'+fmtNum(v.exp)+'</b>' +
         '<span>获取方式</span><b class="ro-src" title="'+esc(srcTxt)+'">'+(srcTxt?esc(srcTxt):'—')+'</b>' +
       '</div>' +
-      (showEst ? estHTML(v.type, v.exp) : '') +
+      (showEst ? estHTML(v.type, v.exp, v.fl, {k:v.k, lv:v.lv}) : '') +
       '<div class="card-actions"><button class="card-btn" data-act="edit">✎ 修改</button></div>' +
     '</div>';
   }
@@ -1946,10 +2104,12 @@ function cardHTML(x){
     '</div>' +
     '<div class="rb-tip" data-rbtip="1">' + ranbuTipHTML(fl, r, rp) + '</div>' +
     '<div class="card-grid2">' +
-      '<label class="fld"><span>等级</span><input type="number" min="1" max="999" step="1" data-no="'+x.no+'" data-f="lv" value="'+v.lv+'"></label>' +
-      '<label class="fld"><span>总经验</span><input type="number" min="0" max="999999999" step="any" data-no="'+x.no+'" data-f="exp" value="'+v.exp+'"></label>' +
+      '<label class="fld"><span>等级</span><input type="number" min="1" max="'+(v.k===1?199:99)+'" step="1" ' +
+        'title="'+(v.k===1?'极化刀上限 199':'普刀上限 99')+'" data-no="'+x.no+'" data-f="lv" value="'+v.lv+'"></label>' +
+      '<label class="fld"><span>'+(v.k===1?'极化经验':'总经验')+'</span>' +
+        '<input type="number" min="0" max="999999999" step="any" data-no="'+x.no+'" data-f="exp" value="'+v.exp+'"></label>' +
     '</div>' +
-    '<div data-pre="1">' + (showEst ? estHTML(v.type, v.exp) : '') + '</div>' +
+    '<div data-pre="1">' + (showEst ? estHTML(v.type, v.exp, v.fl, {k:v.k, lv:v.lv, no:x.no, editable:true}) : '') + '</div>' +
     '<label class="fld"><span>获取方式</span><input type="text" maxlength="24" data-no="'+x.no+'" data-f="src" value="'+esc(srcTxt)+'" placeholder="如 7-4王点"></label>' +
     '<div class="card-actions">' +
       '<button class="card-btn ghost" data-act="cancel">取消</button>' +
@@ -1964,10 +2124,12 @@ function ranbuTipHTML(fl, r, rp){
   if(!fl) return '<b>先选「花数」</b>，才能按花数算出乱舞各级要喂多少把';
   if(r >= 10) return '已乱舞 MAX · 满级共需 ' + ranbuTotal(fl) + ' 把';
   const n = ranbuNeed(fl, r);
-  const over = (Number(rp) || 0) >= n;
-  return '升乱舞 ' + (r+1) + ' 需 <b>' + n + '</b> 把（' + (rp||0) + '/' + n + '）' +
-    ' · 至乱舞 10 还需 <b>' + ranbuRemain(fl, r, rp) + '</b> 把' +
-    (over ? ' · 已满，保存后自动 +1' : '');
+  const fed = Number(rp) || 0;
+  const left = Math.max(0, n - fed);
+  const over = fed >= n;
+  return '升乱舞 ' + (r+1) + ' 还需 <b>' + left + '</b> 把（进度 ' + fed + '/' + n + '，本级共需 ' + n + ' 把）' +
+    (r < 9 ? ' · 至乱舞 10 还需 <b>' + ranbuRemain(fl, r, fed) + '</b> 把' : '') +
+    (over ? ' · 本级已喂满，保存后自动进到乱舞 ' + Math.min(10, r+1) : '');
 }
 
 function repaintCard(no){
@@ -1987,7 +2149,7 @@ function readField(o, el){
     o.r = clampNum(el.value, 1, 10, o.r);
     el.value = o.r;
   }else if(f === 'lv'){
-    o.lv = clampNum(el.value, 1, 999, o.lv);
+    o.lv = clampNum(el.value, 1, o.k === 1 ? 199 : 99, o.lv);
     el.value = o.lv;
   }else if(f === 'exp'){
     o.exp = clampFloat(el.value, 0, RES_MAX, o.exp);
@@ -2062,7 +2224,11 @@ function refreshEstimate(card, draft){
   if(!card) return;
   const box = card.querySelector('[data-pre="1"]');
   if(!box) return;
-  box.innerHTML = (draft.k === 0 && Number(draft.exp) > 0) ? estHTML(draft.type, draft.exp) : '';
+  const show = (draft.k === 0 && Number(draft.exp) > 0) || draft.k === 1;
+  box.innerHTML = show
+    ? estHTML(draft.type, draft.exp, draft.fl,
+        {k:draft.k, lv:draft.lv, no:Number(card.getAttribute('data-no')), editable:true})
+    : '';
 }
 
 function commitEdit(no){
@@ -2076,14 +2242,15 @@ function commitEdit(no){
     Array.prototype.forEach.call(els, function(el){ readField(draft, el); });
   }
   const before = {name:row.name, type:row.type, fl:row.fl || 0, k:row.k, r:row.r, rp:row.rp || 0, lv:row.lv, exp:row.exp, src:row.src || '', own:(Number(row.own)===0?0:1)};
+  const kk = draft.k === 1 ? 1 : 0;
   const next = {
     name: String(draft.name || '').trim().slice(0, 20) || row.name,
     type: TYPES.indexOf(draft.type) >= 0 ? draft.type : row.type,
     fl: clampNum(draft.fl, 0, 6, row.fl || 0),
-    k: draft.k === 1 ? 1 : 0,
+    k: kk,
     r: clampNum(draft.r, 1, 10, row.r),
     rp: clampNum(draft.rp, 0, 999, row.rp || 0),
-    lv: clampNum(draft.lv, 1, 999, row.lv),
+    lv: clampNum(draft.lv, 1, kk === 1 ? 199 : 99, row.lv),
     exp: clampFloat(draft.exp, 0, RES_MAX, row.exp),
     src: (draft.src || '').trim().slice(0, 24),
     own: Number(draft.own) === 0 ? 0 : 1
@@ -2247,7 +2414,7 @@ function openAddSword(){
         '</select></label>' +
         '<label class="fld"><span>极化</span><select id="aswK"><option value="0">普</option><option value="1">极</option></select></label>' +
         '<label class="fld"><span>乱舞</span><input type="number" id="aswR" min="1" max="10" step="1" value="1"></label>' +
-        '<label class="fld"><span>等级</span><input type="number" id="aswLv" min="1" max="999" step="1" value="1"></label>' +
+        '<label class="fld"><span>等级</span><input type="number" id="aswLv" min="1" max="199" step="1" title="普刀上限 99，极化刀上限 199" value="1"></label>' +
         '<label class="fld"><span>总经验</span><input type="number" id="aswExp" min="0" max="999999999" step="any" value="0"></label>' +
         '<label class="fld"><span>获取方式</span><input type="text" id="aswSrc" maxlength="24" placeholder="如 8-4王点"></label>' +
         '<label class="fld"><span>乱舞进度</span><input type="number" id="aswRp" min="0" max="999" step="1" value="0"></label>' +
@@ -2302,7 +2469,7 @@ function openAddSword(){
           type: TYPES.indexOf($('#aswType').value) >= 0 ? $('#aswType').value : '打刀',
           k: k,
           r: clampNum($('#aswR').value, 1, 10, 1),
-          lv: clampNum($('#aswLv').value, 1, 999, 1),
+          lv: clampNum($('#aswLv').value, 1, k === 1 ? 199 : 99, 1),
           exp: clampFloat($('#aswExp').value, 0, RES_MAX, 0),
           src: ($('#aswSrc').value || '').trim().slice(0, 24),
           fl: clampNum($('#aswFl').value, 0, 6, 0),
@@ -2518,6 +2685,7 @@ function bindGrid(){
       else if(act.dataset.act === 'cancel') cancelEdit(no);
       else if(act.dataset.act === 'save') commitEdit(no);
       else if(act.dataset.act === 'del') deleteSword(no);
+      else if(act.dataset.act === 'expcalc') openExpCalc(no);
       return;
     }
 
@@ -2531,20 +2699,32 @@ function bindGrid(){
     Array.prototype.forEach.call(seg.children, function(c){ c.classList.toggle('active', c === b); });
     const card = b.closest('.card');
     card.classList.toggle('kw', draft.k === 1);
+    /* 等级上限：普 99 / 极 199，切换时同步输入框与已有数值 */
+    const capLv = draft.k === 1 ? 199 : 99;
+    const lvInp = card.querySelector('input[data-f="lv"]');
+    if(lvInp){
+      lvInp.max = capLv;
+      lvInp.title = draft.k === 1 ? '极化刀上限 199' : '普刀上限 99';
+      if(Number(lvInp.value) > capLv){ lvInp.value = capLv; draft.lv = capLv; }
+    }
     refreshEstimate(card, draft);
   });
 
   grid.addEventListener('input', function(e){
     const el = e.target.closest('[data-f]');
-    if(!el || el.dataset.f !== 'exp') return;
+    if(!el) return;
+    const f = el.dataset.f;
+    if(f !== 'exp' && f !== 'lv') return;
     const no = Number(el.dataset.no);
     const draft = ui.edit[no];
     if(!draft) return;
-    const box = el.closest('.card').querySelector('[data-pre="1"]');
-    if(!box) return;
-    const n = parseFloat(el.value);
-    box.innerHTML = (isNaN(n) || draft.k === 1) ? '' :
-      estHTML(draft.type, Math.max(0, Math.min(RES_MAX, n)));
+    if(f === 'exp'){
+      const n = parseFloat(el.value);
+      draft.exp = isNaN(n) ? 0 : Math.max(0, Math.min(RES_MAX, n));
+    }else{
+      draft.lv = clampNum(el.value, 1, draft.k === 1 ? 199 : 99, draft.lv);
+    }
+    refreshEstimate(el.closest('.card'), draft);
   });
 
   grid.addEventListener('change', function(e){
@@ -2554,7 +2734,7 @@ function bindGrid(){
     const draft = ui.edit[no];
     if(!draft) return;                      // 只读态不可改
     readField(draft, el);
-    if(el.dataset.f === 'type' || el.dataset.f === 'exp'){
+    if(el.dataset.f === 'type' || el.dataset.f === 'exp' || el.dataset.f === 'fl' || el.dataset.f === 'lv'){
       refreshEstimate(el.closest('.card'), draft);
     }
     if(el.dataset.f === 'fl' || el.dataset.f === 'r' || el.dataset.f === 'rp'){
@@ -4308,7 +4488,7 @@ function applyPayload(obj){
       if(o.r !== undefined) row.r = clampNum(o.r, 1, 10, row.r);
       if(o.fl !== undefined) row.fl = clampNum(o.fl, 0, 6, row.fl || 0);
       if(o.rp !== undefined) row.rp = clampNum(o.rp, 0, 999, row.rp || 0);
-      if(o.lv !== undefined) row.lv = clampNum(o.lv, 1, 999, row.lv);
+      if(o.lv !== undefined) row.lv = clampNum(o.lv, 1, row.k === 1 ? 199 : 99, row.lv);
       if(o.exp !== undefined) row.exp = clampFloat(o.exp, 0, RES_MAX, row.exp);
       if(o.src !== undefined) row.src = String(o.src || '').slice(0, 24);
     });
@@ -4484,6 +4664,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.13 已极化刀的等级 / 经验互换','<p>已极化刀现在也有一条换算：卡片上显示「<b>极化 Lv 150</b> · <b>距 Lv199 还需 47,464,941</b>」，这里的经验是<b>极化后经验</b>（不含极化门槛），按等级算，不受旧数据干扰。编辑时点 <b>⇄</b> 打开「<b>极化等级换算</b>」：填等级 150 立刻算出 3 花打需要 131,259,515 极化经验，填经验又能反算等级，确认后<b>等级和经验一起写回</b>。普刀的 <b>⇄</b> 仍是「目标极化等级 → 总经验（含门槛）」，卡片经验栏也按状态显示「总经验 / 极化经验」。</p>','2026.11'],
+    ['V2.12 经验双向换算 · 剑同大太刀','<p><b>剑</b>（如白山吉光）现在和<b>大太刀</b>共用一条经验条（×1.5、极化门槛 907,800），也能算极化后等级了。卡片上的预估条多了一行「<b>距 Lv199 还需 12,345,678</b>」，满级会显示「已达 Lv199」。编辑卡片时预估条右侧多了 <b>⇄</b>（普刀、已极化刀都有）：填等级能算出经验，填经验能算出等级，两边互相联动。另外等级上限收紧：<b>普刀 99、极化刀 199</b>，切「极 / 普」时上限跟着变，超出的数值会收到 99。</p>','2026.11'],
+    ['V2.11 二花打 / 三花打分开算','<p>普刀的「极化后预估」以前所有打刀都按 <b>3 花打</b>（1.3 倍经验条）算，2 花打会被算低好几级。现在按花数分条：<b>2 花普打 → 3 花极打（1.2）</b>、<b>3 花普打 → 4 花极打（1.3）</b>，极化门槛都是打刀 70 级的 648,800。以表里的 99 级总经验对照：2 花打 75,270,591、3 花打 81,489,074，现在都正好是 Lv99（原来 2 花那组只到 Lv95）。改花数会立刻重算，预估条的悬停提示会写明「按2花打经验条」。</p>','2026.11'],
+    ['V2.10 乱舞还差几把说清楚了','<p>乱舞提示原来写「升乱舞 5 需 2 把（1/2）」，容易看成还要 2 把。现在改成<b>「还需 1 把（进度 1/2，本级共需 2 把）」</b>，直接告诉你这一级还差几振；「至乱舞 10 还需 N 把」也扣掉了已经喂进去的进度（4 级 1/2 时是 32 把）。卡片上鼠标停在「1/2」也会显示「共需 2 把，还差 1 把」。</p>','2026.11'],
     ['V2.9 同步码短了一大截','<p>同步码现在<b>先压缩再编码</b>：同样是 130 振 + 资源 + 活动记录 + 变动记录的数据，从 3 万多字符缩到 5 千字符左右（约短 85%），复制、粘贴都轻快很多。粘贴时中间被换行断开、带着「同步码：」前缀、两边有引号都能认；老的 TRB2 码照样能读，浏览器不支持压缩时会自动退回旧格式。</p>','2026.11'],
     ['V2.8 活动起止带整点','<p>活动记录的开始 / 结束现在能连<b>整点</b>一起选（00:00–23:00）：新建记录时开始默认 <b>15:00</b>、结束默认 <b>12:00</b>，也可以改成 16:00 等；建好后在记录上方或「✎ 记录资料」里都能改。填了起止整点后，「共 X 天 Y 小时」按真实时长算，历史总表和分享图也会带上时间；点「结束本次活动」如果还没填结束时间，会自动补 12:00。</p>','2026.11'],
     ['V2.7 置顶固定按编号','<p>多振同时收藏置顶时，置顶区内部<b>固定按编号升序</b>排列（No.005 → No.060 → No.120），不再跟着「等级 / 乱舞 / 名称」这些排序变来变去；置顶之后的普通卡片仍按你选的排序。</p>','2026.11'],
