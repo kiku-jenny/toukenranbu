@@ -644,7 +644,7 @@
   /* ---------- 变动记录 ---------- */
   .log-tools{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 12px;}
   .log-stat{font-size:11px;color:#a98f95;letter-spacing:.04em;margin-left:auto;font-family:ui-monospace,Menlo,monospace;}
-  .log-table{width:100%;border-collapse:collapse;font-size:11.5px;min-width:560px;}
+  .log-table{width:100%;border-collapse:collapse;font-size:11.5px;min-width:640px;}
   .log-table th{
     font-size:10px;font-weight:400;color:#a98f95;letter-spacing:.12em;text-align:left;
     padding:8px 10px;background:#fdf5f7;border-bottom:1px solid var(--line);white-space:nowrap;
@@ -656,6 +656,14 @@
   .log-table .lt-name{width:130px;white-space:nowrap;}
   .log-table .lt-time{width:136px;white-space:nowrap;color:#8f767c;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;}
   .log-table .lt-act{width:150px;}
+  .log-table .lt-val{width:92px;text-align:right;white-space:nowrap;}
+  .dv{
+    display:block;font-family:ui-monospace,Menlo,monospace;font-size:11px;font-weight:600;
+    line-height:1.7;letter-spacing:-.02em;
+  }
+  .dv.up{color:var(--red);}
+  .dv.down{color:var(--green);}
+  .dv.flat{color:#b7a3a8;font-weight:400;}
   .act-chip{
     display:inline-block;padding:0 7px;border-radius:5px;background:#f7f4ee;border:1px solid #e9e0d1;
     color:#9d8256;font-size:10px;line-height:1.7;letter-spacing:.02em;
@@ -677,6 +685,30 @@
   }
   .chg s{text-decoration:none;color:#a98f95;}
   .chg b{font-weight:700;color:#b9506b;}
+  .chg-rb{background:#eef7f1;border-color:#d7e9df;color:#4f7b62;}
+  .chg-rb em{font-style:normal;font-weight:700;margin-right:5px;}
+  .chg-res{background:#fdf6ea;border-color:#f0e2c7;color:#96702f;}
+  .chg-res b{color:#a4792f;}
+  .chg-res .chg-to{color:#b39a76;white-space:nowrap;}
+  .log-kinds{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px;}
+  .log-kinds button{
+    border:1px solid var(--line);background:#fff;border-radius:20px;padding:3px 12px;
+    font-size:11px;color:var(--sub);letter-spacing:.03em;transition:.15s;
+  }
+  .log-kinds button:hover{border-color:var(--line-strong);color:var(--accent-deep);background:#fffafb;}
+  .log-kinds button.on{background:linear-gradient(120deg,#e79dad,#d2768b);border-color:transparent;color:#fff;font-weight:600;}
+  .log-table .lt-op{width:46px;text-align:center;}
+  .log-del{
+    border:none;background:none;color:#cbb7bc;font-size:12px;line-height:1;padding:3px 5px;
+    border-radius:6px;transition:.15s;
+  }
+  .log-del:hover{color:#c25151;background:#fdf1f1;}
+  .lg-badge{
+    display:inline-block;margin-left:5px;padding:0 5px;border-radius:4px;font-size:9px;
+    line-height:1.6;vertical-align:1px;letter-spacing:.04em;
+  }
+  .lg-rb{background:#edf6f0;color:#55806a;border:1px solid #d9eadd;}
+  .lg-res{background:#fdf5e8;color:#97702f;border:1px solid #f1e3c8;}
   .pager{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:14px;}
   .pager button{
     min-width:28px;height:28px;padding:0 8px;border-radius:7px;border:1px solid var(--line);
@@ -687,6 +719,40 @@
   .pager button:disabled{opacity:.35;cursor:not-allowed;}
   .pager .pg-info{font-size:11px;color:#a98f95;margin:0 4px;font-family:ui-monospace,Menlo,monospace;}
 
+  @media (max-width:1180px){
+    .log-table{min-width:0;display:block;}
+    .log-table thead{display:none;}
+    .log-table tbody{display:block;}
+    .log-table tr{
+      display:grid;grid-template-columns:1fr auto auto;
+      grid-template-areas:"name val op" "chg chg chg";
+      gap:2px 8px;padding:10px 2px;border-bottom:1px dashed var(--line);
+    }
+    .log-table tr:last-child{border-bottom:none;}
+    .log-table td{display:block;padding:0;border:none;line-height:1.7;}
+    .log-table td.c-no{display:none;}
+    .log-table .lt-name{grid-area:name;width:auto;white-space:normal;}
+    .log-table .lt-val{grid-area:val;width:auto;text-align:right;padding:0;}
+    .log-table .lt-op{grid-area:op;width:30px;text-align:right;padding:0 0 0 2px;}
+    .log-table td:nth-child(3){grid-area:chg;}
+    .log-table .lt-time,.log-table .lt-act{display:none;}
+    .log-table .lt-name b{font-size:12.5px;}
+    .m-act{
+      display:inline-block;margin-top:3px;padding:0 5px;border-radius:4px;
+      background:#f7f4ee;border:1px solid #e9e0d1;color:#9d8256;font-size:9px;line-height:1.6;
+      max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    }
+    .m-hint{display:inline;}
+    .m-time{
+      display:block;margin-top:3px;font-size:9px;color:#8f767c;white-space:nowrap;
+      font-family:ui-monospace,Menlo,monospace;letter-spacing:-.02em;
+    }
+    .chg{font-size:10px;padding:1px 6px;margin:0 4px 2px 0;}
+    .dv{font-size:11px;}
+    .log-del{font-size:13px;padding:4px 3px;}
+    .log-kinds{gap:4px;margin-bottom:10px;}
+    .log-kinds button{padding:2px 9px;font-size:10px;}
+  }
   /* 活动记录 */
   .rec-form{display:grid;grid-template-columns:1.4fr .8fr .8fr 1.6fr auto;gap:8px;margin-bottom:16px;}
   .rec-form .input,.rec-form .select{font-size:12px;}
@@ -814,22 +880,6 @@
   }
   @media (max-width:700px){
     .pool-list{grid-template-columns:1fr;max-height:32vh;}
-    .log-table{min-width:0;}
-    .log-table th,.log-table td{padding:8px 7px;}
-    .log-table .lt-no{width:34px;}
-    .log-table .lt-name{width:auto;white-space:normal;}
-    .log-table .lt-time,.log-table .lt-act{display:none;}
-    .m-act{
-      display:inline-block;margin-top:3px;padding:0 5px;border-radius:4px;
-      background:#f7f4ee;border:1px solid #e9e0d1;color:#9d8256;font-size:9px;line-height:1.6;
-      max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-    }
-    .m-hint{display:inline;}
-    .m-time{
-      display:block;margin-top:3px;font-size:9px;color:#8f767c;white-space:nowrap;
-      font-family:ui-monospace,Menlo,monospace;letter-spacing:-.02em;
-    }
-    .chg{font-size:9.5px;padding:1px 5px;margin:0 4px 2px 0;}
     .res-grid{grid-template-columns:repeat(2,1fr);}
     .res-form{grid-template-columns:1fr 1fr;}
     .table-hint{display:block;}
@@ -871,7 +921,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞本丸管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.13</div>
+        <div class="brand-sub">HONMARU KEEPER V2.16</div>
       </div>
     </div>
 
@@ -1029,7 +1079,7 @@
         <div class="panel-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
           <div style="flex:1;min-width:220px;">
             <h2>日志明细</h2>
-            <p style="margin-bottom:0;">在图鉴里每点一次「保存」都会留一条日志：改了哪一振、哪个字段、从多少变成多少。最新的排在最前面。</p>
+            <p style="margin-bottom:0;">图鉴保存、活动登记里的「乱舞 +1」、资源记录的变化都会留一条日志：改了哪一振 / 哪项资源、从多少变成多少。最新的排在最前面，单条可以删。</p>
           </div>
           <button class="btn" id="btnClearLogs" style="margin-left:auto;">清空日志</button>
         </div>
@@ -1042,6 +1092,12 @@
           </div>
           <div class="log-stat" id="logStat"></div>
         </div>
+        <div class="log-kinds" id="logKinds">
+          <button class="on" data-lk="">全部</button>
+          <button data-lk="sword">图鉴变动</button>
+          <button data-lk="ranbu">乱舞 +1</button>
+          <button data-lk="res">资源变动</button>
+        </div>
 
         <div class="log-empty" id="logEmpty" hidden></div>
         <div class="res-table-wrap" id="logWrap">
@@ -1051,8 +1107,10 @@
                 <th class="lt-no">序号</th>
                 <th class="lt-name">刀剑名称<span class="m-hint"> / 时间</span></th>
                 <th>变动内容</th>
+                <th class="lt-val">变动值</th>
                 <th class="lt-act">活动</th>
                 <th class="lt-time">记录时间</th>
+                <th class="lt-op">操作</th>
               </tr>
             </thead>
             <tbody id="logBody"></tbody>
@@ -1068,7 +1126,7 @@
       <div class="panel">
         <div class="panel-head">
           <h2>🪵 新增一条记录</h2>
-          <p>每次清点后填入当前数值并保存，系统会自动和上一条记录对比，算出这一段的增长量。</p>
+          <p>每次清点后填入当前数值并保存，系统会自动和上一条记录对比，算出这一段的增长量，并在日志里记一条「资源变动」（只记你填了的项）。</p>
         </div>
         <div class="res-form" id="resForm">
           <label class="fld"><span>日期</span><input type="date" id="resDate"></label>
@@ -1581,7 +1639,7 @@ const RES_MAX = 999999999;
    ========================================================= */
 const KEY = 'honmaru_keeper_v3';
 let S = null;
-const ui = {tab:'catalog', q:'', type:'', own:'', kiwame:'', ranbu:'', level:'', sort:'no', edit:{}, logQ:'', logPage:1};
+const ui = {tab:'catalog', q:'', type:'', own:'', kiwame:'', ranbu:'', level:'', sort:'no', edit:{}, logQ:'', logKind:'', logPage:1};
 
 function uid(){ return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 function seedTw(){
@@ -1615,24 +1673,61 @@ function blankData(){
   return {ver:6, roster:1, tw:[], open:[], res:[], records:[], logs:[],
           calc:{acts:[], cur:'', curS:'', boost:true, lvlSync:true}};
 }
-/* 变动日志：{id, no, name, changes:[{f, from, to}], ts} */
+/* 变动日志：{id, kind, no, name, act, ses, src, date, changes:[{f, ...}], ts}
+   kind = sword（图鉴字段） / ranbu（活动登记喂刀 +1） / res（资源快照变化） */
 const LOG_FIELDS = {name:'名称', type:'刀种', fl:'花数', k:'极化', r:'乱舞', rp:'乱舞进度', lv:'等级', exp:'总经验', src:'获取方式', own:'拥有状态'};
+const LOG_KINDS = {sword:'图鉴', ranbu:'乱舞 +1', res:'资源'};
+function resItemOf(key){
+  const hit = RES_ITEMS.filter(function(it){ return it.key === key; })[0];
+  return hit || {key:String(key || ''), name:String(key || '资源'), icon:'📦'};
+}
 function normLogs(arr){
   if(!Array.isArray(arr)) return [];
   const out = [];
   arr.forEach(function(l){
     if(!l || !Array.isArray(l.changes) || !l.changes.length) return;
+    const kind = LOG_KINDS[l.kind] ? l.kind : 'sword';
     const changes = [];
     l.changes.forEach(function(c){
-      if(!c || !LOG_FIELDS[c.f]) return;
-      changes.push({f:c.f, from:c.from, to:c.to});
+      if(!c) return;
+      if(c.f === 'ranbu'){
+        if(kind !== 'ranbu') return;
+        const r = clampNum(c.r, 1, 10, 1);
+        const r2 = clampNum(c.r2, r, 10, r);
+        changes.push({f:'ranbu', r:r, rp:clampNum(c.rp, 0, 999, 0),
+                      r2:r2, rp2:clampNum(c.rp2, 0, 999, 0), n:clampNum(c.n, 0, 999, 0)});
+      }else if(c.f === 'res'){
+        if(kind !== 'res') return;
+        const it = resItemOf(c.key);
+        if(!RES_ITEMS.some(function(x){ return x.key === it.key; })) return;
+        changes.push({f:'res', key:it.key,
+                      from:clampNum(c.from, 0, RES_MAX, 0), to:clampNum(c.to, 0, RES_MAX, 0)});
+      }else if(kind !== 'res' && LOG_FIELDS[c.f]){
+        changes.push({f:c.f, from:c.from, to:c.to});
+      }
     });
     if(!changes.length) return;
-    out.push({id:l.id || uid(), no:Number(l.no) || 0, name:String(l.name || ''),
-              act:String(l.act || '').slice(0,40),
+    out.push({id:l.id || uid(), kind:kind, no:Number(l.no) || 0,
+              name:String(l.name || ''), act:String(l.act || '').slice(0,40),
+              ses:String(l.ses || '').slice(0,30), src:String(l.src || '').slice(0,10),
+              date:/^\d{4}-\d{2}-\d{2}$/.test(String(l.date || '')) ? String(l.date) : '',
               changes:changes.slice(0,8), ts:Number(l.ts) || Date.now()});
   });
   return out;
+}
+/* 统一写日志入口：最新的排最前，最多留 2000 条 */
+function pushLog(entry){
+  const d = curData();
+  if(!d) return null;
+  if(!Array.isArray(d.logs)) d.logs = [];
+  const l = Object.assign({id:uid(), ts:Date.now(), kind:'sword', no:0, name:'',
+                           act:'', ses:'', src:'', date:''}, entry);
+  d.logs.unshift(l);
+  if(d.logs.length > 2000) d.logs.length = 2000;
+  ui.logPage = 1;
+  renderLogs();
+  renderSidebar();
+  return l;
 }
 /* 旧版本把 1.6 / 1.61 存成了 16000 / 16100，这里改回表格原值 */
 function fixLegacyExp(d){
@@ -2887,21 +2982,37 @@ function addRes(){
   if(!d){ toast('请先新建账号', true); return; }
   const date = $('#resDate').value || fmtDate(new Date());
   const vals = {};
+  const filled = {};
   let has = false;
   for(const it of RES_ITEMS){
     const el = $('#res' + it.key.charAt(0).toUpperCase() + it.key.slice(1));
     const raw = (el.value || '').trim();
-    if(raw !== '') has = true;
+    if(raw !== ''){ has = true; filled[it.key] = true; }
     vals[it.key] = clampNum(raw === '' ? 0 : raw, 0, RES_MAX, 0);
   }
   if(!has){ toast('至少填一项资源数值', true); return; }
+  /* 与「这条记录之前最近的一条」对比，只记用户实际填了的项，没填的 0 不算跌 */
+  const prev = resAsc(d).filter(function(r){ return r.date <= date; }).pop() || null;
   d.res.push({id:uid(), date:date, vals:vals, ts:Date.now()});
   RES_ITEMS.forEach(function(it){
     const el = $('#res' + it.key.charAt(0).toUpperCase() + it.key.slice(1));
     el.value = '';
   });
+  let logged = 0;
+  if(prev){
+    const changes = [];
+    RES_ITEMS.forEach(function(it){
+      if(!filled[it.key]) return;
+      const from = clampNum(prev.vals[it.key], 0, RES_MAX, 0);
+      if(from !== vals[it.key]) changes.push({f:'res', key:it.key, from:from, to:vals[it.key]});
+    });
+    if(changes.length){
+      pushLog({kind:'res', name:'资源记录', date:date, src:'手动', changes:changes});
+      logged = changes.length;
+    }
+  }
   save(); renderResources();
-  toast('已保存 ' + date + ' 的资源记录');
+  toast('已保存 ' + date + ' 的资源记录' + (logged ? ' · 记下 ' + logged + ' 项变动' : ''));
 }
 
 /* =========================================================
@@ -2949,17 +3060,85 @@ function logActOf(l){
 }
 function logFlat(l){
   return l.changes.map(function(c){
+    if(c.f === 'ranbu'){
+      return c.r2 > c.r ? ('乱舞 +1 乱舞 ' + c.r + '→' + c.r2)
+                        : ('乱舞 +1 进度 ' + c.rp + '/' + c.n + '→' + c.rp2 + '/' + c.n);
+    }
+    if(c.f === 'res'){
+      return resItemOf(c.key).name + ' ' + fmtNum(c.from) + '→' + fmtNum(c.to);
+    }
     return LOG_FIELDS[c.f] + ' ' + logVal(c.f, c.from) + '→' + logVal(c.f, c.to);
   }).join('  ');
 }
+/* 单条变动渲染成 chip：乱舞 +1 / 资源增减 / 图鉴字段 */
+function logChangeHTML(c){
+  if(c.f === 'ranbu'){
+    if(c.r2 > c.r){
+      return '<span class="chg chg-rb"><em>乱舞 +1</em> 乱舞 ' + c.r + '→' + c.r2 + ' 🎉</span>';
+    }
+    const n = c.n > 0 ? c.n : '?';
+    return '<span class="chg chg-rb"><em>乱舞 +1</em> 进度 ' + c.rp + '/' + n + '→' + c.rp2 + '/' + n + '</span>';
+  }
+  if(c.f === 'res'){
+    const it = resItemOf(c.key);
+    const dv = Number(c.to) - Number(c.from);
+    const txt = dv > 0 ? '+' + fmtNum(dv) : (dv < 0 ? '-' + fmtNum(-dv) : '0');
+    return '<span class="chg chg-res">' + it.icon + ' ' + esc(it.name) + ' <b>' + txt + '</b>' +
+           ' <span class="chg-to">→ ' + fmtNum(c.to) + '</span></span>';
+  }
+  return '<span class="chg">' + LOG_FIELDS[c.f] + ' <s>' + esc(logVal(c.f, c.from)) + '</s> → <b>' +
+         esc(logVal(c.f, c.to)) + '</b></span>';
+}
+/* 变动值：只取能算差值的项。花数是属性设定（开几花），不是增减，一律不记；
+   极化 / 拥有 / 名称 / 刀种这类分类字段同样不算 */
+function logDeltaList(l){
+  const out = [];
+  const changes = l.changes || [];
+  /* 乱舞升级那一把会把进度清零，这个负数不是「跌」，不放进变动值 */
+  const rUp = changes.some(function(c){ return c.f === 'r' && Number(c.to) > Number(c.from); });
+  changes.forEach(function(c){
+    if(c.f === 'ranbu'){ out.push(1); return; }
+    if(c.f === 'res'){ out.push((Number(c.to) || 0) - (Number(c.from) || 0)); return; }
+    if(c.f === 'rp' && rUp) return;
+    if(c.f === 'lv' || c.f === 'exp' || c.f === 'r' || c.f === 'rp'){
+      const v = (Number(c.to) || 0) - (Number(c.from) || 0);
+      if(v) out.push(v);
+    }
+  });
+  return out;
+}
+function logDeltaHTML(l){
+  const ds = logDeltaList(l);
+  if(!ds.length) return '<span class="dv flat">—</span>';
+  return ds.map(function(v){
+    const cls = v > 0 ? 'up' : (v < 0 ? 'down' : 'flat');
+    return '<span class="dv ' + cls + '">' + (v > 0 ? '+' : '') + fmtNum(v) + '</span>';
+  }).join('');
+}
 function logMatched(d){
   const q = (ui.logQ || '').toLowerCase();
-  const list = (d.logs || []).slice();
+  let list = (d.logs || []).slice();
+  if(ui.logKind) list = list.filter(function(l){ return (l.kind || 'sword') === ui.logKind; });
   if(!q) return list;
   return list.filter(function(l){
-    const hay = (l.name + ' ' + logFlat(l) + ' ' + logActOf(l) + ' ' +
+    const hay = (l.name + ' ' + logFlat(l) + ' ' + logActOf(l) + ' ' + (l.ses || '') + ' ' +
+                 (l.src || '') + ' ' + (l.date || '') + ' ' +
                  fmtTime(l.ts) + ' ' + fmtDate(new Date(l.ts))).toLowerCase();
     return hay.indexOf(q) >= 0;
+  });
+}
+function renderLogKinds(d){
+  const box = $('#logKinds');
+  if(!box) return;
+  const counts = {sword:0, ranbu:0, res:0};
+  (d.logs || []).forEach(function(l){
+    const k = l.kind || 'sword';
+    counts[k] = (counts[k] || 0) + 1;
+  });
+  Array.prototype.forEach.call(box.querySelectorAll('button[data-lk]'), function(b){
+    const k = b.dataset.lk || '';
+    b.classList.toggle('on', k === (ui.logKind || ''));
+    b.textContent = (k ? LOG_KINDS[k] : '全部') + ' ' + (k ? (counts[k] || 0) : (d.logs || []).length);
   });
 }
 function renderLogs(){
@@ -2987,15 +3166,19 @@ function renderLogs(){
   const today = fmtDate(new Date());
   const todayCount = (d.logs || []).filter(function(l){ return fmtDate(new Date(l.ts)) === today; }).length;
   $('#logStat').textContent = '共 ' + (d.logs || []).length + ' 条 · 今日 ' + todayCount + ' 条' +
-    (ui.logQ ? ' · 搜到 ' + total + ' 条' : '');
+    ((ui.logQ || ui.logKind) ? ' · 当前 ' + total + ' 条' : '');
   const mc = $('#menuLogCount');
   if(mc) mc.textContent = String((d.logs || []).length);
+  renderLogKinds(d);
 
   if(!rows.length){
     empty.hidden = false;
-    empty.textContent = ui.logQ
-      ? '没有匹配「' + ui.logQ + '」的记录，换个关键字试试。'
-      : '还没有变动记录，去图鉴里改一振并保存试试。';
+    const cond = [];
+    if(ui.logQ) cond.push('「' + ui.logQ + '」');
+    if(ui.logKind) cond.push(LOG_KINDS[ui.logKind]);
+    empty.textContent = cond.length
+      ? '没有匹配 ' + cond.join(' / ') + ' 的日志，换个条件试试。'
+      : '还没有日志：图鉴保存、活动登记喂刀、资源记录变化都会自动记在这里。';
     wrap.hidden = true;
     body.innerHTML = '';
     pager.innerHTML = '';
@@ -3005,23 +3188,43 @@ function renderLogs(){
   wrap.hidden = false;
 
   body.innerHTML = rows.map(function(l, i){
-    const chips = l.changes.map(function(c){
-      return '<span class="chg">' + LOG_FIELDS[c.f] + ' <s>' + esc(logVal(c.f, c.from)) + '</s> → <b>' +
-             esc(logVal(c.f, c.to)) + '</b></span>';
-    }).join('');
-    const actName = logActOf(l);
+    const chips = l.changes.map(logChangeHTML).join('');
+    const actName = l.kind === 'res' ? (l.act || '') : logActOf(l);
+    const actShort = actName.replace(/（[^）]*）/g, '');
+    let nameCell, actCell;
+    if(l.kind === 'res'){
+      const srcTxt = l.src === '活动' ? '活动写入' : '手动记录';
+      nameCell = '<td class="lt-name"><b>资源记录</b><span class="lg-badge lg-res">资源</span>' +
+        '<div class="muted" style="font-size:9.5px;">' + esc(l.date || fmtDate(new Date(l.ts))) + ' · ' + srcTxt + '</div>' +
+        '<div class="m-time">' + fmtTime(l.ts) + '</div></td>';
+      actCell = '<td class="lt-act">' + (actName
+        ? '<span class="act-chip" title="' + esc(actName) + '">' + esc(actShort) + '</span>'
+        : '<span class="muted" style="font-size:10px;">手动</span>') +
+        (l.ses ? '<div class="muted" style="font-size:9.5px;margin-top:2px;">' + esc(l.ses) + '</div>' : '') + '</td>';
+    }else{
+      nameCell = '<td class="lt-name"><b>' + esc(l.name) + '</b>' +
+        (l.kind === 'ranbu' ? '<span class="lg-badge lg-rb">喂刀</span>' : '') +
+        '<div class="muted" style="font-size:9.5px;">No.' + String(l.no).padStart(3,'0') + '</div>' +
+        (actName ? '<div class="m-act" title="' + esc(actName + (l.ses ? ' · ' + l.ses : '')) + '">' +
+          esc(actShort) + (l.ses ? ' · ' + esc(l.ses) : '') + '</div>' : '') +
+        '<div class="m-time">' + fmtTime(l.ts) + '</div></td>';
+      actCell = '<td class="lt-act">' + (actName
+        ? '<span class="act-chip" title="' + esc(actName) + '">' + esc(actShort) + '</span>' : '') +
+        (l.ses ? '<div class="muted" style="font-size:9.5px;margin-top:2px;">' + esc(l.ses) + '</div>' : '') + '</td>';
+    }
     return '<tr>' +
       '<td class="c-no">' + (start + i + 1) + '</td>' +
-      '<td class="lt-name"><b>' + esc(l.name) + '</b>' +
-        '<div class="muted" style="font-size:9.5px;">No.' + String(l.no).padStart(3,'0') + '</div>' +
-        (actName ? '<div class="m-act" title="' + esc(actName) + '">' + esc(actName.replace(/（[^）]*）/g, '')) + '</div>' : '') +
-        '<div class="m-time">' + fmtTime(l.ts) + '</div></td>' +
+      nameCell +
       '<td>' + chips + '</td>' +
-      '<td class="lt-act">' + (actName ? '<span class="act-chip" title="' + esc(actName) + '">' +
-        esc(actName.replace(/（[^）]*）/g, '')) + '</span>' : '') + '</td>' +
+      '<td class="lt-val">' + logDeltaHTML(l) + '</td>' +
+      actCell +
       '<td class="lt-time">' + timeParts(l.ts) + '</td>' +
+      '<td class="lt-op"><button class="log-del" data-logdel="' + esc(l.id) + '" title="删除这条日志">✕</button></td>' +
     '</tr>';
   }).join('');
+  Array.prototype.forEach.call(body.querySelectorAll('.log-del'), function(b){
+    b.onclick = function(){ deleteLog(b.dataset.logdel); };
+  });
 
   /* 分页器 */
   const btns = [];
@@ -3048,6 +3251,32 @@ function renderLogs(){
   });
 }
 
+/* 单条日志删除：只删记录，不动图鉴 / 活动 / 资源数据 */
+function deleteLog(id){
+  const d = curData();
+  if(!d) return;
+  const l = (d.logs || []).filter(function(x){ return x.id === id; })[0];
+  if(!l){ toast('这条日志已经不在了'); return; }
+  const who = l.kind === 'res'
+    ? '资源记录（' + (l.date || fmtDate(new Date(l.ts))) + '）'
+    : (l.name || '这条日志');
+  openModal({
+    title:'删除这条日志',
+    sub:'「' + who + '」的这条日志会被移除；图鉴、活动记录和资源数据都不会变动。',
+    body:'<p style="font-size:12px;color:var(--sub);margin:0;line-height:1.9;">' +
+      esc(logFlat(l)) + '<br><span class="muted">' + fmtTime(l.ts) + '</span></p>',
+    actions:[
+      {text:'取消', cls:'btn', onClick:closeModal},
+      {text:'删除日志', cls:'btn primary', onClick:function(){
+        const before = (d.logs || []).length;
+        d.logs = (d.logs || []).filter(function(x){ return x.id !== id; });
+        save(); closeModal(); renderLogs(); renderSidebar();
+        toast(before > d.logs.length ? '日志已删除' : '这条日志已不存在');
+      }}
+    ]
+  });
+}
+
 function clearLogs(){
   const d = curData();
   if(!d) return;
@@ -3055,7 +3284,7 @@ function clearLogs(){
   if(!n){ toast('还没有日志可清空'); return; }
   openModal({
     title:'清空变动记录',
-    sub:'会删除当前账号下的全部 ' + n + ' 条变动日志，图鉴里的极化、等级等数据不受影响。',
+    sub:'会删除当前账号下的全部 ' + n + ' 条日志（含乱舞 +1 与资源变动），图鉴、活动记录和资源数据都不受影响。',
     body:'<p style="font-size:12px;color:var(--sub);margin:0;">此操作无法撤销。</p>',
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
@@ -3357,7 +3586,7 @@ function calcSesMetaHTML(act, ses){
       '<label class="calc-mf"><span>本次小判增长</span><input type="number" min="0" max="999999999" step="1" ' +
         'data-sesf="koban" value="' + (ses.koban || 0) + '"' + dis + '></label>' +
       '<button class="btn" data-sesact="koban"' + dis + '>' + (rec ? '↻ 更新资源记录' : '↗ 写入资源记录') + '</button>' +
-      '<span class="calc-koban-tip">' + (rec ? ('已写入 ' + esc(rec.date) + ' 的资源记录') : '写入后资源页会多一条「小判 +N」') + '</span>' +
+      '<span class="calc-koban-tip">' + (rec ? ('已写入 ' + esc(rec.date) + ' 的资源记录，日志里也有') : '写入后资源页会多一条「小判 +N」，并记一条资源日志') + '</span>' +
       '</div>';
   }
   return h + '</div>';
@@ -3378,12 +3607,18 @@ function syncKobanRes(){
   vals.koban = clampNum((base ? (base.vals.koban || 0) : 0) + gain, 0, RES_MAX, 0);
   const date = ses.end || ses.start || fmtDate(new Date());
   let rec = ses.resId ? (d.res || []).find(function(x){ return x.id === ses.resId; }) : null;
+  const prevKoban = rec ? clampNum(rec.vals.koban, 0, RES_MAX, 0)
+                        : (base ? clampNum(base.vals.koban, 0, RES_MAX, 0) : 0);
   if(rec){
     rec.date = date; rec.vals = vals; rec.ts = Date.now(); rec.actName = act.name;
   }else{
     rec = {id:uid(), date:date, vals:vals, ts:Date.now(), src:'ses', sesId:ses.id, actName:act.name};
     d.res.push(rec);
     ses.resId = rec.id;
+  }
+  if(vals.koban !== prevKoban){
+    pushLog({kind:'res', name:'资源记录', date:date, src:'活动', act:act.name, ses:ses.name,
+             changes:[{f:'res', key:'koban', from:prevKoban, to:vals.koban}]});
   }
   save();
   setTimeout(function(){ renderCalc(); renderResources(); }, 0);
@@ -3837,7 +4072,7 @@ function addDrop(){
 
   /* 可选：把这一把喂进图鉴里的乱舞进度 */
   let boostTxt = '';
-  if(c.lvlSync) boostTxt = applyRanbuGain(no, act);
+  if(c.lvlSync) boostTxt = applyRanbuGain(no, act, ses);
   save();
   renderCalc();
   calcStatus('🌸 ' + swordName(no) + ' 已登记（今日 ' + ses.daily[day][no] + ' 振·本次 ' + sesTotal(ses) + ' 振）' +
@@ -3846,8 +4081,8 @@ function addDrop(){
   if(inp && inp.value) inp.select();
 }
 
-/* 登记一把 → 图鉴里该刀的乱舞进度 +1，喂满自动升一级并写一条变动记录 */
-function applyRanbuGain(no, act){
+/* 登记一把 → 图鉴里该刀的乱舞进度 +1，并写一条「乱舞 +1」日志（喂满自动升级） */
+function applyRanbuGain(no, act, ses){
   const d = curData();
   const x = rowOf(no);
   if(!d || !x) return '';
@@ -3857,7 +4092,7 @@ function applyRanbuGain(no, act){
   const fl = clampNum(x.fl, 0, 6, 0);
   const need = ranbuNeed(fl, r);
   if(!need) return ' · 花数未设，未记进度';
-  const fromR = r;
+  const fromR = r, fromRp = rp;
   rp += 1;
   while(r < 10 && rp >= ranbuNeed(fl, r)){
     rp -= ranbuNeed(fl, r);
@@ -3866,15 +4101,15 @@ function applyRanbuGain(no, act){
   if(r >= 10){ r = 10; rp = 0; }
   x.r = r;
   x.rp = rp;
+  pushLog({
+    kind:'ranbu', no:no, name:x.name, act:(act && act.name) || '',
+    ses:(ses && ses.name) || '', src:'活动',
+    changes:[{f:'ranbu', r:fromR, rp:fromRp, r2:r, rp2:rp, n:need}]
+  });
+  renderStats(); renderFilters();
   if(r !== fromR){
-    if(!Array.isArray(d.logs)) d.logs = [];
-    d.logs.unshift({id:uid(), no:no, name:x.name, act:(act && act.name) || '',
-                    changes:[{f:'r', from:fromR, to:r}], ts:Date.now()});
-    if(d.logs.length > 2000) d.logs.length = 2000;
-    renderStats(); renderFilters(); renderLogs(); renderSidebar();
     return ' · 乱舞 ' + fromR + '→' + r + ' 🎉';
   }
-  renderStats(); renderFilters();
   return ' · 乱舞 ' + r + ' 进度 ' + rp + '/' + ranbuNeed(fl, r);
 }
 
@@ -4664,6 +4899,9 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.16 花数变动不算「变动值」','<p>花数是这把刀的<b>属性</b>（开几花），不是资源或经验的增减，所以「变动值」列不再给花数算 <b>+1 / -1</b>，统一显示「—」。改动本身仍然记在日志的「变动内容」里，写成 <b>花数 0 花 → 2 花</b>，随时能查到什么时候改的。经验、等级、乱舞这类真正会累加的数值照旧显示差值。</p>','2026.11'],
+    ['V2.15 日志多一列「变动值」','<p>日志表在「变动内容」右边多了一列 <b>变动值</b>：资源写 <b style="color:#c2455e">+17,500</b> / <b style="color:#4f8a63">-1,200</b>（红涨绿落），乱舞喂刀写 <b style="color:#c2455e">+1</b>，等级 / 经验这类改动也算出差值；一条日志有多项变动就分行列出。纯改名、改刀种这种没有数值的显示「—」。手机端这一列会排在刀名右侧，方便直接扫。</p>','2026.11'],
+    ['V2.14 乱舞 +1 与资源变动都有日志','<p>活动记录里每登记一把、勾着「同步乱舞进度」时，会写一条 <b>乱舞 +1</b> 日志：显示进度从几比几走到几比几，喂满升级就显示 <b>乱舞 4→5 🎉</b>，并带上活动名与记录名。资源页手动保存、地下城「写入资源记录」也会按<b>与上一条快照的差额</b>记一条资源日志（只记实际填了的项，没填的 0 不算跌）。日志页新增「<b>全部 / 图鉴变动 / 乱舞 +1 / 资源变动</b>」筛选，每行右侧的 <b>✕</b> 可以<b>单条删除</b>；删除只掉日志，不动图鉴、活动或资源数据。</p>','2026.11'],
     ['V2.13 已极化刀的等级 / 经验互换','<p>已极化刀现在也有一条换算：卡片上显示「<b>极化 Lv 150</b> · <b>距 Lv199 还需 47,464,941</b>」，这里的经验是<b>极化后经验</b>（不含极化门槛），按等级算，不受旧数据干扰。编辑时点 <b>⇄</b> 打开「<b>极化等级换算</b>」：填等级 150 立刻算出 3 花打需要 131,259,515 极化经验，填经验又能反算等级，确认后<b>等级和经验一起写回</b>。普刀的 <b>⇄</b> 仍是「目标极化等级 → 总经验（含门槛）」，卡片经验栏也按状态显示「总经验 / 极化经验」。</p>','2026.11'],
     ['V2.12 经验双向换算 · 剑同大太刀','<p><b>剑</b>（如白山吉光）现在和<b>大太刀</b>共用一条经验条（×1.5、极化门槛 907,800），也能算极化后等级了。卡片上的预估条多了一行「<b>距 Lv199 还需 12,345,678</b>」，满级会显示「已达 Lv199」。编辑卡片时预估条右侧多了 <b>⇄</b>（普刀、已极化刀都有）：填等级能算出经验，填经验能算出等级，两边互相联动。另外等级上限收紧：<b>普刀 99、极化刀 199</b>，切「极 / 普」时上限跟着变，超出的数值会收到 99。</p>','2026.11'],
     ['V2.11 二花打 / 三花打分开算','<p>普刀的「极化后预估」以前所有打刀都按 <b>3 花打</b>（1.3 倍经验条）算，2 花打会被算低好几级。现在按花数分条：<b>2 花普打 → 3 花极打（1.2）</b>、<b>3 花普打 → 4 花极打（1.3）</b>，极化门槛都是打刀 70 级的 648,800。以表里的 99 级总经验对照：2 花打 75,270,591、3 花打 81,489,074，现在都正好是 Lv99（原来 2 花那组只到 Lv95）。改花数会立刻重算，预估条的悬停提示会写明「按2花打经验条」。</p>','2026.11'],
@@ -4980,6 +5218,13 @@ function initEvents(){
     renderLogs(); logSearch.focus();
   };
   $('#btnClearLogs').onclick = clearLogs;
+  $$('#logKinds button[data-lk]').forEach(function(b){
+    b.onclick = function(){
+      ui.logKind = b.dataset.lk || '';
+      ui.logPage = 1;
+      renderLogs();
+    };
+  });
 
   $('#btnAddRes').onclick = addRes;
 
