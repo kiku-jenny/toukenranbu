@@ -251,7 +251,7 @@
     content:'';position:absolute;left:1px;top:16px;bottom:16px;width:3px;
     border-radius:0 3px 3px 0;background:linear-gradient(180deg,#f0d795,#cf9a33);
   }
-  .card-id{font-family:ui-monospace,Menlo,monospace;font-size:10px;color:#c0a9ae;letter-spacing:.08em;}
+  .card-id{font-family:ui-monospace,Menlo,monospace;font-size:10px;color:#c0a9ae;letter-spacing:.08em;white-space:nowrap;flex:0 0 auto;}
   .type-tag{font-size:9.5px;border:1px solid var(--line);border-radius:5px;padding:1px 5px;color:var(--sub);background:#fffafb;letter-spacing:.04em;}
   .tag-wrap{display:flex;align-items:center;gap:4px;flex:0 0 auto;}
   .fl-tag{
@@ -687,6 +687,10 @@
   .chg b{font-weight:700;color:#b9506b;}
   .chg-rb{background:#eef7f1;border-color:#d7e9df;color:#4f7b62;}
   .chg-rb em{font-style:normal;font-weight:700;margin-right:5px;}
+  .chg-del{background:#f4f2f0;border-color:#e3ded8;color:#8a7a6d;}
+  .chg-del em{font-style:normal;font-weight:700;margin-right:5px;color:#7a6a5d;}
+  .chg-new{background:#eef2fb;border-color:#dbe3f4;color:#5a6f9e;}
+  .chg-new em{font-style:normal;font-weight:700;margin-right:5px;color:#4a5f92;}
   .chg-res{background:#fdf6ea;border-color:#f0e2c7;color:#96702f;}
   .chg-res b{color:#a4792f;}
   .chg-res .chg-to{color:#b39a76;white-space:nowrap;}
@@ -907,6 +911,8 @@
     .ring-txt{width:56px;height:56px;font-size:11px;}
     .progress-card::after{display:none;}      /* 小屏水印会压住右侧统计 */
     .kw-pre{font-size:9.5px;}
+    .card-top{flex-wrap:wrap;row-gap:4px;}
+    .tag-wrap{flex:0 1 100%;justify-content:flex-end;min-width:0;}
   }
 </style>
 </head>
@@ -921,7 +927,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞本丸管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.16</div>
+        <div class="brand-sub">HONMARU KEEPER V2.23</div>
       </div>
     </div>
 
@@ -1079,7 +1085,7 @@
         <div class="panel-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
           <div style="flex:1;min-width:220px;">
             <h2>日志明细</h2>
-            <p style="margin-bottom:0;">图鉴保存、活动登记里的「乱舞 +1」、资源记录的变化都会留一条日志：改了哪一振 / 哪项资源、从多少变成多少。最新的排在最前面，单条可以删。</p>
+            <p style="margin-bottom:0;">图鉴保存、新增 / 删除刀剑、活动登记里的「乱舞 +1」、资源记录的变化、以及活动里补录的新刀都会留一条日志：改了哪一振 / 哪项资源、从多少变成多少。最新的排在最前面，单条可以删。</p>
           </div>
           <button class="btn" id="btnClearLogs" style="margin-left:auto;">清空日志</button>
         </div>
@@ -1097,6 +1103,8 @@
           <button data-lk="sword">图鉴变动</button>
           <button data-lk="ranbu">乱舞 +1</button>
           <button data-lk="res">资源变动</button>
+          <button data-lk="new">新刀</button>
+          <button data-lk="del">删除</button>
         </div>
 
         <div class="log-empty" id="logEmpty" hidden></div>
@@ -1238,7 +1246,7 @@
       </div>
     </section>
 
-    <div class="foot">本丸管家 · 本地离线版 · 全刀帐 130 振（可自行增补） · 数据来自你的本丸表格</div>
+    <div class="foot">本丸管家 · 本地离线版 · 刀帐 130 振（随游戏更新增补） · 数据来自你的本丸表格</div>
   </main>
 </div>
 
@@ -1676,7 +1684,7 @@ function blankData(){
 /* 变动日志：{id, kind, no, name, act, ses, src, date, changes:[{f, ...}], ts}
    kind = sword（图鉴字段） / ranbu（活动登记喂刀 +1） / res（资源快照变化） */
 const LOG_FIELDS = {name:'名称', type:'刀种', fl:'花数', k:'极化', r:'乱舞', rp:'乱舞进度', lv:'等级', exp:'总经验', src:'获取方式', own:'拥有状态'};
-const LOG_KINDS = {sword:'图鉴', ranbu:'乱舞 +1', res:'资源'};
+const LOG_KINDS = {sword:'图鉴', ranbu:'乱舞 +1', res:'资源', new:'新刀', del:'删除'};
 function resItemOf(key){
   const hit = RES_ITEMS.filter(function(it){ return it.key === key; })[0];
   return hit || {key:String(key || ''), name:String(key || '资源'), icon:'📦'};
@@ -1702,6 +1710,9 @@ function normLogs(arr){
         if(!RES_ITEMS.some(function(x){ return x.key === it.key; })) return;
         changes.push({f:'res', key:it.key,
                       from:clampNum(c.from, 0, RES_MAX, 0), to:clampNum(c.to, 0, RES_MAX, 0)});
+      }else if(c.f === 'roster'){
+        if(kind !== 'new' && kind !== 'del') return;
+        changes.push({f:'roster', from:clampNum(c.from, 0, 9999, 0), to:clampNum(c.to, 0, 9999, 0)});
       }else if(kind !== 'res' && LOG_FIELDS[c.f]){
         changes.push({f:c.f, from:c.from, to:c.to});
       }
@@ -1781,7 +1792,7 @@ function normalize(d){
       const o = oldMap[row.no];
       return o ? normRow(o, row) : row;
     });
-    /* 用户自己新增的刀（不在原始 130 振里）保留下来 */
+    /* 编号在 130 之后的刀（后续增补的）保留下来 */
     old.forEach(function(o){
       if(!o || o.no == null) return;
       const no = Number(o.no);
@@ -2401,11 +2412,14 @@ function deleteSword(no){
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
       {text:'确认删除', cls:'btn primary', onClick:function(){
+        const before = d.tw.length;
         d.tw = d.tw.filter(function(x){ return x.no !== no; });
         d.open = (d.open || []).filter(function(n){ return n !== no; });
         delete ui.edit[no];
-        save(); closeModal(); renderCatalog(); renderSidebar();
-        toast('「' + row.name + '」已删除');
+        pushLog({kind:'del', no:no, name:row.name,
+                 changes:[{f:'roster', from:before, to:d.tw.length}]});
+        save(); closeModal(); renderStats(); renderFilters(); renderCatalog(); renderSidebar();
+        toast('「' + row.name + '」已删除 · 刀帐 ' + before + '→' + d.tw.length);
       }}
     ]
   });
@@ -2466,15 +2480,55 @@ function fillBaseRoster(){
 }
 
 /* 新增一振：编号自动排在最后 */
-/* 按编号或名称在 130 振刀帐里找：填了名称就按名称精确匹配，名称为空才按编号 */
+/* 检索池 = 内置刀帐 + 图鉴里后来增补的刀。编号以内置刀帐为准，增补的追加在后面。
+   新增弹窗的提示、候选列表、按名/按号命中都用这一份，避免「刚加的刀搜不到」。 */
+function rosterPool(){
+  const d = curData();
+  const out = RAW.map(function(r){
+    return {no:r[0], name:r[1], type:r[2], k:Number(r[3]) === 1 ? 1 : 0,
+            fl:FLOWER[r[0]-1] || 0, custom:false};
+  });
+  if(d && Array.isArray(d.tw)){
+    const have = {};
+    out.forEach(function(r){ have[r.no] = 1; });
+    d.tw.forEach(function(x){
+      const no = Number(x.no) || 0;
+      if(!no || have[no]) return;
+      have[no] = 1;
+      out.push({no:no, name:String(x.name || ('No.' + no)), type:x.type || '打刀',
+                k:Number(x.k) === 1 ? 1 : 0, fl:Number(x.fl) || 0, custom:true});
+    });
+  }
+  out.sort(function(a, b){ return a.no - b.no; });
+  return out;
+}
+function poolByNo(no){
+  const n = Number(no) || 0;
+  if(n < 1) return null;
+  if(RAW_BY_NO[n]){
+    const r = RAW_BY_NO[n];
+    return {no:r.no, name:r.name, type:r.type, k:Number(r.k) === 1 ? 1 : 0,
+            fl:FLOWER[r.no-1] || 0, custom:false};
+  }
+  const x = rowOf(n);
+  if(!x) return null;
+  return {no:n, name:x.name, type:x.type || '打刀', k:Number(x.k) === 1 ? 1 : 0,
+          fl:Number(x.fl) || 0, custom:true};
+}
+/* 花数：内置取自刀帐表，增补的取它自己填的 */
+function poolFl(raw){ return raw && raw.fl != null ? (Number(raw.fl) || 0) : 0; }
+/* 按编号或名称在检索池里找：填了名称就按名称精确匹配，名称为空才按编号 */
 function rawOfInput(no, name){
   const nm = String(name || '').trim();
   if(nm){
-    const hit = RAW.filter(function(r){ return r[1] === nm; })[0];
-    return hit ? RAW_BY_NO[hit[0]] : null;
+    const p = rosterPool();
+    /* 内置刀帐优先，其次是后来增补的刀 */
+    let hit = p.filter(function(r){ return !r.custom && r.name === nm; })[0];
+    if(!hit) hit = p.filter(function(r){ return r.name === nm; })[0];
+    return hit || null;
   }
   const n = Number(no);
-  if(n >= 1 && RAW_BY_NO[n]) return RAW_BY_NO[n];
+  if(n >= 1) return poolByNo(n);
   return null;
 }
 function padNo(no){ return String(no).padStart(3, '0'); }
@@ -2482,18 +2536,43 @@ function padNo(no){ return String(no).padStart(3, '0'); }
 let aswHit = null;
 let aswForceNew = false;
 
+/* 新增 / 改拥有状态后：统计、筛选项、刀帐检索立刻跟上；新刀被筛选挡住就放宽并滚过去 */
+function showSwordAfterAdd(no){
+  const row = rowOf(no);
+  renderStats(); renderFilters(); renderCatalog();
+  if(!row) return;
+  let relax = false;
+  if(ui.own === '1' && Number(row.own) === 0){ ui.own = ''; relax = true; }
+  if(ui.own === '0' && Number(row.own) !== 0){ ui.own = ''; relax = true; }
+  if(ui.type && ui.type !== row.type){ ui.type = ''; relax = true; }
+  if(ui.q && row.name.toLowerCase().indexOf(String(ui.q).toLowerCase()) < 0){
+    ui.q = '';
+    const el = $('#fSearch');
+    if(el) el.value = '';
+    relax = true;
+  }
+  if(relax){ renderFilters(); renderCatalog(); }
+  const card = document.querySelector('#grid .card[data-no="' + no + '"]');
+  if(card && card.scrollIntoView){
+    setTimeout(function(){ card.scrollIntoView({block:'center', behavior:'auto'}); }, 80);
+  }
+}
+
 /* 新增刀剑：先查 130 振刀帐，命中就反填 / 补回，不重复新增 */
 function openAddSword(){
   const d = curData();
   if(!d){ toast('请先新建账号', true); return; }
   const nextNo = d.tw.reduce(function(m,x){ return Math.max(m, Number(x.no)||0); }, 0) + 1;
+  const poolN = rosterPool().length;
   aswHit = null;
   aswForceNew = false;
   openModal({
     title:'＋ 新增刀剑',
-    sub:'输入编号或名称，会先查 130 振刀帐：打一个字就能看到含这个字的刀，选中即按刀帐反填；刀帐里没有的再作为新刀加入。',
+    sub:'输入编号或名称，会先查刀帐（当前 ' + poolN +
+        ' 振）：打一个字就能看到含这个字的刀，选中即按刀帐反填；都查不到再作为新刀加入。',
     body:
-      '<div class="asw-hint info" id="aswHint">输入编号或名称，会先查 130 振刀帐；命中就按刀帐反填，不重复新增。</div>' +
+      '<div class="asw-hint info" id="aswHint">输入编号或名称，会先查刀帐（当前 ' + poolN +
+      ' 振）；命中就反填 / 提示已在图鉴，不重复新增。</div>' +
       '<div class="add-grid asw-main">' +
         '<label class="fld full"><span>名称</span><input type="text" id="aswName" maxlength="20" placeholder="如 小狐丸（打「小」就会列出刀帐里带小的刀）"></label>' +
         '<label class="fld"><span>编号（可留空，自动排最后）</span><input type="number" id="aswNo" min="1" max="9999" step="1" placeholder="如 003"></label>' +
@@ -2508,6 +2587,7 @@ function openAddSword(){
           '<option value="6">6 花</option>' +
         '</select></label>' +
         '<label class="fld"><span>极化</span><select id="aswK"><option value="0">普</option><option value="1">极</option></select></label>' +
+        '<label class="fld"><span>拥有状态</span><select id="aswOwn"><option value="0" selected>未拥有</option><option value="1">已拥有</option></select></label>' +
         '<label class="fld"><span>乱舞</span><input type="number" id="aswR" min="1" max="10" step="1" value="1"></label>' +
         '<label class="fld"><span>等级</span><input type="number" id="aswLv" min="1" max="199" step="1" title="普刀上限 99，极化刀上限 199" value="1"></label>' +
         '<label class="fld"><span>总经验</span><input type="number" id="aswExp" min="0" max="999999999" step="any" value="0"></label>' +
@@ -2529,23 +2609,27 @@ function openAddSword(){
               closeModal(); return;
             }
             exist.own = 1;
-            if(!(Number(exist.fl) > 0)) exist.fl = FLOWER[raw.no-1] || 0;
-            d.logs = Array.isArray(d.logs) ? d.logs : [];
-            d.logs.unshift({id:uid(), no:exist.no, name:exist.name,
-                            changes:[{f:'own', from:0, to:1}], ts:Date.now()});
+            if(!(Number(exist.fl) > 0)) exist.fl = poolFl(raw);
+            pushLog({kind:'sword', no:exist.no, name:exist.name,
+                     changes:[{f:'own', from:0, to:1}]});
             save(); closeModal();
-            renderCatalog(); renderSidebar(); renderLogs();
-            toast('「' + exist.name + '」已标记为已拥有');
+            showSwordAfterAdd(exist.no); renderSidebar(); renderLogs();
+            toast('「' + exist.name + '」已标记为已拥有 · 已记日志');
           }else{
             const row = {no:raw.no, name:raw.name, type:raw.type, k:0, r:1, rp:0,
-                         lv:1, exp:0, src:'', fl:FLOWER[raw.no-1] || 0, own:1};
+                         lv:1, exp:0, src:'', fl:poolFl(raw),
+                         own: Number($('#aswOwn').value) === 1 ? 1 : 0};
+            const before = d.tw.length;
             d.tw.push(row);
             d.tw.sort(function(a,b){ return a.no - b.no; });
             if(!Array.isArray(d.open)) d.open = [];
             if(raw.k === 1 && d.open.indexOf(raw.no) < 0) d.open.push(raw.no);
+            pushLog({kind:'new', no:row.no, name:row.name,
+                     changes:[{f:'roster', from:before, to:d.tw.length}]});
             save(); closeModal();
-            renderCatalog(); renderSidebar();
-            toast('「' + row.name + '」已按刀帐补回图鉴（No.' + padNo(row.no) + '）');
+            showSwordAfterAdd(row.no); renderSidebar();
+            toast('「' + row.name + '」已按刀帐补回图鉴（No.' + padNo(row.no) + '）· ' +
+                  (row.own ? '已拥有' : '未拥有') + ' · 刀帐 ' + before + '→' + d.tw.length);
           }
           return;
         }
@@ -2568,17 +2652,21 @@ function openAddSword(){
           exp: clampFloat($('#aswExp').value, 0, RES_MAX, 0),
           src: ($('#aswSrc').value || '').trim().slice(0, 24),
           fl: clampNum($('#aswFl').value, 0, 6, 0),
-          own: 1
+          own: Number($('#aswOwn').value) === 1 ? 1 : 0
         };
         row.rp = clampNum($('#aswRp').value, 0, ranbuNeed(row.fl, row.r) || 999, 0);
+        const before = d.tw.length;
         d.tw.push(row);
         d.tw.sort(function(a,b){ return a.no - b.no; });
         if(!Array.isArray(d.open)) d.open = [];
-        /* 自己补的刀默认算「已开放极化」，否则卡片里的「极」点不了 */
+        /* 新入库的刀默认算「已开放极化」，否则卡片里的「极」点不了 */
         if(d.open.indexOf(no) < 0) d.open.push(no);
+        pushLog({kind:'new', no:row.no, name:row.name,
+                 changes:[{f:'roster', from:before, to:d.tw.length}]});
         save(); closeModal();
-        renderCatalog(); renderSidebar();
-        toast('「' + row.name + '」已入库 · 共 ' + d.tw.length + ' 振');
+        showSwordAfterAdd(row.no); renderSidebar();
+        toast('「' + row.name + '」已入库 · ' + (row.own ? '已拥有' : '未拥有') +
+              ' · 刀帐 ' + before + '→' + d.tw.length);
       }}
     ]
   });
@@ -2600,19 +2688,19 @@ function openAddSword(){
       if(!sug) return 0;
       const q = String(kw || '').trim().toLowerCase();
       if(!q){ sug.innerHTML = ''; sug.hidden = true; return 0; }
-      const all = RAW.filter(function(r){ return String(r[1]).toLowerCase().indexOf(q) >= 0; });
+      const all = rosterPool().filter(function(r){ return r.name.toLowerCase().indexOf(q) >= 0; });
       const hits = all.slice(0, 12);
       let h = '';
       hits.forEach(function(r){
-        const exist = d.tw.filter(function(x){ return x.no === r[0]; })[0];
+        const exist = d.tw.filter(function(x){ return x.no === r.no; })[0];
         let tag;
         if(!exist) tag = '<span class="sug-own new">图鉴没有</span>';
         else if(Number(exist.own) === 0) tag = '<span class="sug-own">未拥有</span>';
         else tag = '<span class="sug-own own">已在图鉴</span>';
-        h += '<button type="button" class="asw-sug-item" data-pick="' + r[0] + '">' +
-             '<span class="sug-no">No.' + padNo(r[0]) + '</span>' +
-             '<span class="sug-name">' + esc(r[1]) + '</span>' +
-             '<span class="sug-fl">' + (FLOWER[r[0]-1] || '?') + '花</span>' + tag +
+        h += '<button type="button" class="asw-sug-item" data-pick="' + r.no + '">' +
+             '<span class="sug-no">No.' + padNo(r.no) + '</span>' +
+             '<span class="sug-name">' + esc(r.name) + '</span>' +
+             '<span class="sug-fl">' + (r.fl ? r.fl + '花' : '?') + '</span>' + tag +
              '</button>';
       });
       h += '<button type="button" class="asw-sug-item asw-sug-new" data-pick="new">' +
@@ -2625,11 +2713,11 @@ function openAddSword(){
       if(sug){ sug.innerHTML = ''; sug.hidden = true; }
       if(!(nameEl.value || '').trim()) nameEl.value = raw.name;
       $('#aswType').value = raw.type;
-      $('#aswFl').value = String(FLOWER[raw.no-1] || 0);
+      $('#aswFl').value = String(poolFl(raw));
       disableExtra(true);
       const exist = d.tw.filter(function(x){ return x.no === raw.no; })[0];
       const base = 'No.' + padNo(raw.no) + ' ' + raw.name + ' · ' + raw.type +
-                   ' · ' + (FLOWER[raw.no-1] || '?') + '花';
+                   ' · ' + (poolFl(raw) ? poolFl(raw) + '花' : '花数未知');
       if(exist && Number(exist.own) !== 0){
         box.className = 'asw-hint info';
         box.innerHTML = '刀帐命中：<b>' + esc(base) + '</b><br>这振已经在图鉴里了。要改进度直接点卡片「✎ 修改」，这里不用再新增。';
@@ -2662,11 +2750,13 @@ function openAddSword(){
           box.innerHTML = '刀帐里有 <b>' + n + '</b> 振名称含「' + esc(kw) + '」的刀，点一行就按刀帐反填；' +
                           '要加刀帐外的刀，点列表最后一项。<br>也可以直接忽略，按现在填的内容新增。';
         }else if(kw){
-          box.innerHTML = '130 振刀帐里没有名称含「' + esc(kw) + '」的刀，会作为 <b>新刀</b>添加。编号留空就自动排在最后。';
+          box.innerHTML = '刀帐（当前 ' + rosterPool().length + ' 振）里没有名称含「' +
+                          esc(kw) + '」的刀，会作为 <b>新刀</b>添加。编号留空就自动排在最后。';
         }else if(noV){
           box.innerHTML = '编号 <b>No.' + esc(padNo(clampNum(noV, 1, 9999, nextNo))) + '</b> 不在刀帐命中范围内，将按下面填的资料作为新刀添加。';
         }else{
-          box.innerHTML = '输入编号或名称，会先查 130 振刀帐；打一个字就能列出名称含这个字的刀，选中即反填。';
+          box.innerHTML = '输入编号或名称，会先查刀帐（当前 ' + rosterPool().length +
+                          ' 振）；打一个字就能列出名称含这个字的刀，选中即反填。';
         }
       }
       if(saveBtn) saveBtn.textContent = '保存并入库';
@@ -2704,7 +2794,7 @@ function openAddSword(){
         if(mEl) mEl.focus();
         return;
       }
-      const r = RAW_BY_NO[Number(v)];
+      const r = poolByNo(Number(v));
       if(!r) return;
       aswForceNew = false;
       mEl.value = r.name;
@@ -3018,7 +3108,7 @@ function addRes(){
 /* =========================================================
    变动记录
    ========================================================= */
-const LOG_PER = 20;
+const LOG_PER = 10;
 function fmtTime(ts){
   const d = new Date(ts);
   function p(n){ return String(n).padStart(2,'0'); }
@@ -3067,17 +3157,25 @@ function logFlat(l){
     if(c.f === 'res'){
       return resItemOf(c.key).name + ' ' + fmtNum(c.from) + '→' + fmtNum(c.to);
     }
+    if(c.f === 'roster'){
+      return (l.kind === 'del' ? '删除' : '新刀') + ' 刀帐变动 ' + c.from + '→' + c.to;
+    }
     return LOG_FIELDS[c.f] + ' ' + logVal(c.f, c.from) + '→' + logVal(c.f, c.to);
   }).join('  ');
 }
 /* 单条变动渲染成 chip：乱舞 +1 / 资源增减 / 图鉴字段 */
-function logChangeHTML(c){
+function logChangeHTML(c, kind){
   if(c.f === 'ranbu'){
     if(c.r2 > c.r){
       return '<span class="chg chg-rb"><em>乱舞 +1</em> 乱舞 ' + c.r + '→' + c.r2 + ' 🎉</span>';
     }
     const n = c.n > 0 ? c.n : '?';
     return '<span class="chg chg-rb"><em>乱舞 +1</em> 进度 ' + c.rp + '/' + n + '→' + c.rp2 + '/' + n + '</span>';
+  }
+  if(c.f === 'roster'){
+    const isDel = kind === 'del';
+    return '<span class="chg ' + (isDel ? 'chg-del' : 'chg-new') + '"><em>' +
+           (isDel ? '删除' : '新刀') + '</em> 刀帐变动 ' + c.from + '→' + c.to + '</span>';
   }
   if(c.f === 'res'){
     const it = resItemOf(c.key);
@@ -3098,6 +3196,7 @@ function logDeltaList(l){
   const rUp = changes.some(function(c){ return c.f === 'r' && Number(c.to) > Number(c.from); });
   changes.forEach(function(c){
     if(c.f === 'ranbu'){ out.push(1); return; }
+    if(c.f === 'roster'){ out.push((Number(c.to) || 0) - (Number(c.from) || 0)); return; }
     if(c.f === 'res'){ out.push((Number(c.to) || 0) - (Number(c.from) || 0)); return; }
     if(c.f === 'rp' && rUp) return;
     if(c.f === 'lv' || c.f === 'exp' || c.f === 'r' || c.f === 'rp'){
@@ -3178,7 +3277,7 @@ function renderLogs(){
     if(ui.logKind) cond.push(LOG_KINDS[ui.logKind]);
     empty.textContent = cond.length
       ? '没有匹配 ' + cond.join(' / ') + ' 的日志，换个条件试试。'
-      : '还没有日志：图鉴保存、活动登记喂刀、资源记录变化都会自动记在这里。';
+      : '还没有日志：图鉴保存、增删刀剑、活动登记喂刀、资源记录变化都会自动记在这里。';
     wrap.hidden = true;
     body.innerHTML = '';
     pager.innerHTML = '';
@@ -3188,7 +3287,7 @@ function renderLogs(){
   wrap.hidden = false;
 
   body.innerHTML = rows.map(function(l, i){
-    const chips = l.changes.map(logChangeHTML).join('');
+    const chips = l.changes.map(function(c){ return logChangeHTML(c, l.kind); }).join('');
     const actName = l.kind === 'res' ? (l.act || '') : logActOf(l);
     const actShort = actName.replace(/（[^）]*）/g, '');
     let nameCell, actCell;
@@ -3301,7 +3400,7 @@ function clearLogs(){
 /* =========================================================
    活动记录 · 掉刀计算器
    ========================================================= */
-/* 花数：按 No.1 → No.130 顺序（取自公开刀帐数据），用户自己新增的刀可单独写 fl 字段 */
+/* 花数：按 No.1 → No.130 顺序（取自公开刀帐数据），编号在此之后的刀单独写 fl 字段 */
 
 let calcPickNo = 0;
 let calcSortMode = 'no';
@@ -3969,14 +4068,17 @@ function calcNewSwordFromCalc(){
             if(Number(hit.own) === 0){
               hit.own = 1;
               if(!(Number(hit.fl) > 0)) hit.fl = FLOWER[hit.no-1] || 0;
-              d.logs = Array.isArray(d.logs) ? d.logs : [];
-              d.logs.unshift({id:uid(), no:hit.no, name:hit.name,
-                              changes:[{f:'own', from:0, to:1}], ts:Date.now()});
+              pushLog({kind:'sword', no:hit.no, name:hit.name, act:(curAct() && curAct().name) || '',
+                       ses:(curSes() && curSes().name) || '', changes:[{f:'own', from:0, to:1}]});
             }
           }else{
+            const beforeB = d.tw.length;
             hit = {no:raw.no, name:raw.name, type:raw.type, k:0, r:1, rp:0,
-                   lv:1, exp:0, src:'', fl:FLOWER[raw.no-1] || 0, own:1};
+                   lv:1, exp:0, src:'', fl:poolFl(raw), own:1};
             d.tw.push(hit);
+            pushLog({kind:'new', no:hit.no, name:hit.name, act:(curAct() && curAct().name) || '',
+                     ses:(curSes() && curSes().name) || '',
+                     changes:[{f:'roster', from:beforeB, to:d.tw.length}]});
             d.tw.sort(function(a,b){ return a.no - b.no; });
             if(!Array.isArray(d.open)) d.open = [];
             if(raw.k === 1 && d.open.indexOf(raw.no) < 0) d.open.push(raw.no);
@@ -4008,7 +4110,11 @@ function calcNewSwordFromCalc(){
                      type: TYPES.indexOf($('#csType').value) >= 0 ? $('#csType').value : '打刀',
                      k:0, r:1, rp:0, lv:1, exp:0, src:'',
                      fl: clampNum($('#csFl').value, 0, 6, 0), own:1};
+        const beforeC = d.tw.length;
         d.tw.push(row);
+        pushLog({kind:'new', no:row.no, name:row.name, act:(curAct() && curAct().name) || '',
+                 ses:(curSes() && curSes().name) || '',
+                 changes:[{f:'roster', from:beforeC, to:d.tw.length}]});
         d.tw.sort(function(a, b){ return a.no - b.no; });
         if(!Array.isArray(d.open)) d.open = [];
         if(d.open.indexOf(no) < 0) d.open.push(no);
@@ -4035,6 +4141,33 @@ function calcNewSwordFromCalc(){
 }
 
 /* ---------- 登记 ---------- */
+/* 活动记录里登记了一把图鉴没有的刀：直接补录一行（普刀 · 乱舞 1 · Lv1），并记一条「新刀」日志 */
+function autoAddSword(name, act, ses){
+  const d = curData();
+  if(!d) return 0;
+  const kw = String(name || '').trim().slice(0, 20);
+  if(!kw) return 0;
+  let raw = rawOfInput('', kw);
+  if(!raw){
+    const q = kw.toLowerCase();
+    const hits = rosterPool().filter(function(r){ return !r.custom && r.name.toLowerCase().indexOf(q) >= 0; });
+    if(hits.length === 1) raw = poolByNo(hits[0].no);   // 只命中一把就按刀帐补名
+  }
+  const qno = noQuery(kw);
+  const maxNo = d.tw.reduce(function(m, x){ return Math.max(m, Number(x.no) || 0); }, 0);
+  let no = raw ? raw.no : ((qno && !d.tw.some(function(x){ return x.no === qno; })) ? qno : maxNo + 1);
+  if(!no || d.tw.some(function(x){ return x.no === no; })) return 0;
+  const row = {no:no, name:raw ? raw.name : kw, type:raw ? raw.type : '太刀',
+               k:0, r:1, rp:0, lv:1, exp:0, src:'', fl:raw ? poolFl(raw) : 0, own:1};
+  const before = d.tw.length;
+  d.tw.push(row);
+  d.tw.sort(function(a, b){ return a.no - b.no; });
+  pushLog({kind:'new', no:no, name:row.name, act:(act && act.name) || '',
+           ses:(ses && ses.name) || '', changes:[{f:'roster', from:before, to:d.tw.length}]});
+  renderStats(); renderFilters();
+  if(ui.tab === 'catalog') renderCatalog();
+  return no;
+}
 function addDrop(){
   const d = curData();
   const c = calcStateOf();
@@ -4043,11 +4176,25 @@ function addDrop(){
   if(!d || !c) return;
   if(!ses){ toast('先在「记录存档」里新建一条记录', true); return; }
   if(ses.closed){ toast('这次活动已结束，点「重新打开」才能继续记', true); return; }
-  const no = resolveSword();
+  let no = resolveSword();
+  let addedTip = '';
+  let justAdded = false;
   if(!no){
-    toast('没找到这把刀，从下拉里选一把，或把名字/编号打全', true);
-    $('#calcInput').focus();
-    return;
+    /* 图鉴里没有 → 自动补录，本次这一把照常登记 */
+    no = autoAddSword(($('#calcInput').value || '').trim(), act, ses);
+    if(!no){
+      toast('没找到这把刀，从下拉里选一把，或把名字/编号打全', true);
+      $('#calcInput').focus();
+      return;
+    }
+    calcPickNo = no;
+    const inp0 = $('#calcInput');
+    if(inp0) inp0.value = swordName(no);
+    const pk = $('#calcPicker');
+    if(pk) pk.classList.add('has-text');
+    justAdded = true;
+    addedTip = ' · ＋ 新刀已补录（普刀 · 乱舞 1 · Lv1，下次登记开始喂乱舞）';
+    renderCatalog();
   }
   const day = calcDayKey();
   ses.daily[day] = ses.daily[day] || {};
@@ -4056,10 +4203,16 @@ function addDrop(){
   const isFirst = !ses.firsts[no];
   if(isFirst) ses.firsts[no] = day;
 
-  /* 图鉴里这振还没设花数 → 按刀帐花数补上，再算乱舞 */
   const row = rowOf(no);
+  /* 掉了一把就说明拿到了：未拥有 → 已拥有 */
+  if(row && Number(row.own) === 0){
+    row.own = 1;
+    pushLog({kind:'sword', no:no, name:row.name, act:(act && act.name) || '', ses:(ses && ses.name) || '',
+             changes:[{f:'own', from:0, to:1}]});
+  }
+  /* 图鉴里这振还没设花数 → 按刀帐花数补上，再算乱舞 */
   if(row && !(Number(row.fl) > 0)){
-    const flSeed = FLOWER[no - 1] || 0;
+    const flSeed = Number(row.fl) > 0 ? Number(row.fl) : (FLOWER[no - 1] || 0);
     if(flSeed){
       row.fl = flSeed;
       if(!Array.isArray(d.logs)) d.logs = [];
@@ -4072,11 +4225,12 @@ function addDrop(){
 
   /* 可选：把这一把喂进图鉴里的乱舞进度 */
   let boostTxt = '';
-  if(c.lvlSync) boostTxt = applyRanbuGain(no, act, ses);
+  /* 刚补录的刀保持乱舞 1：这一把只计入活动统计，不重复喂进度 */
+  if(c.lvlSync && !justAdded) boostTxt = applyRanbuGain(no, act, ses);
   save();
   renderCalc();
   calcStatus('🌸 ' + swordName(no) + ' 已登记（今日 ' + ses.daily[day][no] + ' 振·本次 ' + sesTotal(ses) + ' 振）' +
-    (isFirst ? ' · 本次首振' : '') + boostTxt);
+    (isFirst ? ' · 本次首振' : '') + boostTxt + addedTip);
   const inp = $('#calcInput');
   if(inp && inp.value) inp.select();
 }
@@ -4899,6 +5053,13 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.23 刀帐统一按总数显示','<p>新增弹窗只写「刀帐（当前 N 振）」，候选列表也不再多加小标，所有刀一视同仁。后续游戏上新刀，直接按正常流程加进图鉴就行，检索、计数、筛选都会自动跟上。</p>','2026.11'],
+    ['V2.22 新增弹窗按当前全部刀检索','<p>「＋ 新增刀剑」以前只查内置的 130 振：已经入过图鉴的刀再输一次，会提示「130 振刀帐里没有」，数字也永远停在 130。现在检索覆盖图鉴里<b>当前的全部刀</b>，提示里的振数按实际数量算（例如 132 振）。输入已有的名字或编号，会直接命中那一振并提示「已在图鉴」或「未拥有 → 保存后改成已拥有」，不会再误加一条同名记录。候选列表会列出全部命中的刀，花数取它自己填的值。</p>','2026.11'],
+    ['V2.21 日志改为一页 10 条','<p>日志明细从每页 20 条改成 <b>10 条</b>，翻页更快、单页不用滚太久；页码条右侧仍会写「第 X / Y 页 · 每页 10 条」。切换筛选、搜索关键字、增删日志时都会自动回到第 1 页，不会停在空白页上。</p>','2026.11'],
+    ['V2.20 新增后立刻进刀帐检索','<p>以前新增一振，顶部「全 N 振」和各筛选按钮后面的振数要等下次切换筛选才更新；现在入库当下就刷新：统计、刀种 / 极化 / 乱舞 / 等级 / 拥有各档计数、搜索结果全部包含这把新刀。如果当时正开着「已拥有」筛选、而新刀默认是未拥有，会自动切回「全部」并滚到它的卡片，不会出现「新增完找不到」的情况。删除同理，删完计数马上减 1。活动记录里的「＋ 图鉴没有？补录一把」也会写一条 <b>新刀</b> 日志了。</p>','2026.11'],
+    ['V2.19 删除留痕 · 新增默认未拥有','<p>三处调整：<br>① 图鉴里删除一振刀，会记一条 <b>删除</b> 日志，写 <b>刀帐变动 130→129</b>，变动值 <b style="color:#4f8a63">-1</b>，日志页也多了「删除」筛选；<br>② 「＋ 新增刀剑」默认按 <b>未拥有</b> 入库，弹窗里多了「拥有状态」，想一次标成已拥有可以自己选；<br>③ 活动里掉的新刀补录时直接是 <b>已拥有</b>，另外登记一把原本「未拥有」的刀，也会自动改成已拥有并记一条图鉴日志。</p>','2026.11'],
+    ['V2.18 新增刀剑也写日志','<p>图鉴右上角的「＋ 新增刀剑」现在也会留痕：真的加了一振，就记一条 <b>新刀</b> 日志，写 <b>刀帐变动 130→131</b>、变动值 <b style="color:#c2455e">+1</b>；如果是把「未拥有」的刀改成「已拥有」，记一条图鉴日志，写 <b>拥有状态 未拥有 → 已拥有</b>。刀帐里本来就有的刀重复新增不会写入，避免日志里出现空记录。</p>','2026.11'],
+    ['V2.17 活动里掉的新刀自动补录','<p>在活动记录里登记时，如果输入的名字图鉴里没有（比如新实装的刀，或被删过的条目），不用再手动去「＋ 新增刀剑」补：点「掉了一把」会直接补进图鉴，默认 <b>普刀 · 乱舞 1 · 等级 1 · 总经验 0</b>，刀帐里能查到的会顺带填上刀种和花数。同时记一条 <b>新刀</b> 日志，标 <b>刀帐变动 130→131</b>，变动值 <b style="color:#c2455e">+1</b>，日志页也多了一个「新刀」筛选。补录的这一把只计入活动统计，乱舞从下一次登记开始喂，不会被一把直接顶到乱舞 2。</p>','2026.11'],
     ['V2.16 花数变动不算「变动值」','<p>花数是这把刀的<b>属性</b>（开几花），不是资源或经验的增减，所以「变动值」列不再给花数算 <b>+1 / -1</b>，统一显示「—」。改动本身仍然记在日志的「变动内容」里，写成 <b>花数 0 花 → 2 花</b>，随时能查到什么时候改的。经验、等级、乱舞这类真正会累加的数值照旧显示差值。</p>','2026.11'],
     ['V2.15 日志多一列「变动值」','<p>日志表在「变动内容」右边多了一列 <b>变动值</b>：资源写 <b style="color:#c2455e">+17,500</b> / <b style="color:#4f8a63">-1,200</b>（红涨绿落），乱舞喂刀写 <b style="color:#c2455e">+1</b>，等级 / 经验这类改动也算出差值；一条日志有多项变动就分行列出。纯改名、改刀种这种没有数值的显示「—」。手机端这一列会排在刀名右侧，方便直接扫。</p>','2026.11'],
     ['V2.14 乱舞 +1 与资源变动都有日志','<p>活动记录里每登记一把、勾着「同步乱舞进度」时，会写一条 <b>乱舞 +1</b> 日志：显示进度从几比几走到几比几，喂满升级就显示 <b>乱舞 4→5 🎉</b>，并带上活动名与记录名。资源页手动保存、地下城「写入资源记录」也会按<b>与上一条快照的差额</b>记一条资源日志（只记实际填了的项，没填的 0 不算跌）。日志页新增「<b>全部 / 图鉴变动 / 乱舞 +1 / 资源变动</b>」筛选，每行右侧的 <b>✕</b> 可以<b>单条删除</b>；删除只掉日志，不动图鉴、活动或资源数据。</p>','2026.11'],
@@ -4930,13 +5091,13 @@ function openNotice(){
     ['V1.8 掉一把，乱舞也能跟着涨','<p>登记框下面有个开关「同时乱舞 +1」：打开后每登记一把，这振刀在图鉴里的乱舞会 +1（到 10 就停），省得两边各改一遍。默认关闭，开关状态按账号记住。</p>','小贴士'],
     ['V1.7 筛选按钮显示振数','<p>刀种、极化、乱舞、等级四行筛选，每个按钮后面都跟了一个数字，就是这档现在有多少振（如「极 90」「乱舞 MAX 77」「100 及以上 42」）。数字按全图鉴实时算，新增、删除、改极化或等级后立刻跟着变，点之前就能知道会筛出多少。</p>','2026.11'],
     ['V1.6 极化后等级预估','<p>普刀填了「总经验」后，卡片里会多一行「极化后预估 Lv」：先把总经验减去该刀种的极化门槛扣除量，再按刀种经验条查等级。短刀 1.0、胁差·枪·薙刀 1.1、打刀 1.3（按三花普打算）、太刀 1.4、大太刀 1.5，100 级以上按等分估算到 199；剑没有极化，不做预估。鼠标停在预估条上能看到具体算式。</p>','2026.11'],
-    ['V1.6 极199 进度','<p>顶栏新增「极199 进度 n/130」：统计已极化且等级 ≥199 的刀，分母是当前图鉴总数（自己新增刀剑后分母也会跟着变）。</p>','2026.11'],
+    ['V1.6 极199 进度','<p>顶栏新增「极199 进度 n/130」：统计已极化且等级 ≥199 的刀，分母是当前图鉴总数（刀帐增补后分母也会跟着变）。</p>','2026.11'],
     ['V1.6 新增刀剑 / 改名','<p>图鉴右上角多了「＋ 新增刀剑」，可以补表格里没有的刀；编辑态里第一行就能改「名称」和「刀种」，保存后记进变动记录。编辑态右下角的 🗑 可以把这振从图鉴里删掉。</p>','2026.11'],
     ['V1.6 等级筛选改版','<p>等级筛选改成你要的两档：「100 及以上」和「100 以下」。原来的「Lv50 以下」已去掉。</p>','2026.11'],
     ['修好了：从侧栏看不到公告','<p>之前手机端点开左侧抽屉后再点「公告与更新」，弹窗被抽屉盖住（层级比抽屉低），看起来像没反应。现在弹窗永远在最上层，打开时也会自动收起抽屉。</p>','修复'],
     ['V1.5 极化开放上限','<p>现在按游戏版本记录「已开放极化」的刀剑：目前 90 振已开放、40 振未开放。进度环改为「已极化 / 已开放」，未开放的刀在卡片里会标出来，也点不了「极」。</p>','2026.11'],
     ['开放更多极化后怎么改','<p>点图鉴里极化筛选行的「⚙ 极化开放」：搜刀名、勾上刚开放的刀，保存即可，卡片里的「极」立刻解锁，进度环会按新的上限重新计算。已极化的刀会保持勾选、不能取消。</p>','小贴士'],
-    ['V1.4 新增变动记录','<p>图鉴每次保存都会自动写一条日志，记下刀剑名称、改了哪个字段、从多少变成多少，以及精确到秒的时间。每页 20 条，可翻页、可搜索。</p>','2026.11'],
+    ['V1.4 新增变动记录','<p>图鉴每次保存都会自动写一条日志，记下刀剑名称、改了哪个字段、从多少变成多少，以及精确到秒的时间。可翻页、可搜索。</p>','2026.11'],
     ['修改 / 保存两步走','<p>卡片默认只读，点「✎ 修改」才会展开控件，改完点「保存」写入并锁定；点「取消」则原样丢弃。没有改动就保存不会产生日志。</p>','小贴士'],
     ['可编辑的字段','<p>名称、刀种、极化（极 / 普）、乱舞（1-10）、等级（1-999）、总经验（0-999,999,999，支持小数）、获取方式（最多 24 字）。编辑时顶栏统计不动，保存后才更新。</p>','说明'],
     ['排班计划已移除','<p>按你的要求删掉了「排班计划」模块，侧栏现在是图鉴、资源记录、活动记录三块，界面更清爽。</p>','变更'],
@@ -5117,7 +5278,7 @@ function switchTab(tab){
 function resetData(){
   openModal({
     title:'恢复初始值',
-    sub:'会把图鉴还原成表格里的 130 振初始数据：极化、乱舞、等级、总经验、获取方式、刀剑名称全部恢复，自己新增的刀也会一并清掉；极化开放名单恢复为 90 振。',
+    sub:'会把图鉴还原成表格里的 130 振初始数据：极化、乱舞、等级、总经验、获取方式、刀剑名称全部恢复，130 振之外的刀也会一并清掉；极化开放名单恢复为 90 振。',
     body:'<p style="font-size:12px;color:var(--sub);margin:0;">资源记录、活动记录、变动记录都不受影响。此操作无法撤销。</p>',
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
