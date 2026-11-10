@@ -236,6 +236,21 @@
   .card:hover{box-shadow:var(--shadow);border-color:var(--line-strong);}
   .card.kw{background:linear-gradient(170deg,#fffdfd 0%,#fdf1f4 100%);border-color:#f0c3cd;}
   .card-top{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:6px;}
+  .card-lead{display:flex;align-items:center;gap:4px;min-width:0;}
+  .fav-btn{
+    border:0;background:none;padding:0 1px;line-height:1;cursor:pointer;
+    font-size:14px;color:#e2d2d6;transition:color .15s,transform .15s;
+    font-family:inherit;border-radius:4px;
+  }
+  .fav-btn:hover{color:#d9a441;transform:scale(1.12);}
+  .fav-btn:focus-visible{outline:2px solid var(--line-strong);outline-offset:1px;}
+  .fav-btn.on{color:#d9a441;text-shadow:0 1px 5px rgba(217,164,65,.45);}
+  /* 已置顶：金色描边 + 左侧细条，多振时可以一眼看出哪些在前面 */
+  .card.fav{border-color:#e6cd96;box-shadow:inset 0 0 0 1px #f0dfb6, 0 10px 24px -20px rgba(193,154,75,.85);}
+  .card.fav::before{
+    content:'';position:absolute;left:1px;top:16px;bottom:16px;width:3px;
+    border-radius:0 3px 3px 0;background:linear-gradient(180deg,#f0d795,#cf9a33);
+  }
   .card-id{font-family:ui-monospace,Menlo,monospace;font-size:10px;color:#c0a9ae;letter-spacing:.08em;}
   .type-tag{font-size:9.5px;border:1px solid var(--line);border-radius:5px;padding:1px 5px;color:var(--sub);background:#fffafb;letter-spacing:.04em;}
   .tag-wrap{display:flex;align-items:center;gap:4px;flex:0 0 auto;}
@@ -754,7 +769,10 @@
     display:none;position:fixed;top:14px;left:14px;z-index:100;
     width:40px;height:40px;border-radius:11px;border:1px solid var(--line);background:#fff;
     color:var(--accent-deep);font-size:17px;box-shadow:0 6px 16px -8px rgba(177,83,106,.8);
+    transition:opacity .26s ease;
   }
+  /* 往下滚动后按钮淡出，避免一直压住卡片左上角的星标 */
+  .menu-btn.quiet{opacity:.42;}
 
   @media (max-width:1100px){
     .res-grid{grid-template-columns:repeat(3,1fr);}
@@ -808,6 +826,8 @@
   @media (max-width:560px){
     .grid{grid-template-columns:repeat(auto-fill,minmax(46%,1fr));gap:9px;}
     .card{padding:11px 11px 10px;}
+    .fav-btn{font-size:13px;padding:0;}
+    .card.fav::before{top:11px;bottom:11px;}
     .card-name{font-size:15px;}
     .card-name.long{font-size:13px;}
     .card-grid2,.card-grid2.name-row{grid-template-columns:1fr;}
@@ -834,7 +854,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞本丸管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.5</div>
+        <div class="brand-sub">HONMARU KEEPER V2.6</div>
       </div>
     </div>
 
@@ -1471,7 +1491,9 @@ function normRow(o, dft){
     fl: clampNum(o && o.fl, 0, 6, Number(base.fl) || 0),
     rp: clampNum(o && o.rp, 0, 999, 0),
     /* 拥有状态：老数据没有这个字段，默认算已拥有 */
-    own: (o && Number(o.own) === 0) ? 0 : 1
+    own: (o && Number(o.own) === 0) ? 0 : 1,
+    /* 收藏置顶：可以有多振，老数据默认不置顶 */
+    fav: (o && Number(o.fav) === 1) ? 1 : 0
   };
 }
 function normalize(d){
@@ -1723,6 +1745,9 @@ function sortedRows(list){
   else if(ui.sort === 'ranbuDesc') arr.sort(function(a,b){ return b.r - a.r || a.no - b.no; });
   else if(ui.sort === 'name') arr.sort(function(a,b){ return a.name.localeCompare(b.name, 'zh'); });
   else arr.sort(function(a,b){ return a.no - b.no; });
+  /* 收藏（置顶）的永远排最前，可以有多振，它们之间沿用上面的排序 */
+  const favs = arr.filter(function(x){ return Number(x.fav) === 1; });
+  if(favs.length) return favs.concat(arr.filter(function(x){ return Number(x.fav) !== 1; }));
   return arr;
 }
 
@@ -1835,9 +1860,15 @@ function cardHTML(x){
   const remain = ranbuRemain(fl, r, rp);
   const loop = '<b>'+r+(r===10?' ✓':'')+'</b>';
   const owned = Number(v.own) !== 0;
+  const fav = Number(x.fav) === 1;
 
   const head = '<div class="card-top">' +
-      '<span class="card-id">No.'+String(x.no).padStart(3,'0')+'</span>' +
+      '<span class="card-lead">' +
+        '<button class="fav-btn' + (fav ? ' on' : '') + '" data-act="fav" data-no="' + x.no + '"' +
+          ' title="' + (fav ? '取消置顶' : '收藏置顶（可多振）') + '"' +
+          ' aria-label="' + (fav ? '取消置顶' : '收藏置顶') + '" aria-pressed="' + (fav ? 'true' : 'false') + '">★</button>' +
+        '<span class="card-id">No.'+String(x.no).padStart(3,'0')+'</span>' +
+      '</span>' +
       '<span class="tag-wrap">' +
         (owned ? '' : '<span class="own-tag" title="还没拿到这振">未拥有</span>') +
         '<span class="fl-tag" title="初始花数（可在修改里改）">' + (fl ? fl + '花' : '—') + '</span>' +
@@ -1850,7 +1881,7 @@ function cardHTML(x){
     const rbLine = (r >= 10 || !fl)
       ? '<span>乱舞</span>' + loop
       : '<span>乱舞</span><b>' + r + '<em class="rb-p" title="已喂 ' + rp + ' 把 · 升乱舞 ' + (r+1) + ' 需 ' + (needNext || '?') + ' 把"> · ' + rp + '/' + (needNext || '?') + '</em></b>';
-    return '<div class="card' + (v.k===1?' kw':'') + (owned?'':' unowned') + '" data-no="'+x.no+'">' + head +
+    return '<div class="card' + (v.k===1?' kw':'') + (owned?'':' unowned') + (fav?' fav':'') + '" data-no="'+x.no+'">' + head +
       '<div class="ro">' +
         '<span>极化</span><b class="'+(v.k===1?'k-on':'')+'">'+(v.k===1?'极':'普') +
           (open ? '' : '<i class="na-tag">未开放</i>')+'</b>' +
@@ -1877,7 +1908,7 @@ function cardHTML(x){
   const typeOpts = TYPES.map(function(t){
     return '<option value="'+t+'"'+(v.type===t?' selected':'')+'>'+t+'</option>';
   }).join('');
-  return '<div class="card kw-edit' + (v.k===1?' kw':'') + (owned?'':' unowned') + ' editing" data-no="'+x.no+'">' + head +
+  return '<div class="card kw-edit' + (v.k===1?' kw':'') + (owned?'':' unowned') + (fav?' fav':'') + ' editing" data-no="'+x.no+'">' + head +
     '<div class="card-ctrl">' +
       '<div class="seg" data-no="'+x.no+'">' +
         (open
@@ -1982,6 +2013,18 @@ function refreshRanbu(card, draft){
   }
   const tip = card.querySelector('[data-rbtip="1"]');
   if(tip) tip.innerHTML = ranbuTipHTML(draft.fl, draft.r, draft.rp);
+}
+
+/* 收藏置顶：可以同时置顶多振，置顶的排在列表最前 */
+function toggleFav(no){
+  const d = curData();
+  if(!d) return;
+  const row = d.tw.filter(function(x){ return x.no === no; })[0];
+  if(!row) return;
+  row.fav = Number(row.fav) === 1 ? 0 : 1;
+  save();
+  renderCatalog();
+  toast(row.fav ? '⭐ 已置顶「' + row.name + '」' : '已取消置顶「' + row.name + '」');
 }
 
 function startEdit(no){
@@ -2423,7 +2466,9 @@ function renderCatalog(){
   renderFilters();
   const list = sortedRows(filteredRows());
   const ownedN = d.tw.filter(function(x){ return Number(x.own) !== 0; }).length;
-  $('#gridCount').textContent = '共 ' + list.length + ' 振 / 已拥有 ' + ownedN + ' / 全 ' + d.tw.length + ' 振';
+  const favN = d.tw.filter(function(x){ return Number(x.fav) === 1; }).length;
+  $('#gridCount').textContent = '共 ' + list.length + ' 振 / 已拥有 ' + ownedN + ' / 全 ' + d.tw.length + ' 振' +
+    (favN ? ' · ⭐ 置顶 ' + favN : '');
   if(!list.length){
     grid.innerHTML = '';
     empty.hidden = false;
@@ -2454,6 +2499,7 @@ function bindGrid(){
     if(act){
       const no = noOf(act);
       if(act.dataset.act === 'edit') startEdit(no);
+      else if(act.dataset.act === 'fav') toggleFav(no);
       else if(act.dataset.act === 'cancel') cancelEdit(no);
       else if(act.dataset.act === 'save') commitEdit(no);
       else if(act.dataset.act === 'del') deleteSword(no);
@@ -4194,6 +4240,7 @@ function applyPayload(obj){
       if(o.type !== undefined && TYPES.indexOf(o.type) >= 0) row.type = o.type;
       if(o.k !== undefined) row.k = Number(o.k) === 1 ? 1 : 0;
       if(o.own !== undefined) row.own = Number(o.own) === 0 ? 0 : 1;
+      if(o.fav !== undefined) row.fav = Number(o.fav) === 1 ? 1 : 0;
       if(o.r !== undefined) row.r = clampNum(o.r, 1, 10, row.r);
       if(o.fl !== undefined) row.fl = clampNum(o.fl, 0, 6, row.fl || 0);
       if(o.rp !== undefined) row.rp = clampNum(o.rp, 0, 999, row.rp || 0);
@@ -4311,6 +4358,7 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.6 收藏置顶','<p>每张卡片左上角多了一颗星：点一下就把这振<b>收藏置顶</b>，卡片加金色边、列表里永远排在最前；<b>可以同时置顶多振</b>，它们之间还是按你选的排序（编号 / 等级 / 乱舞…）排。再点一次取消置顶，顶部会显示「⭐ 置顶 N」。置顶会跟着导出、导入、同步码一起走。</p>','2026.11'],
     ['V2.5 输入一个字就能挑刀','<p>「＋ 新增刀剑」的名称框现在<b>边打边列候选</b>：输「小」就列出刀帐里所有名字带小的刀（小狐丸、小竜景光、小夜左文字、小烏丸、小豆長光…），每行标着 <b>花数</b> 和当前状态（已在图鉴 / 未拥有 / 图鉴没有），<b>点一行就按刀帐反填</b>。列表最后一项是「都不对，把「小」作为新刀添加」，想加刀帐外的刀就点它。</p>','2026.11'],
     ['V2.4 未拥有的刀也能记了','<p>图鉴多了<b>拥有状态</b>：卡片右上会挂「未拥有」、整张压暗；筛选里新增「拥有」一栏（全部 / 已拥有 / 未拥有，都带振数），顶部也会显示 <b>已拥有 x / 全 y</b>。点「✎ 修改」里的<b>状态</b>就能在已拥有 / 未拥有之间切，改动会记进变动记录。「📋 填入 130 振刀帐」铺出来的刀默认都是未拥有。</p>','2026.11'],
     ['V2.4 新增刀剑先查刀帐','<p>「＋ 新增刀剑」现在先输名称或编号，自动查 130 振刀帐：<b>刀帐里有的</b>直接反填刀种和花数——图鉴里没有就按刀帐补回，标着未拥有就改成已拥有，已经有的会提示不重复新增；<b>刀帐里没有的</b>才作为新刀入库（编号留空自动排最后）。</p>','2026.11'],
@@ -4627,6 +4675,11 @@ function initEvents(){
   $('#menuBtn').onclick = function(){
     $('#sidebar').classList.add('open'); $('#scrim').classList.add('on');
   };
+  /* 滚动一段后把悬浮菜单按钮淡化，别一直压住卡片左上角的星标 */
+  window.addEventListener('scroll', function(){
+    const b = $('#menuBtn'); if(!b) return;
+    b.classList.toggle('quiet', window.scrollY > 120);
+  }, {passive:true});
   $('#scrim').onclick = function(){
     $('#sidebar').classList.remove('open'); this.classList.remove('on');
   };
