@@ -961,7 +961,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞本丸管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.31</div>
+        <div class="brand-sub">HONMARU KEEPER V2.32</div>
       </div>
     </div>
 
@@ -1535,6 +1535,7 @@ function estHTML(type, exp, fl, opt){
       at = Math.max(0, Number(exp) || 0);
       lv = lvFromRawExp(type, at, fl);    /* 经验优先，等级跟着经验走 */
       tip = '已极化 · 极化经验 ' + fmtNum(at) + ' → Lv ' + lv +
+            (lvIn !== lv ? '（等级栏填的是 Lv' + lvIn + '，以经验为准）' : '') +
             '（' + m.label + ' 经验条，不扣极化门槛 ' + fmtNum(m.ded) + '），距 Lv199 还需 ' +
             fmtNum(Math.max(0, cap - at)) + ' 极化经验';
     }else if(lvIn >= 199){
@@ -1551,21 +1552,31 @@ function estHTML(type, exp, fl, opt){
     head = '极化';
   }else{
     cap = expMaxTotal(type, fl);          /* 总经验条：极化门槛 + 极化后满级 */
-    if(hasExp){
+    /* 普刀该等级的最低「总经验」＝经验条累计 + 极化门槛，这样和经验字段同一个口径 */
+    const baseAt = cumExp(type, lvIn, fl) + m.ded;
+    if(hasExp && Number(exp) >= baseAt){
       at = Math.max(0, Number(exp) || 0);
       lv = (kiwameLv(type, at, fl) || {lv:1}).lv;
       tip = '普刀 · 总经验 ' + fmtNum(at) + ' − 极化门槛 ' + fmtNum(m.ded) + ' = ' +
             fmtNum(Math.max(0, at - m.ded)) + '，按' + m.label + '经验条极化后为 Lv ' + lv +
             '；极化满级 Lv199 共需 ' + fmtNum(cap) + ' 总经验，还差 ' + fmtNum(Math.max(0, cap - at));
+    }else if(hasExp){
+      /* 填的经验比这个等级的最低值还少：多是把「当前级内的进度」当成了累计总量，
+         普刀满级后经验条也不涨，这种情况以等级为准，不拿经验往下压等级 */
+      at = baseAt;
+      lv = lvIn;
+      tip = '普刀 Lv ' + lvIn + ' 的累计总经验应为 ' + fmtNum(baseAt) + '（经验条 ' + fmtNum(baseAt - m.ded) +
+            ' + 极化门槛 ' + fmtNum(m.ded) + '），你填的 ' + fmtNum(exp) +
+            ' 比它少，像是当前级内的进度而不是累计总量，所以按 Lv ' + lvIn + ' 算' +
+            '；极化满级 Lv199 共需 ' + fmtNum(cap) + ' 总经验，还差 ' + fmtNum(Math.max(0, cap - baseAt));
     }else{
-      /* 普刀该等级的最低「总经验」＝经验条累计 + 极化门槛，这样和经验字段同一个口径 */
-      at = cumExp(type, lvIn, fl) + m.ded;
+      at = baseAt;
       lv = lvIn;
       tip = '普刀 Lv ' + lvIn + ' 最低总经验 ' + fmtNum(at) + '（经验条 ' + fmtNum(at - m.ded) +
             ' + 极化门槛 ' + fmtNum(m.ded) + '，未填经验按等级算），折算极化后 Lv ' + lv +
             '；极化满级 Lv199 共需 ' + fmtNum(cap) + ' 总经验，还差 ' + fmtNum(Math.max(0, cap - at));
     }
-    head = '极化后预估';
+    head = '折算等级';
   }
 
   const left = Math.max(0, cap - at);
@@ -1615,7 +1626,7 @@ function openExpCalc(no){
   const puBase = cumExp(draft.type, puLv, draft.fl) + m.ded;  /* 普刀该等级的最低总经验（含门槛） */
   const lv0 = isK
     ? clampNum(draft.lv, 1, 199, 1)
-    : (expIsSet(draft.exp) ? (kiwameLv(draft.type, draft.exp, draft.fl) || {lv:1}).lv : puLv);
+    : puLv;                                     /* 普刀以等级为准，不拿经验反推 */
   /* 极化：填了经验用经验，没填按等级最低经验；普刀：填了经验用经验，没填按等级最低总经验 */
   const cur = isK
     ? (expIsSet(draft.exp) ? Number(draft.exp) : cumExp(draft.type, lv0, draft.fl))
@@ -2530,7 +2541,7 @@ function cardHTML(x){
     '<div class="card-grid2">' +
       '<label class="fld"><span>等级</span><input type="number" min="1" max="'+(v.k===1?199:99)+'" step="1" ' +
         'title="'+(v.k===1?'极化刀上限 199':'普刀上限 99')+'" data-no="'+x.no+'" data-f="lv" value="'+v.lv+'"></label>' +
-      '<label class="fld"><span title="改上面的等级，经验会自动改成该等级对应的值（极化 / 普刀各按自己的经验条）">'+(v.k===1?'极化经验':'总经验')+'</span>' +
+      '<label class="fld"><span title="改上面的等级，经验会自动改成该等级对应的值；普刀要填累计总经验（含极化门槛），不是当前级内的进度">'+(v.k===1?'极化经验':'总经验')+'</span>' +
         '<input type="number" min="0" max="999999999" step="any" data-no="'+x.no+'" data-f="exp" value="'+v.exp+'"></label>' +
     '</div>' +
     '<div data-pre="1">' + (showEst ? estHTML(v.type, v.exp, v.fl, {k:v.k, lv:v.lv, no:x.no, editable:true}) : '') + '</div>' +
@@ -5943,6 +5954,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.32 普刀以等级为准，不再被偏小的经验拉低',
+     '<p>有反馈：普刀 Lv99 填了几百万经验，折算出来只有 30–40 级。原因是经验字段要的是<b>累计总经验</b>（普刀 99 级约 6,200 万起，含极化门槛），而填进去的几百万更像是<b>当前级内的进度</b>。</p>' +
+     '<p>现在起：<b>普刀填的经验低于该等级应有的累计值，就按等级算</b>，不再拿这份经验把等级往下压，小条悬停会告诉你「Lv99 应为 8,148 万，你填了 X」。经验<b>超过</b>该等级应有值时仍然按经验算，所以能看出这振已经溢出到极化几级。极化刀不受影响，填了经验依旧以经验定等级。</p>' +
+     '<p>普刀小条的标题也从「极化后预估」改成「折算等级（按总经验）」，避免误读成「极化完就是这么多级」。</p>','2026.11'],
     ['V2.31 没填经验的刀，改等级也会补上经验',
      '<p>上一版只对「已经填过经验」的刀生效，0 经验的刀改完等级，经验栏还是空的。现在<b>一律补</b>：改等级就把经验写成该等级对应的值，已极化按极化经验条（不含门槛），普刀按总经验条（含门槛），预估条与变动记录同步更新。</p>' +
      '<p>切换「极/普」（或换刀种、花数换了经验条）时，没填过的经验同样按等级补成新口径的值，不会停在 0 让两栏对不上。清空等级框、还没输完的那一下不会乱写；极化刀填 Lv1 时经验是 0，继续往大写仍会跟着补。</p>','2026.11'],
