@@ -349,6 +349,8 @@
   }
   .ro b.k-on{color:var(--accent-deep);font-weight:700;font-family:inherit;}
   .ro b.ro-src{font-family:inherit;font-size:11px;color:var(--sub);}
+  /* 到极199 的总量：窄屏宁可折行也不要被省略号截掉 */
+  .ro b.ro-exp{font-size:11px;letter-spacing:-.01em;white-space:normal;overflow:visible;text-overflow:clip;word-break:break-all;line-height:1.3;}
   .card-actions{display:flex;gap:6px;margin-top:auto;padding-top:11px;border-top:1px dashed var(--line);}
   .card-btn{
     flex:1;padding:5px 0;border-radius:8px;border:1px solid var(--line);background:#fff;
@@ -392,11 +394,10 @@
   .kw-pre b{flex:0 0 auto;font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--accent-deep);}
   .kw-pre i{
     flex:1 0 100%;min-width:0;font-style:normal;font-size:9px;color:#bda4ab;
-    text-align:right;white-space:nowrap;
+    text-align:right;white-space:normal;overflow-wrap:anywhere;line-height:1.45;
   }
   .kw-pre i.kw-left{color:#9b8b90;}
   .kw-pre i.kw-left.done{color:#5f9a74;}
-  .kw-pre i.kw-total{color:#9b8b90;}
   .kw-swap{
     flex:0 0 auto;margin-left:auto;width:18px;height:18px;padding:0;border-radius:50%;
     border:1px solid #efcdd7;background:#fff;color:var(--accent-deep);
@@ -937,6 +938,8 @@
     .card-name{font-size:15px;}
     .card-name.long{font-size:13px;}
     .card-grid2,.card-grid2.name-row{grid-template-columns:1fr;}
+    /* 到极199 的长数字：窄屏缩字号，尽量留在一行（390 以上本来就是一行） */
+    .ro b.ro-exp{font-size:10px;letter-spacing:-.03em;}
     .card-ctrl{flex-wrap:wrap;gap:8px;}
     .mini-sel{flex:0 1 auto;margin-left:auto;white-space:nowrap;}
     .mini-sel select{flex:0 0 auto;min-width:76px;}
@@ -962,7 +965,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞本丸管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.38</div>
+        <div class="brand-sub">HONMARU KEEPER V2.39</div>
       </div>
     </div>
 
@@ -1699,6 +1702,18 @@ function expTitle(v){
          '，折算极化后 Lv ' + lvFromRawExp(v.type, at, v.fl) +
          '；普刀攒到极 Lv199 共需 ' + fmtNum(puMaxTotal(v.type, v.fl)) + '（门槛 + 极化条 Lv199）';
 }
+/* 普刀卡片上只摆「到极 Lv199 共需」这一个经验数，折算细节放悬停里 */
+function puTotalTitle(v){
+  const m = expProfile(v.type, v.fl);
+  if(!m) return '';
+  const capPu = puMaxTotal(v.type, v.fl);
+  const cur = expShown(v);
+  const left = Math.max(0, capPu - cur);
+  return '普刀攒到极 Lv199 共需 ' + fmtNum(capPu) + ' = 门槛 ' + fmtNum(m.ded) +
+         '（' + (POL_LV[v.type] || '?') + ' 级那段）+ 极化条 Lv199 ' + fmtNum(capPu - m.ded) +
+         '；当前普刀累计 ' + fmtNum(cur) + '，' +
+         (left ? '还差 ' + fmtNum(left) : '已经够了，极化后即 Lv199');
+}
 /* 卡片小条。两条经验条各用各的：
    已极化 → 直接查极化经验条（不扣门槛），距 Lv199 就是极化条的差值
    普刀   → 经验栏是普刀累计，先减门槛再查极化条得折算等级；
@@ -1774,11 +1789,7 @@ function estHTML(type, exp, fl, opt){
          (opt.editable && opt.no ? '<button class="kw-swap" data-act="expcalc" data-no="' + opt.no +
            '" title="打开换算：填等级看所需经验，填经验定等级">⇄</button>' : '') +
          '<i class="kw-left' + (left ? '' : ' done') + '">' +
-           (left ? '距 Lv199 还需 ' + fmtNum(left) : '已达 Lv199') + '</i>' +
-         (k === 1 ? '' :
-           '<i class="kw-total" title="到极 Lv199 共需 ' + fmtNum(cap + m.ded) +
-           ' = 门槛 ' + fmtNum(m.ded) + ' + 极化条 Lv199 ' + fmtNum(cap) + '">' +
-           '到极199 共 ' + fmtNum(cap + m.ded) + '</i>') +
+           (left ? '还差 ' + fmtNum(left) : '已达 Lv199') + '</i>' +
          '</div>';
 }
 
@@ -2726,7 +2737,9 @@ function cardHTML(x){
         '<span title="从当前乱舞喂到 10 还需多少把">满乱舞</span><b class="rb-need">' +
           (!fl ? '先设花数' : (r >= 10 ? '已满' : '还差 ' + remain + ' 把')) + '</b>' +
         '<span>等级</span><b>Lv '+v.lv+'</b>' +
-        '<span>'+(v.k===1?'极化经验':'普刀经验')+'</span><b title="'+esc(expTitle(v))+'">'+fmtNum(expShown(v))+'</b>' +
+        (v.k===1
+          ? '<span>极化经验</span><b class="ro-exp" title="'+esc(expTitle(v))+'">'+fmtNum(expShown(v))+'</b>'
+          : '<span>到极199</span><b class="ro-exp" title="'+esc(puTotalTitle(v))+'">'+fmtNum(puMaxTotal(v.type, v.fl))+'</b>') +
         '<span>获取方式</span><b class="ro-src" title="'+esc(srcTxt)+'">'+(srcTxt?esc(srcTxt):'—')+'</b>' +
       '</div>' +
       (showEst ? estHTML(v.type, v.exp, v.fl, {k:v.k, lv:v.lv}) : '') +
@@ -2772,7 +2785,7 @@ function cardHTML(x){
     '<div class="card-grid2">' +
       '<label class="fld"><span>等级</span><input type="number" min="1" max="'+(v.k===1?199:99)+'" step="1" ' +
         'title="'+(v.k===1?'极化刀上限 199':'普刀上限 99')+'" data-no="'+x.no+'" data-f="lv" value="'+v.lv+'"></label>' +
-      '<label class="fld"><span title="'+esc(expTitle(v))+'">'+(v.k===1?'极化经验':'普刀经验')+'</span>' +
+      '<label class="fld"><span title="'+esc(expTitle(v))+'">'+(v.k===1?'极化经验':'普刀累计')+'</span>' +
         '<input type="number" min="0" max="999999999" step="any" data-no="'+x.no+'" data-f="exp" value="'+v.exp+'"' +
           ' placeholder="'+(v.k===1?'填极化经验':'填普刀累计经验')+'"></label>' +
     '</div>' +
@@ -6225,6 +6238,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.39 普刀卡片只摆「到极199 共需」一个经验数',
+     '<p>之前普刀卡片上「普刀经验 1,927,800」和「到极199 共 185,882,300」两个口径并排，很容易看岔。现在<b>普刀卡片只显示一个经验数：到极199 共需</b>（太刀 <b>185,882,300</b>、大太刀 / 剑 192,374,702、三花打 179,373,257、二花打 173,002,032、胁差·枪·薙 166,522,811、短刀 160,056,086），悬停里再拆分「门槛多少 + 极化条多少」和当前累计。</p>' +
+     '<p>小条保留<b>折算等级</b>和<b>还差多少</b>，两个数相加就是上面那个总量。编辑框那个数是输入口径，标签改成<b>「普刀累计」</b>，写的就是你实际攒下的普刀经验（Lv99 = 1,927,800，满级后可继续攒）。</p>',
+     '2026.11'],
     ['V2.38 普刀改回填「普刀累计」，到极 Lv199 的总量按表算（太刀 185,882,300）',
      '<p>V2.37 把普刀经验栏改成了「折算后的极化经验」（太刀 Lv99 = 1,157,000），结果和表里「普通」页对不上：那一页 Lv199 是 <b>185,882,300</b>，比极化条的 185,111,500 多出的正是门槛 770,800——因为<b>门槛那 77.08 万也是普刀实打实攒进去的</b>，只是极化时被扣掉。</p>' +
      '<p>现在普刀栏恢复填<b>普刀自己的累计经验</b>（Lv99 = 1,927,800，满级后可继续攒）：卡片上「普刀经验 1,927,800 + 距 Lv199 还需 183,954,500 = <b>185,882,300</b>」，和表里「普通」页 Lv199 完全一致，可以直接相加验算。折算过程仍写在悬停里：累计 − 门槛 770,800 = 1,157,000 极化经验 → 折算 Lv34。</p>' +
