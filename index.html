@@ -961,7 +961,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞本丸管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.29</div>
+        <div class="brand-sub">HONMARU KEEPER V2.31</div>
       </div>
     </div>
 
@@ -1493,6 +1493,14 @@ function expMaxTotal(type, fl){
   const m = expProfile(type, fl);
   if(!m) return 0;
   return cumExp(type, 199, fl) + m.ded;
+}
+/* 等级 → 该等级对应的经验，口径和经验字段一致：
+   已极化 = 极化经验条累计（不含门槛）；普刀 = 经验条累计 + 极化门槛（总经验） */
+function expForLv(type, lv, fl, k){
+  const m = expProfile(type, fl);
+  if(!m) return 0;
+  const L = clampNum(lv, 1, k === 1 ? 199 : 99, 1);
+  return cumExp(type, L, fl) + (k === 1 ? 0 : m.ded);
 }
 /* 已极化刀：按极化后的累计经验查等级（不扣极化门槛） */
 function lvFromRawExp(type, exp, fl){
@@ -2522,7 +2530,7 @@ function cardHTML(x){
     '<div class="card-grid2">' +
       '<label class="fld"><span>等级</span><input type="number" min="1" max="'+(v.k===1?199:99)+'" step="1" ' +
         'title="'+(v.k===1?'极化刀上限 199':'普刀上限 99')+'" data-no="'+x.no+'" data-f="lv" value="'+v.lv+'"></label>' +
-      '<label class="fld"><span>'+(v.k===1?'极化经验':'总经验')+'</span>' +
+      '<label class="fld"><span title="改上面的等级，经验会自动改成该等级对应的值（极化 / 普刀各按自己的经验条）">'+(v.k===1?'极化经验':'总经验')+'</span>' +
         '<input type="number" min="0" max="999999999" step="any" data-no="'+x.no+'" data-f="exp" value="'+v.exp+'"></label>' +
     '</div>' +
     '<div data-pre="1">' + (showEst ? estHTML(v.type, v.exp, v.fl, {k:v.k, lv:v.lv, no:x.no, editable:true}) : '') + '</div>' +
@@ -3213,8 +3221,13 @@ function bindGrid(){
       lvInp.max = capLv;
       lvInp.title = draft.k === 1 ? '极化刀上限 199' : '普刀上限 99';
       if(Number(lvInp.value) > capLv){ lvInp.value = capLv; draft.lv = capLv; }
-      /* 切成「极」且已有经验：等级立刻按极化经验条校正 */
-      if(draft.k === 1 && expIsSet(draft.exp)){
+      /* 换成「极/普」会换经验条：经验是等级带出来的（或还没填）就按等级重算，否则按经验校正等级 */
+      if(draft.expAuto || !(Number(draft.exp) > 0)){
+        const v = expForLv(draft.type, draft.lv, draft.fl, draft.k);
+        draft.exp = v;
+        const expInp = card.querySelector('input[data-f="exp"]');
+        if(expInp) expInp.value = v;
+      }else if(draft.k === 1 && expIsSet(draft.exp)){
         const lv = lvFromRawExp(draft.type, draft.exp, draft.fl);
         draft.lv = lv; lvInp.value = lv;
       }
@@ -3233,6 +3246,7 @@ function bindGrid(){
     if(f === 'exp'){
       const n = parseFloat(el.value);
       draft.exp = isNaN(n) ? 0 : Math.max(0, Math.min(RES_MAX, n));
+      draft.expAuto = false;                // 手改了经验，就不再跟着等级走
       /* 已极化：填了经验就以经验定等级，等级框跟着改（普刀不跟着变，普刀上限 99 且经验口径不同） */
       if(draft.k === 1 && expIsSet(draft.exp)){
         const lv = lvFromRawExp(draft.type, draft.exp, draft.fl);
@@ -3241,7 +3255,16 @@ function bindGrid(){
         if(lvInp && String(lvInp.value) !== String(lv)) lvInp.value = lv;
       }
     }else{
+      const raw = String(el.value).trim();
       draft.lv = clampNum(el.value, 1, draft.k === 1 ? 199 : 99, draft.lv);
+      /* 改等级就把经验改成该等级对应值：普/极各按自己的经验条，没填过经验（0）也一样写 */
+      if(raw !== ''){
+        const v = expForLv(draft.type, draft.lv, draft.fl, draft.k);
+        draft.exp = v;
+        draft.expAuto = true;
+        const expInp = el.closest('.card').querySelector('input[data-f="exp"]');
+        if(expInp && String(expInp.value) !== String(v)) expInp.value = v;
+      }
     }
     refreshEstimate(el.closest('.card'), draft);
   });
@@ -3253,12 +3276,34 @@ function bindGrid(){
     const draft = ui.edit[no];
     if(!draft) return;                      // 只读态不可改
     readField(draft, el);
-    /* 已极化且填了经验：等级始终跟经验走（改刀种/花数换了经验条也一起校正） */
-    if(draft.k === 1 && expIsSet(draft.exp)){
-      const lv = lvFromRawExp(draft.type, draft.exp, draft.fl);
-      draft.lv = lv;
-      const lvInp = el.closest('.card').querySelector('input[data-f="lv"]');
-      if(lvInp && String(lvInp.value) !== String(lv)) lvInp.value = lv;
+    const f = el.dataset.f;
+    const cardEl = el.closest('.card');
+    const lvInp = cardEl.querySelector('input[data-f="lv"]');
+    const expInp = cardEl.querySelector('input[data-f="exp"]');
+    if(f === 'exp'){
+      draft.expAuto = false;                // 手改了经验，以经验为准
+      /* 已极化且填了经验：等级跟经验走 */
+      if(draft.k === 1 && expIsSet(draft.exp)){
+        const lv = lvFromRawExp(draft.type, draft.exp, draft.fl);
+        draft.lv = lv;
+        if(lvInp && String(lvInp.value) !== String(lv)) lvInp.value = lv;
+      }
+    }else if(f === 'lv'){
+      /* 填等级：经验一律改成该等级对应值（等级是主，普/极各按自己经验条） */
+      const v = expForLv(draft.type, draft.lv, draft.fl, draft.k);
+      draft.exp = v; draft.expAuto = true;
+      if(expInp && String(expInp.value) !== String(v)) expInp.value = v;
+    }else if(f === 'type' || f === 'fl'){
+      /* 换刀种/花数会换经验条：经验是等级带出来的（或还没填）就按等级重算，否则仍以经验为准 */
+      if(draft.expAuto || !(Number(draft.exp) > 0)){
+        const v = expForLv(draft.type, draft.lv, draft.fl, draft.k);
+        draft.exp = v;
+        if(expInp && String(expInp.value) !== String(v)) expInp.value = v;
+      }else if(draft.k === 1 && expIsSet(draft.exp)){
+        const lv = lvFromRawExp(draft.type, draft.exp, draft.fl);
+        draft.lv = lv;
+        if(lvInp && String(lvInp.value) !== String(lv)) lvInp.value = lv;
+      }
     }
     if(el.dataset.f === 'type' || el.dataset.f === 'exp' || el.dataset.f === 'fl' || el.dataset.f === 'lv'){
       refreshEstimate(el.closest('.card'), draft);
@@ -5898,6 +5943,12 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.31 没填经验的刀，改等级也会补上经验',
+     '<p>上一版只对「已经填过经验」的刀生效，0 经验的刀改完等级，经验栏还是空的。现在<b>一律补</b>：改等级就把经验写成该等级对应的值，已极化按极化经验条（不含门槛），普刀按总经验条（含门槛），预估条与变动记录同步更新。</p>' +
+     '<p>切换「极/普」（或换刀种、花数换了经验条）时，没填过的经验同样按等级补成新口径的值，不会停在 0 让两栏对不上。清空等级框、还没输完的那一下不会乱写；极化刀填 Lv1 时经验是 0，继续往大写仍会跟着补。</p>','2026.11'],
+    ['V2.30 改等级，经验自动跟着改',
+     '<p>编辑时改了<b>等级</b>，这振已经填过的<b>经验会一起改成该等级对应的经验</b>：已极化按极化经验条算（不含极化门槛），普刀按总经验条算（含门槛），口径和经验字段一致，保存后两栏不会互相打架。</p>' +
+     '<p>遵守两个前提：<b>经验栏是 0 / 空就不写</b>（等级 1 会归 0，之后继续填等级仍会跟随），避免把「未填」变成「乱填」；<b>反过来手填经验仍以经验定等级</b>，两条路都保留，看你先动哪一栏。换算弹窗（⇄）行为不变。</p>','2026.11'],
     ['V2.29 等级和经验互算，两条经验条分开算',
      '<p><b>已极化</b>：填了极化经验，就以经验为准算出等级并<b>自动改掉等级框</b>，同时显示距 Lv199 还差多少极化经验；没填经验时，按你填的等级取<b>该等级最低所需经验</b>作为折算依据，先给一个可用的数，之后把真实经验填进去会自动校正。</p>' +
      '<p><b>普刀</b>：就算没填经验，只要有等级，也会按<b>普刀该等级的最低总经验</b>算到 Lv199 还差多少；填了经验则按总经验推算极化后等级。</p>' +
