@@ -961,7 +961,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞本丸管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.34</div>
+        <div class="brand-sub">HONMARU KEEPER V2.35</div>
       </div>
     </div>
 
@@ -1438,7 +1438,8 @@ const WEEK = ['周一','周二','周三','周四','周五','周六','周日'];
    极化经验条：1–99 级 = 短刀条 × 刀种倍率（极99 实测一致），
    短刀 1.0 / 胁差·枪·薙刀 1.1 / 三花极打 1.2 / 四花极打 1.3 / 太刀 1.4 / 大太刀 1.5；
    Lv100 起用表里的精确值（各刀种不再严格等于 ×f），100→199 每级增量逐级取自表。
-   普刀经验条是另一条（1–99，满级仅 1,927,800），见下面的 PU_CUM。
+   普刀经验条是另一条（1–99，Lv99 累计 1,927,800），见下面的 PU_CUM。
+   普刀等级封顶 99，但经验可以继续攒（溢出经验不设上限），折算极化等级时按这份总量算。
    ========================================================= */
 const CUM_SHORT = [0,588,1305,2194,3296,4653,6307,8300,10673,13468,16727,20491,24802,29702,35233,41436,48354,56027,64498,73808,84000,95114,107193,120278,134411,149634,165989,183517,202260,222260,307195,454335,660950,924310,1241685,1610345,2027560,2490600,2996735,3543235,4127370,4746410,5397625,6078285,6785660,7517020,8269635,9040775,9827710,10627710,11429400,12233306,13039953,13849865,14663567,15481584,16304441,17132662,17966772,18807296,19654759,20509686,21372601,22244029,23124495,24014524,24914640,25825368,26747233,27680760,28626474,29584899,30556560,31541982,32541690,33556208,34586062,35631776,36693875,37772883,38869326,39983728,41116614,42268509,43439937,44631423,45843492,47076669,48331479,49608446,50908096,52230953,53577541,54948386,56344012,57764944,59211707,60684826,62184826,63712232];
 const DELTA_100_199 = 95898554;
@@ -1605,13 +1606,16 @@ function estHTML(type, exp, fl, opt){
                 ' − 极化门槛 ' + fmtNum(m.ded) + '（' + POL_LV[type] + ' 级那段）= ' + fmtNum(at);
     if(at <= 0){
       tip = sum + '，不够门槛，极化后从 Lv1 开始；极化满级 Lv199 需 ' + fmtNum(cap) + ' 极化经验';
+    }else if(at >= cap){
+      tip = sum + '，已超过极化 Lv199 所需的 ' + fmtNum(cap) + '，折算为 Lv199' +
+            '（多出 ' + fmtNum(at - cap) + '，满级后攒的经验不再折算等级）';
     }else{
       tip = sum + '，按' + barName(m) + '折算为 Lv ' + lv +
-            '；极化满级 Lv199 需 ' + fmtNum(cap) + ' 极化经验，还差 ' + fmtNum(Math.max(0, cap - at));
+            '；极化满级 Lv199 需 ' + fmtNum(cap) + ' 极化经验，还差 ' + fmtNum(cap - at);
     }
     if(hasExp && !useExp){
       tip += '（填的 ' + fmtNum(exp) + ' 比 Lv' + lvIn + ' 应有的 ' + fmtNum(baseAt) +
-             ' 少，按等级算；普刀经验就是 1–99 的累计值，满级也只有 192.78 万）';
+             ' 少，按等级算；普刀 Lv99 满级累计 1,927,800，满级后继续攒的经验可以照填）';
     }
     head = '折算等级';
   }
@@ -1659,9 +1663,9 @@ function openExpCalc(no){
   const lv0 = isK ? clampNum(draft.lv, 1, 199, 1) : clampNum(draft.lv, 1, 99, 1);
   const exp0 = isK
     ? (expIsSet(draft.exp) ? Math.max(0, Number(draft.exp)) : cumExp(draft.type, lv0, draft.fl))
-    : (expIsSet(draft.exp) ? clampFloat(draft.exp, 0, PU_MAX, puCum(lv0)) : puCum(lv0));
+    : (expIsSet(draft.exp) ? clampFloat(draft.exp, 0, RES_MAX, puCum(lv0)) : puCum(lv0));
   const flTxt = m.label === '2花打' ? '（2 花）' : '';
-  const expMax = isK ? RES_MAX : PU_MAX;
+  const expMax = RES_MAX;                    /* 普刀满级后还能继续攒经验，不设上限 */
   const expName = isK ? '极化经验' : '普刀累计经验';
   openModal({
     title: isK ? '极化等级换算' : '普刀经验换算',
@@ -1673,7 +1677,7 @@ function openExpCalc(no){
     body:'<div class="add-grid">' +
         '<label class="fld full"><span>' + (isK ? '极化后等级（1–199）' : '普刀等级（1–99）') + '</span>' +
           '<input type="number" id="ecLv" min="1" max="' + (isK ? 199 : 99) + '" step="1" value="' + lv0 + '"></label>' +
-        '<label class="fld full"><span>' + expName + '（上限 ' + fmtNum(expMax) + '）</span>' +
+        '<label class="fld full"><span>' + expName + (isK ? '（上限 ' + fmtNum(expMax) + '）' : '（Lv99 满级累计 1,927,800，可继续累加）') + '</span>' +
           '<input type="number" id="ecExp" min="0" max="' + expMax + '" step="any" value="' + exp0 + '"></label>' +
         '</div>' +
         '<p class="calc-form-tip" id="ecTip"></p>',
@@ -1701,10 +1705,11 @@ function openExpCalc(no){
     const after = Math.max(0, v - m.ded);
     const kl = lvFromRawExp(draft.type, after, draft.fl);
     const left = Math.max(0, cap - after);
-    return 'Lv ' + lv + ' 的普刀累计经验 <b>' + fmtNum(v) + '</b>（满级 ' + fmtNum(PU_MAX) + '）' +
+    return 'Lv ' + lv + ' 的普刀累计经验 <b>' + fmtNum(v) + '</b>（Lv99 满级累计 ' + fmtNum(PU_MAX) + '）' +
       ' − 极化门槛 <b>' + fmtNum(m.ded) + '</b> = <b>' + fmtNum(after) + '</b>' +
       ' → 折算极化后 <b>Lv ' + kl + '</b>' +
-      '；距极 Lv199（' + fmtNum(cap) + '）还需 <b>' + fmtNum(left) + '</b>';
+      (left ? '；距极 Lv199（' + fmtNum(cap) + '）还需 <b>' + fmtNum(left) + '</b>'
+            : '；已超过极 Lv199 所需（' + fmtNum(cap) + '）<b>' + fmtNum(after - cap) + '</b>');
   }
   lvEl.oninput = function(){
     if(lvEl.value === '') return;
@@ -1881,15 +1886,12 @@ function fixLegacyExp(d){
   });
   d.ver = 4;
 }
-/* V2.33：普刀经验条换成真实的普刀 1–99 条（满级 1,927,800）。
-   旧版把普刀当成「极化条 + 门槛」算，老数据里的普刀经验可能是几千万，
-   超出普刀上限的一律按该等级的最低累计值重算（不改等级）。 */
+/* V2.33：普刀经验条换成真实的普刀 1–99 条（Lv99 累计 1,927,800）。
+   旧版把普刀当成「极化条 + 门槛」算，老数据里的普刀经验是旧口径的几千万；
+   这里只对「还没升级过」的老存档做一次性纠正，V2.33 之后的数据不再动（溢出经验要保留）。 */
 function fixPuExp(d){
-  if(d.puBarFix) return;
-  (d.tw || []).forEach(function(x){
-    if(Number(x.k) === 1) return;
-    if(Number(x.exp) > PU_MAX) x.exp = puCum(x.lv);
-  });
+  /* V2.35 起普刀经验不设上限，所以这里不再按 1,927,800 重置：
+     满级后继续攒的溢出经验是真实数据，重置会把它抹掉。只保留标记，兼容旧存档结构。 */
   d.puBarFix = 1;
 }
 /* V2.33：极刀经验如果和等级差出一大截（>10 级），基本是以前填的占位值，
@@ -1909,10 +1911,8 @@ function normRow(o, dft){
   const base = dft || {no:Number(o && o.no) || 0, name:'未命名', type:'打刀', k:0, r:1, lv:1, exp:0, src:''};
   const kk = Number(o && o.k) === 1 ? 1 : 0;
   const lv = clampNum(o && o.lv, 1, kk === 1 ? 199 : 99, base.lv);
-  /* 普刀经验是 1–99 的累计值，上限 1,927,800；超出的一律按等级重算（老数据是极化条口径） */
-  const exMax = kk === 1 ? RES_MAX : PU_MAX;
-  const ex = Number(o && o.exp) > exMax ? (kk === 1 ? exMax : puCum(lv))
-                                        : clampFloat(o && o.exp, 0, exMax, base.exp);
+  /* 经验一律不超过 RES_MAX；普刀满级（1,927,800）之后还能继续攒，所以不再按 PU_MAX 截断 */
+  const ex = clampFloat(o && o.exp, 0, RES_MAX, base.exp);
   return {
     no: base.no,
     name: String((o && o.name) || base.name).trim().slice(0, 20) || base.name,
@@ -2608,8 +2608,8 @@ function cardHTML(x){
     '<div class="card-grid2">' +
       '<label class="fld"><span>等级</span><input type="number" min="1" max="'+(v.k===1?199:99)+'" step="1" ' +
         'title="'+(v.k===1?'极化刀上限 199':'普刀上限 99')+'" data-no="'+x.no+'" data-f="lv" value="'+v.lv+'"></label>' +
-      '<label class="fld"><span title="改上面的等级，经验会自动改成该等级对应的值；普刀填的是 1–99 的累计经验（满级 1,927,800），不是当前级内的进度">'+(v.k===1?'极化经验':'普刀累计经验')+'</span>' +
-        '<input type="number" min="0" max="'+(v.k===1?999999999:PU_MAX)+'" step="any" data-no="'+x.no+'" data-f="exp" value="'+v.exp+'"></label>' +
+      '<label class="fld"><span title="改上面的等级，经验会自动改成该等级对应的值；普刀填的是累计经验，满级（Lv99）累计 1,927,800，满级后继续攒的经验照填，不设上限">'+(v.k===1?'极化经验':'普刀累计经验')+'</span>' +
+        '<input type="number" min="0" max="999999999" step="any" data-no="'+x.no+'" data-f="exp" value="'+v.exp+'"></label>' +
     '</div>' +
     '<div data-pre="1">' + (showEst ? estHTML(v.type, v.exp, v.fl, {k:v.k, lv:v.lv, no:x.no, editable:true}) : '') + '</div>' +
     '<label class="fld"><span>获取方式</span><input type="text" maxlength="24" data-no="'+x.no+'" data-f="src" value="'+esc(srcTxt)+'" placeholder="如 7-4王点"></label>' +
@@ -2654,7 +2654,7 @@ function readField(o, el){
     o.lv = clampNum(el.value, 1, o.k === 1 ? 199 : 99, o.lv);
     el.value = o.lv;
   }else if(f === 'exp'){
-    o.exp = clampFloat(el.value, 0, o.k === 1 ? RES_MAX : PU_MAX, o.exp);
+    o.exp = clampFloat(el.value, 0, RES_MAX, o.exp);
     el.value = o.exp;
   }else if(f === 'src'){
     o.src = (el.value || '').trim().slice(0, 24);
@@ -2753,7 +2753,7 @@ function commitEdit(no){
     r: clampNum(draft.r, 1, 10, row.r),
     rp: clampNum(draft.rp, 0, 999, row.rp || 0),
     lv: clampNum(draft.lv, 1, kk === 1 ? 199 : 99, row.lv),
-    exp: clampFloat(draft.exp, 0, kk === 1 ? RES_MAX : PU_MAX, row.exp),
+    exp: clampFloat(draft.exp, 0, RES_MAX, row.exp),
     src: (draft.src || '').trim().slice(0, 24),
     own: Number(draft.own) === 0 ? 0 : 1
   };
@@ -2996,7 +2996,7 @@ function openAddSword(){
         '<label class="fld"><span>拥有状态</span><select id="aswOwn"><option value="0" selected>未拥有</option><option value="1">已拥有</option></select></label>' +
         '<label class="fld"><span>乱舞</span><input type="number" id="aswR" min="1" max="10" step="1" value="1"></label>' +
         '<label class="fld"><span>等级</span><input type="number" id="aswLv" min="1" max="199" step="1" title="普刀上限 99，极化刀上限 199" value="1"></label>' +
-        '<label class="fld"><span>总经验</span><input type="number" id="aswExp" min="0" max="999999999" step="any" value="0"></label>' +
+        '<label class="fld"><span>经验</span><input type="number" id="aswExp" min="0" max="999999999" step="any" value="0"></label>' +
         '<label class="fld"><span>获取方式</span><input type="text" id="aswSrc" maxlength="24" placeholder="如 8-4王点"></label>' +
         '<label class="fld"><span>乱舞进度</span><input type="number" id="aswRp" min="0" max="999" step="1" value="0"></label>' +
       '</div>' +
@@ -3056,7 +3056,7 @@ function openAddSword(){
           k: k,
           r: clampNum($('#aswR').value, 1, 10, 1),
           lv: clampNum($('#aswLv').value, 1, k === 1 ? 199 : 99, 1),
-          exp: clampFloat($('#aswExp').value, 0, k === 1 ? RES_MAX : PU_MAX, 0),
+          exp: clampFloat($('#aswExp').value, 0, RES_MAX, 0),
           src: ($('#aswSrc').value || '').trim().slice(0, 24),
           fl: clampNum($('#aswFl').value, 0, 6, 0),
           own: Number($('#aswOwn').value) === 1 ? 1 : 0
@@ -3331,7 +3331,8 @@ function bindGrid(){
     if(!draft) return;
     if(f === 'exp'){
       const n = parseFloat(el.value);
-      draft.exp = isNaN(n) ? 0 : Math.max(0, Math.min(draft.k === 1 ? RES_MAX : PU_MAX, n));
+      draft.exp = isNaN(n) ? 0 : Math.max(0, Math.min(RES_MAX, n));
+      if(!isNaN(n) && n > RES_MAX){ el.value = RES_MAX; }      // 超上限立刻回显，别让框里留个假数字
       draft.expAuto = false;                // 手改了经验，就不再跟着等级走
       /* 填了经验就以经验定等级，等级框跟着改（极刀反推 1–199，普刀反推 1–99） */
       if(expIsSet(draft.exp)){
@@ -3343,9 +3344,14 @@ function bindGrid(){
       }
     }else{
       const raw = String(el.value).trim();
+      const prevLv = draft.lv;
       draft.lv = clampNum(el.value, 1, draft.k === 1 ? 199 : 99, draft.lv);
-      /* 改等级就把经验改成该等级对应值：普/极各按自己的经验条，没填过经验（0）也一样写 */
-      if(raw !== ''){
+      /* 改等级就把经验改成该等级对应值：普/极各按自己的经验条，没填过经验（0）也一样写。
+         等级没变（比如重复输入 99）且已有经验比该等级最低值多，说明那是满级后攒的溢出经验，保留不动。 */
+      /* 普刀已有满级后的溢出经验（>1,927,800）时，不再因为改等级把它抹掉，要改就自己清经验栏 */
+      const overflow = draft.k !== 1 && Number(draft.exp) > PU_MAX;
+      if(raw !== '' && !overflow &&
+         !(draft.lv === prevLv && Number(draft.exp) > expForLv(draft.type, draft.lv, draft.fl, draft.k))){
         const v = expForLv(draft.type, draft.lv, draft.fl, draft.k);
         draft.exp = v;
         draft.expAuto = true;
@@ -6031,6 +6037,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.35 普刀等级仍封顶 99，经验不再设上限',
+     '<p>之前普刀经验栏被卡在 1,927,800（Lv99 的累计值），满级后继续攒的经验填不进去。现在<b>等级仍是 1–99</b>、1–99 的经验表也照旧，但<b>经验栏可以一直往上填</b>，和极刀一样最多 999,999,999。</p>' +
+     '<p>折算极化等级时直接用这份累计经验扣门槛，溢出多少都能算；超过极化 Lv199 所需会提示「已超过满级所需，折算 Lv199」。填经验时等级照样按 1–99 条反推（超过满级就停在 99）。</p>' +
+     '<p>已有溢出经验不会被清：改等级时如果等级没变、现有经验又高于该等级的最低值，就原样保留（以前重复输入 99 会把溢出经验抹成 1,927,800）。V2.33 那次「超过 192.78 万就按等级重置」的老数据纠正也一并取消，已有的大数值原样保留。输入、保存、导入导出、新增和编辑的上限统一成 999,999,999。</p>','2026.11'],
     ['V2.34 剑：普刀同一条经验条，极化后按大太刀算',
      '<p>剑（白山吉光、七星剣、丙子椒林剣等）<b>普刀和别的刀种一样</b>走 1–99 那条累计经验（满级 1,927,800）；<b>极化后沿用大太刀经验条</b>（倍率 1.5、门槛 80 级 907,800），Lv199 共需 191,466,902 极化经验。</p>' +
      '<p>所以普 99 的剑折算极化后同样是 <b>Lv33</b>，和大太刀完全一致。经验条名字在卡片小条和换算弹窗里会写成「大太刀（剑共用）」，一看就知道不是独立的一条。</p>' +
