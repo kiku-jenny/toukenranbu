@@ -134,7 +134,29 @@
   .icon-btn:hover{border-color:var(--accent);background:var(--pink-soft);}
   .icon-btn.danger{color:#b3a4a7;}
   .icon-btn.danger:hover{border-color:#e3b6b6;background:#fdeeee;color:#c25151;}
-  .side-note{font-size:10.5px;color:#bda9ae;letter-spacing:.04em;text-align:center;}
+  .side-note{font-size:10.5px;color:#bda9ae;letter-spacing:.04em;text-align:center;line-height:1.7;}
+  .side-note.warn{color:#c2455e;}
+  .side-note b{font-weight:700;}
+  .storage-backup{margin-left:6px;border:none;background:none;color:inherit;font:inherit;
+    text-decoration:underline;cursor:pointer;padding:0;}
+  .storage-backup:hover{opacity:.75;}
+  .sync-note{margin-top:6px;font-size:10.5px;color:#bda9ae;text-align:center;
+    letter-spacing:.03em;cursor:pointer;line-height:1.7;}
+  .sync-note:hover{color:var(--accent-deep);}
+  .sync-note.ok{color:#4f8a63;}
+  .sync-note.warn{color:#c2455e;}
+  .modal-foot{flex-wrap:wrap;}
+  .cloud-status{font-size:11.5px;line-height:1.8;color:var(--sub);background:#fdf3f5;
+    border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:12px;}
+  .cloud-status b{color:var(--accent-deep);}
+  .cloud-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0;}
+  .cloud-check{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--sub);cursor:pointer;}
+  .cloud-tip{font-size:11px;line-height:1.9;color:var(--sub);margin:10px 0 0;}
+  .cloud-tip b{color:var(--ink);}
+  .cloud-sql{width:100%;box-sizing:border-box;height:132px;font-family:monospace;font-size:10.5px;
+    line-height:1.6;padding:9px;border:1px solid var(--line);border-radius:8px;background:#fff;resize:vertical;}
+  .cloud-details{margin-top:10px;border:1px solid var(--line);border-radius:9px;padding:8px 10px;}
+  .cloud-details summary{font-size:11.5px;color:var(--accent-deep);cursor:pointer;}
 
   /* ---------- 页头 ---------- */
   .page-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:18px;flex-wrap:wrap;}
@@ -927,7 +949,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞本丸管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.25</div>
+        <div class="brand-sub">HONMARU KEEPER V2.27</div>
       </div>
     </div>
 
@@ -957,7 +979,8 @@
           <button class="icon-btn danger" id="btnDelAcct" title="删除当前账号">🗑</button>
         </div>
       </div>
-      <div class="side-note">数据仅保存在本机浏览器</div>
+      <div class="side-note" id="storageNote"><span id="storageText">数据仅保存在本机浏览器</span><button class="storage-backup" id="btnStorageBackup" hidden>导出备份</button></div>
+      <div class="sync-note" id="syncNote" title="点此设置多设备同步">☁ 云同步：未开启</div>
     </div>
   </aside>
 
@@ -1020,6 +1043,7 @@
           <button class="btn" id="btnImport">📤 导入</button>
           <button class="btn" id="btnSyncGen">🔗 同步码</button>
           <button class="btn" id="btnSyncRead">📋 读码</button>
+          <button class="btn" id="btnSyncCloud" title="多设备同步：手机和电脑打开同一页面、填同一个同步密钥">☁ 云同步</button>
           <input type="file" id="fileInput" accept=".json,application/json" hidden>
         </div>
       </div>
@@ -1246,7 +1270,7 @@
       </div>
     </section>
 
-    <div class="foot">本丸管家 · 本地离线版 · 刀帐 130 振（随游戏更新增补） · 数据来自你的本丸表格</div>
+    <div class="foot" id="footLine">本丸管家 · 本地离线版 · 刀帐 — 振（随游戏更新增补） · 数据来自你的本丸表格</div>
   </main>
 </div>
 
@@ -1844,7 +1868,102 @@ function normalize(d){
   fixLegacyExp(d);
   return d;
 }
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+/* ---------- 云同步配置：独立于存档，不会被导出 / 同步码带走 ---------- */
+const SYNC_CFG_KEY = 'honmaru_sync_cfg_v1';
+const SYNC_STATE_KEY = 'honmaru_sync_state_v1';
+function loadSyncCfg(){
+  try{
+    const o = JSON.parse(localStorage.getItem(SYNC_CFG_KEY) || 'null');
+    if(o && typeof o === 'object') return {
+      url:String(o.url || '').trim(), anon:String(o.anon || '').trim(),
+      key:String(o.key || '').trim(), auto:o.auto !== false, enabled:!!o.enabled
+    };
+  }catch(e){}
+  return {url:'', anon:'', key:'', auto:true, enabled:false};
+}
+let syncCfg = loadSyncCfg();
+function saveSyncCfg(){
+  try{ localStorage.setItem(SYNC_CFG_KEY, JSON.stringify(syncCfg)); }catch(e){}
+}
+let syncState = (function(){
+  try{
+    const o = JSON.parse(localStorage.getItem(SYNC_STATE_KEY) || 'null');
+    if(o && typeof o === 'object') return {
+      status:o.status || 'off', msg:o.msg || '', lastSyncAt:o.lastSyncAt || '',
+      dirty:!!o.dirty, remoteAt:o.remoteAt || ''
+    };
+  }catch(e){}
+  return {status:'off', msg:'', lastSyncAt:'', dirty:false, remoteAt:''};
+})();
+function saveSyncState(){
+  try{ localStorage.setItem(SYNC_STATE_KEY, JSON.stringify(syncState)); }catch(e){}
+}
+let syncTimer = null, syncBooted = false, syncApplying = false, syncBusy = false, pendingCloud = null;
+function scheduleCloudSync(){
+  if(!syncBooted || syncApplying || !cloudCfgValid()) return;
+  syncState.dirty = true;
+  syncState.status = 'pending';
+  syncState.msg = '本地有改动，等待上传';
+  saveSyncState();
+  /* 手动模式只记账，等用户点「⬆ 上传本机」 */
+  if(!syncCfg.auto){ renderSyncNote(); return; }
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(function(){ cloudPush(); }, 1800);
+  renderSyncNote();
+}
+
+/* ---------- 本地存储：写入失败要出声，用量要看得见 ---------- */
+let saveWarned = '';        /* 记录上次提示过的失败原因，避免同一原因反复刷屏 */
+let storageWarned = false;
+let STORAGE_REF_LIMIT = 5 * 1024 * 1024;   /* 浏览器 localStorage 常见上限，仅作参考 */
+function storageUsedBytes(){
+  try{
+    const raw = localStorage.getItem(KEY) || '';
+    return new Blob([raw]).size;
+  }catch(e){ return 0; }
+}
+function fmtBytes(n){
+  if(n >= 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + ' MB';
+  return Math.max(1, Math.round(n / 1024)) + ' KB';
+}
+function renderStorageNote(silent){
+  const box = $('#storageNote'), txt = $('#storageText'), btn = $('#btnStorageBackup');
+  if(!box || !txt) return;
+  const used = storageUsedBytes();
+  const cap = fmtBytes(STORAGE_REF_LIMIT);
+  const near = used / STORAGE_REF_LIMIT >= 0.8;
+  box.classList.toggle('warn', near);
+  txt.textContent = (near ? '⚠ 本地存储快满了 · 已用 ' : '数据仅保存在本机浏览器 · 已用 ') +
+                    fmtBytes(used) + ' / 约 ' + cap + (near ? '，建议导出备份' : '');
+  if(btn) btn.hidden = !near;
+  if(near && !silent && !storageWarned){
+    storageWarned = true;
+    toast('本地存储接近上限，建议导出一次 JSON 备份', true);
+  }
+  if(!near) storageWarned = false;
+}
+function save(){
+  try{
+    localStorage.setItem(KEY, JSON.stringify(S));
+    saveWarned = '';
+    renderStorageNote();
+    scheduleCloudSync();
+    return true;
+  }catch(e){
+    const quota = !!e && (e.name === 'QuotaExceededError' ||
+                          e.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+                          e.code === 22 || e.code === 1014);
+    const why = quota ? 'quota' : 'denied';
+    renderStorageNote(true);
+    if(saveWarned !== why){
+      saveWarned = why;
+      toast(quota
+        ? '保存失败：本机存储空间已满，这次改动没写入。先点「📥 导出」备份，再清理旧记录'
+        : '保存失败：浏览器不让写本地存储（隐私模式？），刷新后会丢。换普通窗口打开，或先点「📥 导出」备份', true);
+    }
+    return false;
+  }
+}
 function load(){
   let raw = null;
   try{ raw = localStorage.getItem(KEY); }catch(e){}
@@ -1866,6 +1985,9 @@ function load(){
     feedback:[]
   };
 }
+/* DOM 查询工具先初始化：下面 load()/save() 会立刻执行，存储状态渲染也要用 */
+const $ = function(s){ return document.querySelector(s); };
+const $$ = function(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); };
 S = load();
 save();   /* 反填花数、校正乱舞进度后立刻落盘，下次打开也是对的 */
 
@@ -1883,8 +2005,6 @@ function curData(){
 /* =========================================================
    工具
    ========================================================= */
-const $ = function(s){ return document.querySelector(s); };
-const $$ = function(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); };
 function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 function clampNum(v, min, max, dft){
   const n = parseInt(v, 10);
@@ -1939,6 +2059,17 @@ function renderSidebar(){
   const mc = $('#menuLogCount');
   if(mc) mc.textContent = String(d && Array.isArray(d.logs) ? d.logs.length : 0);
   $('#pageSub').textContent = S.server + ' · ' + (acctInfo() ? acctInfo().name : '未选择账号');
+  renderFoot();
+  renderSyncNote();
+}
+/* 底部页脚的刀帐振数跟着当前账号走，增删刀后同步更新 */
+function renderFoot(){
+  const el = $('#footLine');
+  if(!el) return;
+  const d = curData();
+  const n = d ? d.tw.length : 0;
+  el.textContent = '本丸管家 · 本地离线版 · 刀帐 ' + (d ? n + ' 振' : '— 振') +
+                   '（随游戏更新增补） · 数据来自你的本丸表格';
 }
 function switchServer(sv){
   S.server = sv;
@@ -4883,6 +5014,346 @@ function bindCalc(){
 }
 
 /* =========================================================
+   云同步：Supabase REST + 本机 AES-GCM 加密
+   云端只存密文；空间 ID 由同步密钥派生，密钥本身不上传。
+   ========================================================= */
+const SYNC_TABLE = 'honmaru_sync';
+const SYNC_SQL = [
+  'create table if not exists public.honmaru_sync (',
+  '  space_id   text primary key,',
+  '  data       text not null,',
+  '  updated_at timestamptz not null default now(),',
+  '  ver        int  not null default 1',
+  ');',
+  'alter table public.honmaru_sync enable row level security;',
+  'drop policy if exists "honmaru anon rw" on public.honmaru_sync;',
+  'create policy "honmaru anon rw" on public.honmaru_sync',
+  '  for all to anon using (true) with check (true);',
+  'grant all on public.honmaru_sync to anon;'
+].join('\n');
+
+function cloudCfgValid(){
+  return !!(syncCfg.enabled && syncCfg.url && syncCfg.anon && syncCfg.key);
+}
+function cloudBase(){ return String(syncCfg.url).replace(/\/+$/, ''); }
+function cloudHeaders(extra){
+  const h = {'apikey':syncCfg.anon, 'Authorization':'Bearer ' + syncCfg.anon,
+             'Content-Type':'application/json'};
+  if(extra) Object.keys(extra).forEach(function(k){ h[k] = extra[k]; });
+  return h;
+}
+function fmtClock(iso){
+  const t = new Date(iso);
+  if(isNaN(t.getTime())) return '';
+  return String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0');
+}
+function setSyncStatus(s, msg){
+  syncState.status = s; syncState.msg = msg || '';
+  saveSyncState(); renderSyncNote();
+}
+function renderSyncNote(){
+  const el = $('#syncNote'); if(!el) return;
+  const s = syncState.status;
+  let txt = '☁ 云同步：', cls = 'sync-note';
+  if(!cloudCfgValid()){
+    txt += (syncCfg.url || syncCfg.anon) ? '未启用（点此完成设置）' : '未开启（点此设置）';
+  }else if(s === 'ok'){ txt += '已同步 · ' + fmtClock(syncState.lastSyncAt); cls += ' ok'; }
+  else if(s === 'pending'){ txt += '待同步（改动已存本机）'; cls += ' warn'; }
+  else if(s === 'conflict'){ txt += '有冲突（点此处理）'; cls += ' warn'; }
+  else if(s === 'error'){ txt += '连接失败（点此查看）'; cls += ' warn'; }
+  else if(s === 'empty'){ txt += '云端空（点此上传）'; }
+  else if(s === 'syncing'){ txt += '同步中…'; }
+  else { txt += '已启用'; }
+  el.className = cls;
+  el.textContent = txt;
+  el.title = syncState.msg || '点此设置多设备同步';
+}
+async function cloudGenKey(){
+  return b64urlEncode(crypto.getRandomValues(new Uint8Array(24)));
+}
+async function cloudSpaceId(key){
+  const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('honmaru-space:' + key));
+  return Array.from(new Uint8Array(h).slice(0,16))
+    .map(function(x){ return x.toString(16).padStart(2,'0'); }).join('');
+}
+async function cloudAesKey(key){
+  const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('honmaru-aes:' + key));
+  return crypto.subtle.importKey('raw', h, {name:'AES-GCM'}, false, ['encrypt','decrypt']);
+}
+async function cloudEncrypt(key, json){
+  let bytes = new TextEncoder().encode(json), z = 0;
+  if(typeof CompressionStream === 'function'){
+    try{ bytes = await deflateRawBytes(json); z = 1; }catch(e){}
+  }
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const k = await cloudAesKey(key);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM', iv:iv}, k, bytes));
+  const out = new Uint8Array(13 + ct.length);
+  out[0] = z; out.set(iv, 1); out.set(ct, 13);
+  return b64urlEncode(out);
+}
+async function cloudDecrypt(key, b64){
+  const all = b64urlDecode(b64);
+  if(all.length < 14) throw new Error('BAD_DATA');
+  const z = all[0], iv = all.slice(1,13), ct = all.slice(13);
+  const k = await cloudAesKey(key);
+  const bytes = new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM', iv:iv}, k, ct));
+  return z ? await inflateRawText(bytes) : new TextDecoder().decode(bytes);
+}
+async function cloudFetch(method, query, body, prefer){
+  const opt = {method:method, headers:cloudHeaders(prefer ? {'Prefer':prefer} : null)};
+  if(body !== undefined) opt.body = JSON.stringify(body);
+  const r = await fetch(cloudBase() + '/rest/v1/' + SYNC_TABLE + (query || ''), opt);
+  if(!r.ok){
+    let t = '';
+    try{ t = (await r.text()).slice(0, 200); }catch(e){}
+    throw new Error('HTTP ' + r.status + (t ? ' · ' + t : ''));
+  }
+  const txt = await r.text();
+  return txt ? JSON.parse(txt) : null;
+}
+function friendlySyncError(e){
+  const m = String((e && e.message) || e);
+  if(m.indexOf('Failed to fetch') >= 0 || m.indexOf('NetworkError') >= 0 ||
+     m.indexOf('Load failed') >= 0)
+    return '连不上云端（离线，或 Supabase 免费项目闲置一周被暂停），改动已留在本机';
+  if(m.indexOf('401') >= 0 || m.indexOf('403') >= 0 || m.indexOf('JWT') >= 0)
+    return 'anon key 不对，或建表 SQL 没给 anon 授权';
+  if(m.indexOf('404') >= 0 || m.indexOf('PGRST205') >= 0 || m.indexOf('does not exist') >= 0)
+    return '没找到表 honmaru_sync，先在 Supabase 的 SQL Editor 里跑建表 SQL';
+  return '同步失败：' + m.slice(0, 100);
+}
+async function cloudApply(obj, ts){
+  syncApplying = true;
+  try{
+    const id = S.current[S.server];
+    if(!id) throw new Error('当前没有账号');
+    S.data[id] = normalize(obj.data);
+    save();                              /* syncApplying 期间不会再触发上传 */
+    syncState.lastSyncAt = ts || new Date().toISOString();
+    syncState.dirty = false;
+    saveSyncState();
+    renderAll();
+  }finally{ syncApplying = false; }
+}
+async function cloudPull(opts){
+  opts = opts || {};
+  if(!cloudCfgValid() || (syncBusy && !opts.force)) return false;
+  syncBusy = true;
+  setSyncStatus('syncing', '正在拉取云端…');
+  try{
+    const sid = await cloudSpaceId(syncCfg.key);
+    const rows = await cloudFetch('GET', '?space_id=eq.' + encodeURIComponent(sid) + '&select=data,updated_at');
+    if(!rows || !rows.length){
+      setSyncStatus('empty', '云端还没有这个同步空间');
+      return true;
+    }
+    const row = rows[0];
+    let obj;
+    try{ obj = JSON.parse(await cloudDecrypt(syncCfg.key, row.data)); }
+    catch(e){ throw new Error('DECRYPT:同步密钥不对，解不开云端数据'); }
+    if(obj.app !== 'honmaru-cloud' || !obj.data) throw new Error('云端数据格式不对');
+    syncState.remoteAt = row.updated_at || '';
+    const newer = !syncState.lastSyncAt ||
+      new Date(row.updated_at).getTime() > new Date(syncState.lastSyncAt).getTime();
+    if(opts.force || newer){
+      if(!opts.force && syncState.dirty && syncState.lastSyncAt){
+        pendingCloud = {obj:obj, ts:row.updated_at};
+        setSyncStatus('conflict', '云端和本机都有改动');
+        openCloudConflict();
+        return true;
+      }
+      await cloudApply(obj, row.updated_at);
+      setSyncStatus('ok', '已从云端拉取最新数据');
+      if(!opts.silent) toast('☁ 已从云端同步最新数据');
+    }else{
+      setSyncStatus('ok', '本机已是最新');
+      if(syncState.dirty && syncCfg.auto) scheduleCloudSync();
+    }
+    return true;
+  }catch(e){
+    const m = String((e && e.message) || e);
+    setSyncStatus('error', m.indexOf('DECRYPT:') === 0 ? m.slice(8) : friendlySyncError(e));
+    return false;
+  }finally{ syncBusy = false; }
+}
+async function cloudPush(force){
+  if(!cloudCfgValid()) return false;
+  if(syncBusy && !force){
+    /* 正好在拉取时，稍后补一次，别把这次改动漏在云端之外 */
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(function(){ cloudPush(); }, 1500);
+    return false;
+  }
+  syncBusy = true;
+  setSyncStatus('syncing', '正在上传…');
+  try{
+    const sid = await cloudSpaceId(syncCfg.key);
+    const d = curData();
+    if(!d) throw new Error('当前没有账号');
+    const plain = JSON.stringify({app:'honmaru-cloud', v:1, data:d, ts:Date.now()});
+    const enc = await cloudEncrypt(syncCfg.key, plain);
+    const ts = new Date().toISOString();
+    await cloudFetch('POST', '', [{space_id:sid, data:enc, updated_at:ts, ver:1}],
+                     'resolution=merge-duplicates,return=minimal');
+    syncState.lastSyncAt = ts; syncState.remoteAt = ts; syncState.dirty = false;
+    setSyncStatus('ok', '已同步 · ' + fmtClock(ts));
+    if(force) toast('☁ 已上传到云端');
+    return true;
+  }catch(e){
+    setSyncStatus('error', friendlySyncError(e));
+    return false;
+  }finally{ syncBusy = false; }
+}
+async function cloudBoot(){
+  renderSyncNote();
+  if(!cloudCfgValid()) return;
+  syncBooted = true;
+  await cloudPull({boot:true, silent:true});
+  if(syncState.status === 'empty' && syncCfg.auto){
+    await cloudPush(true);
+    toast('☁ 同步空间已建好，另一台设备填同一密钥即可互通');
+  }else if(syncState.dirty && syncCfg.auto){
+    scheduleCloudSync();
+  }
+}
+function copyText(s){
+  const legacy = function(){
+    const ta = document.createElement('textarea');
+    ta.value = s; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); toast('已复制'); }
+    catch(e){ toast('复制失败，请手动选中', true); }
+    ta.remove();
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(s).then(function(){ toast('已复制'); }, legacy);
+  }else legacy();
+}
+function applyCloudCfgCode(txt){
+  const m = String(txt || '').trim().match(/HMC1\.[A-Za-z0-9_\-]+/);
+  if(!m) throw new Error('没找到配置码');
+  const o = JSON.parse(new TextDecoder().decode(b64urlDecode(m[0].slice(5))));
+  if(!o.u || !o.a || !o.k) throw new Error('配置码不完整');
+  return o;
+}
+function openCloudConflict(){
+  const p = pendingCloud; if(!p) return;
+  openModal({
+    title:'☁ 两边都改过',
+    sub:'云端在 ' + (fmtClock(p.ts) || '稍早') + ' 更新过，本机在上次同步后也有改动。选一边为准，另一边会被覆盖。',
+    body:'<p class="cloud-tip">拿不准就先「先不动」，用「📥 导出」各存一份再决定。</p>',
+    actions:[
+      {text:'用云端覆盖本机', cls:'btn', onClick:function(){
+        closeModal(); pendingCloud = null;
+        cloudApply(p.obj, p.ts).then(function(){
+          setSyncStatus('ok', '已采用云端数据'); toast('☁ 已用云端覆盖本机');
+        });
+      }},
+      {text:'上传本机覆盖云端', cls:'btn primary', onClick:function(){
+        closeModal(); pendingCloud = null; cloudPush(true);
+      }},
+      {text:'先不动', cls:'btn', onClick:closeModal}
+    ]
+  });
+}
+function openCloudSync(){
+  const st = syncState;
+  const statusTxt = !cloudCfgValid() ? '<b>未开启</b> · 数据目前只存在这台设备的浏览器里'
+    : '<b>' + esc(st.msg || st.status) + '</b>' +
+      (st.lastSyncAt ? ' · 本机上次同步 ' + esc(fmtClock(st.lastSyncAt)) : '') +
+      (st.remoteAt ? ' · 云端数据 ' + esc(fmtClock(st.remoteAt)) : '');
+  openModal({
+    title:'☁ 云同步 · 多设备互通',
+    sub:'手机和电脑打开同一个页面，填相同的项目 URL / anon key / 同步密钥，数据就会自动互通。',
+    body:
+      '<div class="cloud-status" id="csStatus">' + statusTxt + '</div>' +
+      '<div class="add-grid">' +
+        '<label class="fld full"><span>Project URL</span><input type="text" id="csUrl" placeholder="https://xxxx.supabase.co" value="' + esc(syncCfg.url) + '"></label>' +
+        '<label class="fld full"><span>anon public key</span><input type="text" id="csAnon" placeholder="eyJhbGci..." value="' + esc(syncCfg.anon) + '"></label>' +
+        '<label class="fld full"><span>同步密钥（另一台设备填同一串）</span><input type="text" id="csKey" placeholder="点下面生成，或粘贴已有密钥" value="' + esc(syncCfg.key) + '"></label>' +
+      '</div>' +
+      '<div class="cloud-row">' +
+        '<button class="chip ghost" id="csGen">🎲 生成新密钥</button>' +
+        '<button class="chip ghost" id="csCopyKey">复制密钥</button>' +
+        '<button class="chip ghost" id="csCopyCfg">📋 复制配置码</button>' +
+        '<button class="chip ghost" id="csReadCode">读入配置码</button>' +
+        '<button class="chip ghost" id="csPull">⬇ 拉取云端</button>' +
+        '<button class="chip ghost" id="csPush">⬆ 上传本机</button>' +
+        (cloudCfgValid() ? '<button class="chip ghost" id="csOff">断开</button>' : '') +
+        '<label class="cloud-check"><input type="checkbox" id="csAuto"' + (syncCfg.auto ? ' checked' : '') + '> 改动后自动上传</label>' +
+      '</div>' +
+      '<div class="add-grid" style="margin-top:8px;">' +
+        '<label class="fld full"><span>或：粘贴另一台设备的配置码（免手工填三项）</span><input type="text" id="csCode" placeholder="HMC1.…"></label>' +
+      '</div>' +
+      '<p class="cloud-tip">① 在 Supabase 建免费项目，SQL Editor 里跑下面的建表 SQL；② 项目设置 → API，复制 <b>Project URL</b> 和 <b>anon public</b> 填到上面；③ 生成同步密钥并「保存并启用」，再点「📋 复制配置码」，在另一台设备粘贴进上面的框、点「读入配置码」即可，不用手打长串。</p>' +
+      '<p class="cloud-tip">数据会先用同步密钥在<b>本机加密</b>再上传，云端只有密文；<b>密钥丢了没法找回</b>，建议复制存好。打开页面会自动拉取云端最新数据；关掉「改动后自动上传」后，本机改动要自己点「⬆ 上传本机」。免费项目闲置一周会自动暂停，届时去 Supabase 控制台恢复即可。</p>' +
+      '<details class="cloud-details"><summary>① 建表 SQL（点开，复制后粘到 Supabase SQL Editor）</summary>' +
+        '<textarea class="cloud-sql" id="csSql" readonly>' + esc(SYNC_SQL) + '</textarea>' +
+        '<div class="cloud-row"><button class="chip ghost" id="csCopySql">复制 SQL</button></div>' +
+      '</details>',
+    actions:[
+      {text:'取消', cls:'btn', onClick:closeModal},
+      {text:'保存并启用', cls:'btn primary', onClick:function(){
+        const url = ($('#csUrl').value || '').trim().replace(/\/+$/, '');
+        const anon = ($('#csAnon').value || '').trim();
+        const key = ($('#csKey').value || '').trim();
+        if(!url || !anon || !key){ toast('请把 Project URL、anon key、同步密钥都填好', true); return; }
+        if(!/^https?:\/\//i.test(url)){ toast('Project URL 要以 https:// 开头', true); return; }
+        syncCfg = {url:url, anon:anon, key:key, auto:$('#csAuto').checked, enabled:true};
+        saveSyncCfg();
+        closeModal();
+        setSyncStatus('pending', '配置已保存，正在连接');
+        cloudBoot();
+      }}
+    ]
+  });
+  const gen = $('#csGen');
+  if(gen) gen.onclick = function(){
+    cloudGenKey().then(function(k){
+      const el = $('#csKey'); if(el) el.value = k;
+      toast('已生成新密钥 · 换了密钥等于换了空间，另一台设备也要改');
+    });
+  };
+  const cpKey = $('#csCopyKey');
+  if(cpKey) cpKey.onclick = function(){
+    const v = ($('#csKey').value || '').trim();
+    if(v) copyText(v); else toast('先生成或粘贴同步密钥', true);
+  };
+  const cpSql = $('#csCopySql');
+  if(cpSql) cpSql.onclick = function(){ copyText(SYNC_SQL); };
+  const cpCfg = $('#csCopyCfg');
+  if(cpCfg) cpCfg.onclick = function(){
+    const u = ($('#csUrl').value || '').trim(), a = ($('#csAnon').value || '').trim(),
+          k = ($('#csKey').value || '').trim();
+    if(!u || !a || !k){ toast('先把三项填好，再复制配置码', true); return; }
+    copyText('HMC1.' + b64urlEncode(new TextEncoder().encode(JSON.stringify({u:u, a:a, k:k}))));
+  };
+  const rdCfg = $('#csReadCode');
+  if(rdCfg) rdCfg.onclick = function(){
+    try{
+      const o = applyCloudCfgCode($('#csCode').value);
+      $('#csUrl').value = o.u; $('#csAnon').value = o.a; $('#csKey').value = o.k;
+      toast('已读入配置，点「保存并启用」');
+    }catch(e){ toast('配置码读不了：' + ((e && e.message) || e), true); }
+  };
+  const bPull = $('#csPull');
+  if(bPull) bPull.onclick = function(){ closeModal(); cloudPull({force:true}); };
+  const bPush = $('#csPush');
+  if(bPush) bPush.onclick = function(){ closeModal(); cloudPush(true); };
+  const bOff = $('#csOff');
+  if(bOff) bOff.onclick = function(){
+    syncCfg = {url:'', anon:'', key:'', auto:true, enabled:false};
+    saveSyncCfg();
+    syncState = {status:'off', msg:'', lastSyncAt:'', dirty:false, remoteAt:''};
+    saveSyncState();
+    clearTimeout(syncTimer); syncBooted = false; pendingCloud = null;
+    closeModal(); renderSyncNote();
+    toast('已断开云同步 · 本机数据保留');
+  };
+}
+
+/* =========================================================
    导入 / 导出 / 同步码
    ========================================================= */
 function payload(){
@@ -5105,7 +5576,9 @@ function closeModal(){
 
 function openNotice(){
   const items = [
-    ['V2.25 新增的刀默认极化未开放','<p>从「＋ 新增刀剑」「活动里补录」「掉落明细里补回」入库的刀，极化一律先按<b>未开放</b>处理：卡片上会标「未开放」，「✎ 修改」里的「极」暂时点不了，极化进度环也只统计已开放的刀。等游戏真的开了这一振的极化，去「⚙ 极化开放」里勾上就能选「极」。若是新增时直接就把极化填成「极」，说明这振已经开过极化，会自动补进开放名单，不会出现「极化却是未开放」的矛盾状态。</p><p>升级后还会做一次纠正：以前因为新增被自动算成「已开放」的刀，会退回<b>未开放</b>（确实已经极化的刀不受影响）。如果你之前手动勾过某把新刀，升级后再勾一次即可。</p>','2026.11'],
+    ['V2.27 多设备云同步（可选，默认不开启）','<p>工具栏多了「☁ 云同步」：填一个免费 <b>Supabase</b> 项目的 URL、anon key 和一串<b>同步密钥</b>，手机和电脑打开同一个页面、填同一串密钥，图鉴、资源、活动、日志就会自动互通。改动后自动上传，打开页面自动拉取；断网照常写本机，联网后自动补传；两边都改过会弹窗让你选以哪边为准。设置里还有「📋 复制配置码」，另一台设备粘一次就填好三项，不用手打长串的 anon key。</p><p>数据会先<b>在本机用同步密钥加密</b>（先压缩再 AES-GCM）才上传，云端只存密文，密钥不会上传。设置弹窗里附了三步开通说明和一键复制的建表 SQL。不填就完全不联网，仍是原来的纯离线单机版，同步码 / 导出 JSON 照常可用。</p>','2026.11'],
+    ['V2.26 保存失败会提示，存储用量看得见','<p>以前浏览器写不进本地存储时（空间满、隐私模式），页面一声不吭，改动刷新就没了。现在会立刻弹红色提示说明原因，并提醒先导出备份。</p><p>左侧栏底部的「数据仅保存在本机浏览器」改成<b>实时用量</b>：已用 X KB / 约 5 MB，增删刀、写日志都会跟着变。用到八成以上会变红提醒、并多出「导出备份」按钮，点一下就存一份 JSON。数据仍只在本机，不联网、也不需要数据库。</p>','2026.11'],
+    ['V2.25 新增的刀默认极化未开放','<p>从「＋ 新增刀剑」「活动里补录」「掉落明细里补回」入库的刀，极化一律先按<b>未开放</b>处理：卡片上会标「未开放」，「✎ 修改」里的「极」暂时点不了，极化进度环也只统计已开放的刀。等游戏真的开了这一振的极化，去「⚙ 极化开放」里勾上就能选「极」。若是新增时直接就把极化填成「极」，说明这振已经开过极化，会自动补进开放名单，不会出现「极化却是未开放」的矛盾状态。</p><p>升级后还会做一次纠正：以前因为新增被自动算成「已开放」的刀，会退回<b>未开放</b>（确实已经极化的刀不受影响）。如果你之前手动勾过某把新刀，升级后再勾一次即可。</p><p>页面最底下的页脚也改成按当前图鉴<b>实时统计</b>：131 振就写「刀帐 131 振」，增删刀、切换账号都会跟着变，不再固定写 130。</p>','2026.11'],
     ['V2.24 活动里补录的刀一定留日志','<p>从活动记录补刀有两条路：<b>＋ 图鉴没有？补录一把</b>、以及点掉落明细里的刀名补回来。前者本来就有日志，后者（图鉴里被删过的刀）以前补完不写；现在两条都会记一条 <b>新刀</b>，写 <b>刀帐变动 N→N+1</b>、变动值 <b style="color:#c2455e">+1</b>。补录弹窗还会边输边说明这次是「新刀入库」还是「图鉴里已有，只标记为已拥有」——后一种不会新增，所以不记新刀日志，免得误以为漏记。</p>','2026.11'],
     ['V2.23 刀帐统一按总数显示','<p>新增弹窗只写「刀帐（当前 N 振）」，候选列表也不再多加小标，所有刀一视同仁。后续游戏上新刀，直接按正常流程加进图鉴就行，检索、计数、筛选都会自动跟上。</p>','2026.11'],
     ['V2.22 新增弹窗按当前全部刀检索','<p>「＋ 新增刀剑」以前只查内置的 130 振：已经入过图鉴的刀再输一次，会提示「130 振刀帐里没有」，数字也永远停在 130。现在检索覆盖图鉴里<b>当前的全部刀</b>，提示里的振数按实际数量算（例如 132 振）。输入已有的名字或编号，会直接命中那一振并提示「已在图鉴」或「未拥有 → 保存后改成已拥有」，不会再误加一条同名记录。候选列表会列出全部命中的刀，花数取它自己填的值。</p>','2026.11'],
@@ -5404,6 +5877,10 @@ function initEvents(){
   };
 
   $('#btnExport').onclick = exportJson;
+  const sBackup = $('#btnStorageBackup');
+  if(sBackup) sBackup.onclick = exportJson;
+  const bCloud = $('#btnSyncCloud'); if(bCloud) bCloud.onclick = openCloudSync;
+  const nSync = $('#syncNote'); if(nSync) nSync.onclick = openCloudSync;
   $('#btnImport').onclick = function(){ $('#fileInput').click(); };
   $('#fileInput').onchange = function(){
     const f = this.files[0]; if(!f) return;
@@ -5491,6 +5968,7 @@ function initPetals(){
   renderSidebar();
   initEvents();
   switchTab('catalog');
+  cloudBoot();   /* 已启用云同步时：先拉云端，再允许自动上传 */
 })();
 </script>
 </body>
