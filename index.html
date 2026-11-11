@@ -157,6 +157,18 @@
     line-height:1.6;padding:9px;border:1px solid var(--line);border-radius:8px;background:#fff;resize:vertical;}
   .cloud-details{margin-top:10px;border:1px solid var(--line);border-radius:9px;padding:8px 10px;}
   .cloud-details summary{font-size:11.5px;color:var(--accent-deep);cursor:pointer;}
+  .snap-list{margin:10px 0 2px;display:flex;flex-direction:column;gap:7px;}
+  .snap-item{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:9px;
+    padding:8px 10px;background:#fff;font-size:11.5px;line-height:1.6;}
+  .snap-item .snap-meta{flex:1;min-width:0;}
+  .snap-item .snap-meta b{color:var(--ink);}
+  .snap-item .snap-meta span{display:block;color:var(--sub);font-size:10.5px;}
+  .snap-empty{font-size:11.5px;color:var(--sub);padding:10px 0;}
+  .snap-warn{font-size:11px;line-height:1.8;color:var(--accent-deep);background:#fdf3f5;
+    border:1px solid var(--line);border-radius:9px;padding:8px 10px;margin-top:10px;}
+  .cloud-guard{background:#fff4f0;border:1px solid #e8b9ae;border-radius:10px;
+    padding:10px 12px;font-size:11.5px;line-height:1.9;color:#8a4030;margin-bottom:12px;}
+  .cloud-guard b{color:#b23b2e;}
 
   /* ---------- 页头 ---------- */
   .page-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:18px;flex-wrap:wrap;}
@@ -949,7 +961,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞本丸管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.27</div>
+        <div class="brand-sub">HONMARU KEEPER V2.28</div>
       </div>
     </div>
 
@@ -1898,15 +1910,123 @@ let syncState = (function(){
 function saveSyncState(){
   try{ localStorage.setItem(SYNC_STATE_KEY, JSON.stringify(syncState)); }catch(e){}
 }
-let syncTimer = null, syncBooted = false, syncApplying = false, syncBusy = false, pendingCloud = null;
+let syncTimer = null, syncBooted = false, syncApplying = false, syncBusy = false, pendingCloud = null, pendingGuard = null;
+
+/* ---------- 本机数据快照：云端覆盖前留底，随时可恢复 ----------
+   独立于主存档 KEY，不参与导出 / 同步码 / 上传，云端永远带不走。 */
+const SNAP_KEY = 'honmaru_snapshots_v1';
+const SNAP_MAX = 4;
+function dataScale(d){
+  if(!d) return 0;
+  return (Array.isArray(d.tw) ? d.tw.length : 0) * 1000 +
+         (Array.isArray(d.logs) ? d.logs.length : 0) +
+         (Array.isArray(d.records) ? d.records.length : 0) * 5 +
+         (Array.isArray(d.res) ? d.res.length : 0);
+}
+/* 整个存档的规模：切账号不该被误判成「数据骤减」 */
+function storeScale(){
+  let n = 0;
+  try{ if(S && S.data) Object.keys(S.data).forEach(function(id){ n += dataScale(S.data[id]); }); }catch(e){}
+  return n;
+}
+function loadSnaps(){
+  try{ const a = JSON.parse(localStorage.getItem(SNAP_KEY) || '[]'); return Array.isArray(a) ? a : []; }
+  catch(e){ return []; }
+}
+/* 同步版留底：save() 里调用，从「还没被覆盖的旧 localStorage 值」抓一份 */
+function syncSnapFromRaw(raw, reason){
+  if(!raw) return;
+  let old; try{ old = JSON.parse(raw); }catch(e){ return; }
+  const id = old.current && old.current[old.server];
+  const d = old.data && old.data[id];
+  if(!d || !Array.isArray(d.tw) || !d.tw.length) return;
+  const sc = dataScale(d);
+  if(sc <= 0) return;
+  const arr = loadSnaps();
+  if(arr.length && arr[0].scale === sc && arr[0].reason === reason) return;
+  arr.unshift({ts:Date.now(), reason:reason, scale:sc, tw:d.tw.length,
+               logs:(d.logs || []).length, account:'', data:'J1.' + JSON.stringify(d)});
+  while(arr.length > SNAP_MAX) arr.pop();
+  try{ localStorage.setItem(SNAP_KEY, JSON.stringify(arr)); }catch(e){}
+}
+async function saveSnapshot(reason){
+  const d = curData(); if(!d) return;
+  const sc = dataScale(d);
+  if(sc <= 0) return;                       /* 空数据不值得留底 */
+  let raw;
+  try{ raw = 'Z1.' + b64urlEncode(await deflateRawBytes(JSON.stringify(d))); }
+  catch(e){ raw = 'J1.' + JSON.stringify(d); }
+  const arr = loadSnaps();
+  arr.unshift({ts:Date.now(), reason:reason || '云端覆盖前', scale:sc,
+               tw:(d.tw || []).length, logs:(d.logs || []).length,
+               account:acctInfo() ? acctInfo().name : '', data:raw});
+  const out = [];
+  arr.forEach(function(s){
+    if(out.length && out[out.length-1].scale === s.scale && out[out.length-1].reason === s.reason) return;
+    out.push(s);
+  });
+  while(out.length > SNAP_MAX) out.pop();
+  try{ localStorage.setItem(SNAP_KEY, JSON.stringify(out)); }
+  catch(e){ try{ localStorage.setItem(SNAP_KEY, JSON.stringify(out.slice(0,2))); }catch(e2){} }
+}
+async function snapData(s){
+  const t = String(s.data || '');
+  if(t.indexOf('Z1.') === 0) return JSON.parse(await inflateRawText(b64urlDecode(t.slice(3))));
+  return JSON.parse(t.slice(3));
+}
+/* 扫描本机 localStorage 里其它可能留着旧数据的存档，供数据救援 */
+function scanLocalArchives(){
+  const skip = {}; skip[SNAP_KEY]=1; skip[SYNC_CFG_KEY]=1; skip[SYNC_STATE_KEY]=1;
+  const out = [];
+  const curId = S.current ? S.current[S.server] : '';
+  const collect = function(k, o){
+    if(!o || typeof o !== 'object') return;
+    if(Array.isArray(o.tw)){
+      out.push({label:k, scale:dataScale(o), tw:o.tw.length,
+                logs:(o.logs||[]).length, obj:o});
+    }else if(o.data && typeof o.data === 'object'){
+      Object.keys(o.data).forEach(function(id){
+        const x = o.data[id];
+        if(x && Array.isArray(x.tw) && id !== curId){   /* 当前账号已是空的，跳过 */
+          const a = (S.accounts[S.server] || []).filter(function(z){ return z.id === id; })[0];
+          out.push({label:(a ? a.name : id), scale:dataScale(x), tw:x.tw.length,
+                    logs:(x.logs||[]).length, obj:x});
+        }
+      });
+    }
+  };
+  try{
+    for(let i=0; i<localStorage.length; i++){
+      const k = localStorage.key(i); if(!k || skip[k]) continue;
+      let o; try{ o = JSON.parse(localStorage.getItem(k) || ''); }catch(e){ continue; }
+      collect(k, o);
+    }
+    /* 主存档里其它账号 / 其它服务器的数据也要能救回来 */
+    if(S && S.data){
+      Object.keys(S.data).forEach(function(id){
+        const x = S.data[id];
+        if(id !== curId && x && Array.isArray(x.tw) && x.tw.length){
+          const a = (S.accounts[S.server] || []).filter(function(z){ return z.id === id; })[0];
+          out.push({label:(a ? a.name : id), scale:dataScale(x), tw:x.tw.length,
+                    logs:(x.logs||[]).length, obj:x});
+        }
+      });
+    }
+  }catch(e){}
+  const seen = {};
+  return out.filter(function(x){
+    if(x.scale <= 0 || seen[x.label]) return false;
+    seen[x.label] = 1; return true;
+  }).sort(function(a,b){ return b.scale - a.scale; }).slice(0, 8);
+}
 function scheduleCloudSync(){
   if(!syncBooted || syncApplying || !cloudCfgValid()) return;
   syncState.dirty = true;
   syncState.status = 'pending';
   syncState.msg = '本地有改动，等待上传';
   saveSyncState();
-  /* 手动模式只记账，等用户点「⬆ 上传本机」 */
-  if(!syncCfg.auto){ renderSyncNote(); return; }
+  /* 手动模式 / 正在等用户确认数据差异时，只记账，不自动上传 */
+  if(!syncCfg.auto || pendingGuard){ renderSyncNote(); return; }
   clearTimeout(syncTimer);
   syncTimer = setTimeout(function(){ cloudPush(); }, 1800);
   renderSyncNote();
@@ -1942,9 +2062,16 @@ function renderStorageNote(silent){
   }
   if(!near) storageWarned = false;
 }
+let lastSavedScale = 0;
 function save(){
   try{
+    const raw = localStorage.getItem(KEY);      /* 覆盖前的旧存档 */
+    const nowScale = storeScale();
+    if(!syncApplying && lastSavedScale > 0 && nowScale < lastSavedScale * 0.5){
+      syncSnapFromRaw(raw, '数据骤减前');        /* 云端覆盖 / 误导入空文件都能留底 */
+    }
     localStorage.setItem(KEY, JSON.stringify(S));
+    lastSavedScale = nowScale;
     saveWarned = '';
     renderStorageNote();
     scheduleCloudSync();
@@ -5057,9 +5184,12 @@ function renderSyncNote(){
   let txt = '☁ 云同步：', cls = 'sync-note';
   if(!cloudCfgValid()){
     txt += (syncCfg.url || syncCfg.anon) ? '未启用（点此完成设置）' : '未开启（点此设置）';
+  }else if(dataScale(curData()) <= 0 && loadSnaps().length){
+    txt += '⚠ 本机数据为空（点此恢复）'; cls += ' warn';
   }else if(s === 'ok'){ txt += '已同步 · ' + fmtClock(syncState.lastSyncAt); cls += ' ok'; }
   else if(s === 'pending'){ txt += '待同步（改动已存本机）'; cls += ' warn'; }
   else if(s === 'conflict'){ txt += '有冲突（点此处理）'; cls += ' warn'; }
+  else if(s === 'guard'){ txt += '⚠ 云端数据比本机少（点此处理）'; cls += ' warn'; }
   else if(s === 'error'){ txt += '连接失败（点此查看）'; cls += ' warn'; }
   else if(s === 'empty'){ txt += '云端空（点此上传）'; }
   else if(s === 'syncing'){ txt += '同步中…'; }
@@ -5128,6 +5258,8 @@ async function cloudApply(obj, ts){
   try{
     const id = S.current[S.server];
     if(!id) throw new Error('当前没有账号');
+    /* 覆盖本机前一定留一份快照：万一云端是空数据，也能一键找回 */
+    try{ await saveSnapshot('云端覆盖前'); }catch(e){}
     S.data[id] = normalize(obj.data);
     save();                              /* syncApplying 期间不会再触发上传 */
     syncState.lastSyncAt = ts || new Date().toISOString();
@@ -5154,6 +5286,19 @@ async function cloudPull(opts){
     catch(e){ throw new Error('DECRYPT:同步密钥不对，解不开云端数据'); }
     if(obj.app !== 'honmaru-cloud' || !obj.data) throw new Error('云端数据格式不对');
     syncState.remoteAt = row.updated_at || '';
+    /* ---- 数据保护：云端是空的 / 明显比本机少，绝不静默覆盖 ----
+       「先在空设备启用同步」会把空数据传上云端，等全量设备来拉取时
+       旧逻辑会一声不响把本机覆盖掉。这里拦下来让用户明确选择。 */
+    const lScale = dataScale(curData()), rScale = dataScale(obj.data);
+    const lTw = curData() ? (curData().tw || []).length : 0;
+    const rTw = (obj.data.tw || []).length;
+    if(!opts.force && lScale > 0 && (rTw === 0 || rScale < lScale * 0.3)){
+      pendingGuard = {obj:obj, ts:row.updated_at, lTw:lTw, rTw:rTw,
+                       lScale:lScale, rScale:rScale};
+      setSyncStatus('guard', '云端数据比本机少，等你确认');
+      openCloudGuard();
+      return true;
+    }
     const newer = !syncState.lastSyncAt ||
       new Date(row.updated_at).getTime() > new Date(syncState.lastSyncAt).getTime();
     if(opts.force || newer){
@@ -5179,6 +5324,12 @@ async function cloudPull(opts){
 }
 async function cloudPush(force){
   if(!cloudCfgValid()) return false;
+  /* 本机是空的绝不上传：会把云端已有数据清空，是顺序坑的另一半 */
+  if(dataScale(curData()) <= 0){
+    setSyncStatus('empty', '本机没有数据，已阻止上传');
+    toast('本机还没有数据，已阻止上传，避免把云端清空', true);
+    return false;
+  }
   if(syncBusy && !force){
     /* 正好在拉取时，稍后补一次，别把这次改动漏在云端之外 */
     clearTimeout(syncTimer);
@@ -5197,6 +5348,7 @@ async function cloudPush(force){
     await cloudFetch('POST', '', [{space_id:sid, data:enc, updated_at:ts, ver:1}],
                      'resolution=merge-duplicates,return=minimal');
     syncState.lastSyncAt = ts; syncState.remoteAt = ts; syncState.dirty = false;
+    pendingGuard = null;                 /* 用户已明确上传，差异视为处理完毕 */
     setSyncStatus('ok', '已同步 · ' + fmtClock(ts));
     if(force) toast('☁ 已上传到云端');
     return true;
@@ -5211,9 +5363,16 @@ async function cloudBoot(){
   syncBooted = true;
   await cloudPull({boot:true, silent:true});
   if(syncState.status === 'empty' && syncCfg.auto){
+    /* 本机是空的：不上传空数据去建空间，否则会污染云端、
+       等刀帐最全的设备来拉取时把它覆盖掉（顺序坑的根源）。 */
+    if(dataScale(curData()) <= 0){
+      setSyncStatus('empty', '本机还没有数据，未建立同步空间');
+      toast('这台设备还没有数据，先别启用同步：请在刀帐最全的设备上启用，这台再来读入配置码', true);
+      return;
+    }
     await cloudPush(true);
     toast('☁ 同步空间已建好，另一台设备填同一密钥即可互通');
-  }else if(syncState.dirty && syncCfg.auto){
+  }else if(syncState.dirty && syncCfg.auto && syncState.status !== 'guard'){
     scheduleCloudSync();
   }
 }
@@ -5257,6 +5416,101 @@ function openCloudConflict(){
     ]
   });
 }
+/* 云端数据明显少于本机：让用户决定，绝不静默覆盖 */
+function openCloudGuard(){
+  const g = pendingGuard; if(!g) return;
+  openModal({
+    title:'⚠ 云端数据比本机少，先别急着拉',
+    sub:'云端只有 <b>' + g.rTw + ' 振</b>，本机有 <b>' + g.lTw + ' 振</b>。' +
+        '通常是「先在空设备上启用了同步」造成的，直接拉取会把本机数据覆盖掉。',
+    body:'<div class="cloud-guard">建议选「<b>上传本机覆盖云端</b>」：把刀帐最全的一份推上去，' +
+         '另一台设备打开页面拉到的就是正确数据，顺序坑当场填平。<br>' +
+         '若云端那份才是你要的，也可以选「仍用云端覆盖本机」——覆盖前会自动留一份快照，随时能恢复。</div>' +
+         '<p class="cloud-tip">拿不准就选「先不动」，先去「📥 导出」存一份再决定。</p>',
+    actions:[
+      {text:'上传本机覆盖云端', cls:'btn primary', onClick:function(){
+        pendingGuard = null; closeModal(); cloudPush(true);
+      }},
+      {text:'仍用云端覆盖本机', cls:'btn', onClick:function(){
+        const p = pendingGuard; pendingGuard = null; closeModal();
+        cloudApply(p.obj, p.ts).then(function(){
+          setSyncStatus('ok', '已采用云端数据'); toast('☁ 已用云端覆盖本机（已留快照）');
+        });
+      }},
+      {text:'先不动', cls:'btn', onClick:function(){
+        closeModal();
+        setSyncStatus('guard', '已暂停拉取 · 本机数据保持不变');
+        toast('已保留本机数据，未拉取云端');
+      }}
+    ]
+  });
+}
+/* 数据救援：从快照 / 本机残留存档里找回被覆盖的数据 */
+async function openRescue(){
+  const id = S.current[S.server];
+  if(!id){ toast('请先新建账号', true); return; }
+  const items = [];
+  loadSnaps().forEach(function(s, i){
+    items.push({kind:'snap', idx:i, label:'自动快照 · ' + esc(s.reason),
+                time:s.ts, tw:s.tw, logs:s.logs, account:s.account || ''});
+  });
+  scanLocalArchives().forEach(function(a, i){
+    items.push({kind:'arch', idx:i, label:'本机残留存档 · ' + esc(a.label),
+                time:0, tw:a.tw, logs:a.logs, account:''});
+  });
+  const cur = curData();
+  const head = '<div class="cloud-guard">当前账号：<b>' + (cur ? (cur.tw||[]).length : 0) +
+               ' 振</b>。下面是从本机找回的数据，选一份恢复。<br>' +
+               '恢复只改本机，不会自动覆盖云端；确认无误后请点「⬆ 上传本机」。</div>';
+  let body = head;
+  if(!items.length){
+    body += '<p class="snap-empty">本机没有找到可用的快照或残留存档。若数据还在另一台设备上，' +
+            '请在那台点「📥 导出」存成 JSON，再用「📂 导入」恢复；或查一下浏览器的下载记录里有没有以前的备份。</p>';
+  }else{
+    body += '<div class="snap-list">' + items.map(function(it, i){
+      const t = it.time ? new Date(it.time).toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) : '—';
+      return '<div class="snap-item">' +
+        '<div class="snap-meta"><b>' + it.tw + ' 振</b> · ' + it.label +
+        (it.account ? ' · ' + esc(it.account) : '') +
+        '<span>' + t + ' · 日志 ' + it.logs + ' 条</span></div>' +
+        '<button class="chip ghost" data-rescue="' + i + '">恢复</button></div>';
+    }).join('') + '</div>';
+  }
+  body += '<p class="cloud-tip">以后只要发生云端覆盖，覆盖前都会自动留一份快照（最多 4 份），' +
+          '这里就能随时找回，不需要提前手动备份。</p>';
+  openModal({
+    title:'🛟 恢复本机数据',
+    sub:'从自动快照或本机残留存档里找回被云端覆盖的数据。',
+    body:body,
+    actions:[
+      {text:'📂 从 JSON 导入', cls:'btn', onClick:function(){ closeModal(); $('#fileInput').click(); }},
+      {text:'关闭', cls:'btn primary', onClick:closeModal}
+    ]
+  });
+  const cache = {snaps:loadSnaps(), arch:scanLocalArchives()};
+  $$('#modalRoot [data-rescue]').forEach(function(btn){
+    btn.onclick = async function(){
+      const it = items[Number(btn.getAttribute('data-rescue'))];
+      if(!it) return;
+      let obj = null;
+      try{
+        if(it.kind === 'snap') obj = await snapData(cache.snaps[it.idx]);
+        else obj = cache.arch[it.idx].obj;
+      }catch(e){ toast('这份数据读不出来', true); return; }
+      if(!obj){ toast('这份数据读不出来', true); return; }
+      syncApplying = true;
+      try{
+        S.data[id] = normalize(obj);
+        save();
+        syncState.dirty = false;
+        saveSyncState();
+        renderAll();
+      }finally{ syncApplying = false; }
+      closeModal();
+      toast('☁ 已恢复 ' + (obj.tw || []).length + ' 振 · 点「⬆ 上传本机」同步到云端');
+    };
+  });
+}
 function openCloudSync(){
   const st = syncState;
   const statusTxt = !cloudCfgValid() ? '<b>未开启</b> · 数据目前只存在这台设备的浏览器里'
@@ -5280,13 +5534,15 @@ function openCloudSync(){
         '<button class="chip ghost" id="csReadCode">读入配置码</button>' +
         '<button class="chip ghost" id="csPull">⬇ 拉取云端</button>' +
         '<button class="chip ghost" id="csPush">⬆ 上传本机</button>' +
+        '<button class="chip ghost" id="csRescue">🛟 恢复本机数据</button>' +
         (cloudCfgValid() ? '<button class="chip ghost" id="csOff">断开</button>' : '') +
         '<label class="cloud-check"><input type="checkbox" id="csAuto"' + (syncCfg.auto ? ' checked' : '') + '> 改动后自动上传</label>' +
       '</div>' +
       '<div class="add-grid" style="margin-top:8px;">' +
         '<label class="fld full"><span>或：粘贴另一台设备的配置码（免手工填三项）</span><input type="text" id="csCode" placeholder="HMC1.…"></label>' +
       '</div>' +
-      '<p class="cloud-tip">① 在 Supabase 建免费项目，SQL Editor 里跑下面的建表 SQL；② 项目设置 → API，复制 <b>Project URL</b> 和 <b>anon public</b> 填到上面；③ 生成同步密钥并「保存并启用」，再点「📋 复制配置码」，在另一台设备粘贴进上面的框、点「读入配置码」即可，不用手打长串。</p>' +
+      '<p class="cloud-tip">① 在 Supabase 建免费项目，SQL Editor 里跑下面的建表 SQL；② 项目设置 → API，复制 <b>Project URL</b> 和 <b>anon public</b> 填到上面；③ <b>务必先在「刀帐最全」的那台设备</b>生成同步密钥并「保存并启用」，再点「📋 复制配置码」，其它设备粘贴进下面的框、点「读入配置码」即可，不用手打长串。</p>' +
+      '<div class="snap-warn">⚠ <b>顺序别反</b>：空设备先启用会把空数据传上云端，等全量设备来拉取时会被覆盖。现在已加保护——云端数据比本机少时<b>不会静默覆盖</b>，会弹窗让你选；空设备也不会再上传空数据。覆盖前会自动留快照，可在「🛟 恢复本机数据」里找回。</div>' +
       '<p class="cloud-tip">数据会先用同步密钥在<b>本机加密</b>再上传，云端只有密文；<b>密钥丢了没法找回</b>，建议复制存好。打开页面会自动拉取云端最新数据；关掉「改动后自动上传」后，本机改动要自己点「⬆ 上传本机」。免费项目闲置一周会自动暂停，届时去 Supabase 控制台恢复即可。</p>' +
       '<details class="cloud-details"><summary>① 建表 SQL（点开，复制后粘到 Supabase SQL Editor）</summary>' +
         '<textarea class="cloud-sql" id="csSql" readonly>' + esc(SYNC_SQL) + '</textarea>' +
@@ -5322,6 +5578,8 @@ function openCloudSync(){
   };
   const cpSql = $('#csCopySql');
   if(cpSql) cpSql.onclick = function(){ copyText(SYNC_SQL); };
+  const rs = $('#csRescue');
+  if(rs) rs.onclick = function(){ openRescue(); };
   const cpCfg = $('#csCopyCfg');
   if(cpCfg) cpCfg.onclick = function(){
     const u = ($('#csUrl').value || '').trim(), a = ($('#csAnon').value || '').trim(),
@@ -5576,6 +5834,12 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.28 修好「顺序坑」，数据不会再被覆盖',
+     '<p>以前如果<b>先在空设备上启用同步</b>，空数据会被传到云端；等刀帐最全的设备再来拉取时，会被云端空数据一声不响覆盖，而且点「⬆ 上传本机」也救不回来。这次从三处堵住：</p>' +
+     '<p>① <b>不再静默覆盖</b>：云端数据比本机明显少（或云端是空的）时，会弹窗告诉你「云端 N 振 / 本机 M 振」，让你选「上传本机覆盖云端」「仍用云端覆盖本机」「先不动」，默认推荐把数据全的一份推上去，顺序坑当场填平。<br>' +
+     '② <b>空设备不再上传空数据</b>：本机没有数据时，启用同步不会去建空间、也不会把云端清空。<br>' +
+     '③ <b>覆盖前自动留快照</b>：任何云端覆盖、误导入空文件、数据骤减，都会在本机自动存一份（最多 4 份，压缩保存、不参与同步、不上传），随时可在「☁ 云同步 → 🛟 恢复本机数据」里一键找回，还能扫描本机其它账号 / 残留存档，或从 JSON 导入。</p>' +
+     '<p>另外，左侧栏状态会显示「⚠ 云端数据比本机少（点此处理）」，点一下就能回到那个确认窗；弹窗里的开通步骤也改成明确要求<b>先在刀帐最全的设备启用</b>。</p>','2026.11'],
     ['V2.27 多设备云同步（可选，默认不开启）','<p>工具栏多了「☁ 云同步」：填一个免费 <b>Supabase</b> 项目的 URL、anon key 和一串<b>同步密钥</b>，手机和电脑打开同一个页面、填同一串密钥，图鉴、资源、活动、日志就会自动互通。改动后自动上传，打开页面自动拉取；断网照常写本机，联网后自动补传；两边都改过会弹窗让你选以哪边为准。设置里还有「📋 复制配置码」，另一台设备粘一次就填好三项，不用手打长串的 anon key。</p><p>数据会先<b>在本机用同步密钥加密</b>（先压缩再 AES-GCM）才上传，云端只存密文，密钥不会上传。设置弹窗里附了三步开通说明和一键复制的建表 SQL。不填就完全不联网，仍是原来的纯离线单机版，同步码 / 导出 JSON 照常可用。</p>','2026.11'],
     ['V2.26 保存失败会提示，存储用量看得见','<p>以前浏览器写不进本地存储时（空间满、隐私模式），页面一声不吭，改动刷新就没了。现在会立刻弹红色提示说明原因，并提醒先导出备份。</p><p>左侧栏底部的「数据仅保存在本机浏览器」改成<b>实时用量</b>：已用 X KB / 约 5 MB，增删刀、写日志都会跟着变。用到八成以上会变红提醒、并多出「导出备份」按钮，点一下就存一份 JSON。数据仍只在本机，不联网、也不需要数据库。</p>','2026.11'],
     ['V2.25 新增的刀默认极化未开放','<p>从「＋ 新增刀剑」「活动里补录」「掉落明细里补回」入库的刀，极化一律先按<b>未开放</b>处理：卡片上会标「未开放」，「✎ 修改」里的「极」暂时点不了，极化进度环也只统计已开放的刀。等游戏真的开了这一振的极化，去「⚙ 极化开放」里勾上就能选「极」。若是新增时直接就把极化填成「极」，说明这振已经开过极化，会自动补进开放名单，不会出现「极化却是未开放」的矛盾状态。</p><p>升级后还会做一次纠正：以前因为新增被自动算成「已开放」的刀，会退回<b>未开放</b>（确实已经极化的刀不受影响）。如果你之前手动勾过某把新刀，升级后再勾一次即可。</p><p>页面最底下的页脚也改成按当前图鉴<b>实时统计</b>：131 振就写「刀帐 131 振」，增删刀、切换账号都会跟着变，不再固定写 130。</p>','2026.11'],
@@ -5879,8 +6143,14 @@ function initEvents(){
   $('#btnExport').onclick = exportJson;
   const sBackup = $('#btnStorageBackup');
   if(sBackup) sBackup.onclick = exportJson;
-  const bCloud = $('#btnSyncCloud'); if(bCloud) bCloud.onclick = openCloudSync;
-  const nSync = $('#syncNote'); if(nSync) nSync.onclick = openCloudSync;
+  const openSyncEntry = function(){
+    if(syncState.status === 'guard' && pendingGuard){ openCloudGuard(); return; }
+    if(syncState.status === 'conflict' && pendingCloud){ openCloudConflict(); return; }
+    if(cloudCfgValid() && dataScale(curData()) <= 0 && loadSnaps().length){ openRescue(); return; }
+    openCloudSync();
+  };
+  const bCloud = $('#btnSyncCloud'); if(bCloud) bCloud.onclick = openSyncEntry;
+  const nSync = $('#syncNote'); if(nSync) nSync.onclick = openSyncEntry;
   $('#btnImport').onclick = function(){ $('#fileInput').click(); };
   $('#fileInput').onchange = function(){
     const f = this.files[0]; if(!f) return;
