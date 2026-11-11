@@ -961,7 +961,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞本丸管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.33</div>
+        <div class="brand-sub">HONMARU KEEPER V2.34</div>
       </div>
     </div>
 
@@ -1476,9 +1476,16 @@ const EXP_TYPES = {
   '薙刀':  {f:1.1, ded:540800, label:'薙刀'},
   '打刀':  {f:1.3, ded:648800, label:'3花打'},
   '太刀':  {f:1.4, ded:770800, label:'太刀'},
-  '大太刀':{f:1.5, ded:907800, label:'大太刀'},
-  '剑':    {f:1.5, ded:907800, label:'剑'}      // 剑与大太刀同一条经验条
+  '大太刀':{f:1.5, ded:907800, label:'大太刀'}
 };
+/* 剑：普刀和别的刀种一样走 1–99 那条（满级 1,927,800），极化后沿用大太刀经验条，
+   所以直接引用大太刀的配置，以后大太刀若有微调也不会漏掉剑。 */
+EXP_TYPES['剑'] = Object.assign({}, EXP_TYPES['大太刀'], {label:'剑', sameAs:'大太刀'});
+/* 小条/弹窗里显示的经验条名字：剑写成「大太刀（剑共用）」，避免以为是独立的一条 */
+function barName(m){
+  if(!m) return '';
+  return m.sameAs ? m.sameAs + '经验条 · ' + m.label + '共用' : m.label + '经验条';
+}
 function expProfile(type, fl){
   const t = String(type || '');
   const base = EXP_TYPES[t];
@@ -1571,17 +1578,17 @@ function estHTML(type, exp, fl, opt){
       lv = lvFromRawExp(type, at, fl);    /* 经验优先，等级跟着经验走 */
       tip = '已极化 · 极化经验 ' + fmtNum(at) + ' → Lv ' + lv +
             (lvIn !== lv ? '（等级栏填的是 Lv' + lvIn + '，以经验为准）' : '') +
-            '（' + m.label + ' 经验条，不扣极化门槛 ' + fmtNum(m.ded) + '），距 Lv199 还需 ' +
+            '（' + barName(m) + '，不扣极化门槛 ' + fmtNum(m.ded) + '），距 Lv199 还需 ' +
             fmtNum(Math.max(0, cap - at)) + ' 极化经验';
     }else if(lvIn >= 199){
       lv = 199;
       at = cap;
-      tip = '已极化 · 已在 Lv199（' + m.label + ' 经验条满级 ' + fmtNum(cap) + '，不含门槛 ' + fmtNum(m.ded) + '）';
+      tip = '已极化 · 已在 Lv199（' + barName(m) + ' 经验条满级 ' + fmtNum(cap) + '，不含门槛 ' + fmtNum(m.ded) + '）';
     }else{
       lv = lvIn;
       at = cumExp(type, lv, fl);          /* 该等级的最低极化经验 */
       tip = '已极化 · 未填极化经验，按 Lv ' + lv + ' 所需最低 ' + fmtNum(at) +
-            ' 计（' + m.label + ' 经验条，不扣门槛），距 Lv199 还需 ' +
+            ' 计（' + barName(m) + '，不扣门槛），距 Lv199 还需 ' +
             fmtNum(Math.max(0, cap - at)) + '；点右侧 ⇄ 可把最低经验填进去';
     }
     head = '极化';
@@ -1599,7 +1606,7 @@ function estHTML(type, exp, fl, opt){
     if(at <= 0){
       tip = sum + '，不够门槛，极化后从 Lv1 开始；极化满级 Lv199 需 ' + fmtNum(cap) + ' 极化经验';
     }else{
-      tip = sum + '，按' + m.label + '极化经验条折算为 Lv ' + lv +
+      tip = sum + '，按' + barName(m) + '折算为 Lv ' + lv +
             '；极化满级 Lv199 需 ' + fmtNum(cap) + ' 极化经验，还差 ' + fmtNum(Math.max(0, cap - at));
     }
     if(hasExp && !useExp){
@@ -1658,7 +1665,8 @@ function openExpCalc(no){
   const expName = isK ? '极化经验' : '普刀累计经验';
   openModal({
     title: isK ? '极化等级换算' : '普刀经验换算',
-    sub: draft.type + flTxt + ' · 经验条 ×' + m.f + (isK
+    sub: draft.type + flTxt + ' · 经验条 ×' + m.f +
+         (m.sameAs ? '（极化后沿用' + m.sameAs + '经验条）' : '') + (isK
       ? ' · 已极化，按极化经验条算（不含极化门槛 ' + fmtNum(m.ded) + '）；填经验会同时把等级改成经验对应值'
       : ' · 普刀按 1–99 经验条算（满级 ' + fmtNum(PU_MAX) + '）；极化时扣掉门槛 ' + fmtNum(m.ded) +
         '（' + POL_LV[draft.type] + ' 级那段）再折算极化后等级'),
@@ -6023,6 +6031,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.34 剑：普刀同一条经验条，极化后按大太刀算',
+     '<p>剑（白山吉光、七星剣、丙子椒林剣等）<b>普刀和别的刀种一样</b>走 1–99 那条累计经验（满级 1,927,800）；<b>极化后沿用大太刀经验条</b>（倍率 1.5、门槛 80 级 907,800），Lv199 共需 191,466,902 极化经验。</p>' +
+     '<p>所以普 99 的剑折算极化后同样是 <b>Lv33</b>，和大太刀完全一致。经验条名字在卡片小条和换算弹窗里会写成「大太刀（剑共用）」，一看就知道不是独立的一条。</p>' +
+     '<p>代码上剑直接引用大太刀的配置，不再各写一份数字，以后大太刀若有微调，剑会自动跟着变。</p>','2026.11'],
     ['V2.33 普刀经验条改对了：普 99 折算只有 30 多级',
      '<p>上一版把普刀按<b>极化经验条</b>算（普 99 要 6,200 万–9,300 万），这是错的。真正的普刀 1–99 累计经验来自「等级计算表」的「初」列，<b>满级只有 1,927,800</b>。</p>' +
      '<p>极化时会扣掉门槛等级那一段（短 60 / 胁·枪·薙 65 / 打 70 / 太 75 / 大太 80）的普刀经验，剩下的才带进极化经验条。所以普 99 折算下来是<b>太刀 Lv33、胁差 Lv35、短刀 Lv35</b> —— 修行后本来就该从低等级重练，这个数字才是对的。</p>' +
