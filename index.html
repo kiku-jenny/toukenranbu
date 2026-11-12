@@ -700,6 +700,7 @@
   .dv.up{color:var(--red);}
   .dv.down{color:var(--green);}
   .dv.flat{color:#b7a3a8;font-weight:400;}
+  .dv-u{font-style:normal;font-size:9px;font-weight:400;margin-left:1px;opacity:.7;}
   .act-chip{
     display:inline-block;padding:0 7px;border-radius:5px;background:#f7f4ee;border:1px solid #e9e0d1;
     color:#9d8256;font-size:10px;line-height:1.7;letter-spacing:.02em;
@@ -965,7 +966,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞本丸管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.40</div>
+        <div class="brand-sub">HONMARU KEEPER V2.41</div>
       </div>
     </div>
 
@@ -1933,6 +1934,16 @@ function ranbuTotal(fl){
   const t = ranbuTable(fl);
   return t.reduce(function(a, b){ return a + b; }, 0);
 }
+/* 乱舞 (r, 已喂 rp) 一共吃掉多少把（跨等级累加），用来算一次变动「获得了几振」 */
+function ranbuCleared(fl, r, rp){
+  const rr = clampNum(r, 1, 10, 1);
+  let n = 0;
+  for(let i = 1; i < rr; i++) n += ranbuNeed(fl, i) || 0;
+  return n + (rr >= 10 ? 0 : (Number(rp) || 0));
+}
+function ranbuGainBetween(fl, r, rp, r2, rp2){
+  return ranbuCleared(fl, r2, rp2) - ranbuCleared(fl, r, rp);
+}
 
 const RES_ITEMS = [
   {key:'charcoal',  name:'木炭',   icon:'🔥'},
@@ -2002,11 +2013,14 @@ function normLogs(arr){
     l.changes.forEach(function(c){
       if(!c) return;
       if(c.f === 'ranbu'){
-        if(kind !== 'ranbu') return;
+        if(kind !== 'ranbu' && kind !== 'sword') return;   // 编辑保存里改乱舞也会带这条
         const r = clampNum(c.r, 1, 10, 1);
         const r2 = clampNum(c.r2, r, 10, r);
         changes.push({f:'ranbu', r:r, rp:clampNum(c.rp, 0, 999, 0),
-                      r2:r2, rp2:clampNum(c.rp2, 0, 999, 0), n:clampNum(c.n, 0, 999, 0)});
+                      r2:r2, rp2:clampNum(c.rp2, 0, 999, 0), n:clampNum(c.n, 0, 999, 0),
+                      n2:clampNum(c.n2, 0, 999, 0),
+                      gain:(c.gain === undefined || c.gain === null || isNaN(Number(c.gain)))
+                             ? null : Number(c.gain)});
       }else if(c.f === 'res'){
         if(kind !== 'res') return;
         const it = resItemOf(c.key);
@@ -2984,7 +2998,18 @@ function commitEdit(no){
   }
   if(next.r >= 10){ next.r = 10; next.rp = 0; }
   const changes = [];
+  /* 乱舞等级和进度合成一条记录：日志里要能看出「乱舞 5→6」和这次一共喂了几把（+N 振） */
+  const rbChanged = Number(next.r) !== Number(before.r) || Number(next.rp) !== Number(before.rp);
+  if(rbChanged){
+    changes.push({
+      f:'ranbu', r:before.r, rp:before.rp, r2:next.r, rp2:next.rp,
+      n: ranbuNeed(before.fl, before.r) || 0,
+      n2: next.r >= 10 ? 0 : (ranbuNeed(next.fl, next.r) || 0),
+      gain: ranbuGainBetween(next.fl, before.r, before.rp, next.r, next.rp)
+    });
+  }
   Object.keys(LOG_FIELDS).forEach(function(f){
+    if(f === 'r' || f === 'rp') return;      // 已并进上面那条乱舞记录
     const a = before[f], b = next[f];
     const same = (f === 'src' || f === 'name' || f === 'type') ? String(a) === String(b) : Number(a) === Number(b);
     if(!same) changes.push({f:f, from:a, to:b});
@@ -2994,7 +3019,8 @@ function commitEdit(no){
 
   if(changes.length){
     if(!Array.isArray(d.logs)) d.logs = [];
-    d.logs.unshift({id:uid(), no:no, name:row.name, changes:changes, ts:Date.now()});
+    const onlyRb = changes.length === 1 && changes[0].f === 'ranbu';
+    d.logs.unshift({id:uid(), no:no, name:row.name, kind:(onlyRb ? 'ranbu' : 'sword'), changes:changes, ts:Date.now()});
     if(d.logs.length > 2000) d.logs.length = 2000;
   }
   save();
@@ -3891,9 +3917,12 @@ function logActOf(l){
 function logFlat(l){
   return l.changes.map(function(c){
     if(c.f === 'ranbu'){
-      return c.r2 > c.r ? ('乱舞 +1 乱舞 ' + c.r + '→' + c.r2)
-                        : ('乱舞 +1 升' + (c.r+1) + ' 还差 ' + Math.max(0, c.n - c.rp) + '→' +
-                           Math.max(0, c.n - c.rp2) + ' 把');
+      const r = Number(c.r) || 1, r2 = Number(c.r2) || r;
+      const rp = Number(c.rp) || 0, rp2 = Number(c.rp2) || 0;
+      const nA = Number(c.n) || 0, nB = Number(c.n2) || nA;
+      return '乱舞 ' + r + (r2 === r ? '' : '→' + r2) + ' ' + rp + '/' + (nA || '?') +
+             '→' + (r2 >= 10 ? 'MAX' : rp2 + '/' + (nB || '?')) +
+             ' 获得 ' + fmtNum(ranbuChangeGain(c)) + ' 振';
     }
     if(c.f === 'res'){
       return resItemOf(c.key).name + ' ' + fmtNum(c.from) + '→' + fmtNum(c.to);
@@ -3907,13 +3936,13 @@ function logFlat(l){
 /* 单条变动渲染成 chip：乱舞 +1 / 资源增减 / 图鉴字段 */
 function logChangeHTML(c, kind){
   if(c.f === 'ranbu'){
-    if(c.r2 > c.r){
-      return '<span class="chg chg-rb"><em>乱舞 +1</em> 乱舞 ' + c.r + '→' + c.r2 + ' 🎉</span>';
-    }
-    const n = c.n > 0 ? c.n : 0;
-    if(!n) return '<span class="chg chg-rb"><em>乱舞 +1</em> 进度已更新</span>';
-    return '<span class="chg chg-rb"><em>乱舞 +1</em> 升' + (c.r+1) + ' 还差 ' +
-           Math.max(0, n - c.rp) + '→<b>' + Math.max(0, n - c.rp2) + '</b> 把</span>';
+    const r = Number(c.r) || 1, r2 = Number(c.r2) || r;
+    const rp = Number(c.rp) || 0, rp2 = Number(c.rp2) || 0;
+    const nA = Number(c.n) || 0, nB = Number(c.n2) || nA;
+    const head = r2 === r ? ('乱舞 ' + r) : ('乱舞 ' + r + '→' + r2);
+    const to = r2 >= 10 ? 'MAX' : (rp2 + '/' + (nB || '?'));
+    return '<span class="chg chg-rb">' + (kind === 'ranbu' ? '' : '<em>喂刀</em> ') + head + ' · ' +
+           rp + '/' + (nA || '?') + ' → ' + to + (r2 > r ? ' 🎉' : '') + '</span>';
   }
   if(c.f === 'roster'){
     const isDel = kind === 'del';
@@ -3932,13 +3961,22 @@ function logChangeHTML(c, kind){
 }
 /* 变动值：只取能算差值的项。花数是属性设定（开几花），不是增减，一律不记；
    极化 / 拥有 / 名称 / 刀种这类分类字段同样不算 */
+/* 一条乱舞记录「这次获得了几振」：优先用记录里存好的 gain，老日志按进度推 */
+function ranbuChangeGain(c){
+  const g = Number(c.gain);
+  if(c.gain !== null && c.gain !== undefined && !isNaN(g)) return g;
+  const r = Number(c.r) || 1, r2 = Number(c.r2) || r;
+  const rp = Number(c.rp) || 0, rp2 = Number(c.rp2) || 0, n = Number(c.n) || 0;
+  if(r2 > r) return (n ? Math.max(0, n - rp) : 1) + rp2;
+  return rp2 - rp;
+}
 function logDeltaList(l){
   const out = [];
   const changes = l.changes || [];
   /* 乱舞升级那一把会把进度清零，这个负数不是「跌」，不放进变动值 */
   const rUp = changes.some(function(c){ return c.f === 'r' && Number(c.to) > Number(c.from); });
   changes.forEach(function(c){
-    if(c.f === 'ranbu'){ out.push(1); return; }
+    if(c.f === 'ranbu'){ out.push(ranbuChangeGain(c)); return; }
     if(c.f === 'roster'){ out.push((Number(c.to) || 0) - (Number(c.from) || 0)); return; }
     if(c.f === 'res'){ out.push((Number(c.to) || 0) - (Number(c.from) || 0)); return; }
     if(c.f === 'rp' && rUp) return;
@@ -3954,7 +3992,8 @@ function logDeltaHTML(l){
   if(!ds.length) return '<span class="dv flat">—</span>';
   return ds.map(function(v){
     const cls = v > 0 ? 'up' : (v < 0 ? 'down' : 'flat');
-    return '<span class="dv ' + cls + '">' + (v > 0 ? '+' : '') + fmtNum(v) + '</span>';
+    return '<span class="dv ' + cls + '">' + (v > 0 ? '+' : '') + fmtNum(v) +
+           (l.kind === 'ranbu' ? '<em class="dv-u">振</em>' : '') + '</span>';
   }).join('');
 }
 function logMatched(d){
@@ -5034,7 +5073,8 @@ function applyRanbuGain(no, act, ses){
   pushLog({
     kind:'ranbu', no:no, name:x.name, act:(act && act.name) || '',
     ses:(ses && ses.name) || '', src:'活动',
-    changes:[{f:'ranbu', r:fromR, rp:fromRp, r2:r, rp2:rp, n:need}]
+    changes:[{f:'ranbu', r:fromR, rp:fromRp, r2:r, rp2:rp, n:need,
+              n2: r >= 10 ? 0 : (ranbuNeed(fl, r) || 0), gain:1}]
   });
   renderStats(); renderFilters();
   if(r !== fromR){
@@ -6316,6 +6356,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.41 变动记录里的喂刀：看清等级怎么变、这次一共获得几振',
+     '<p>以前乱舞日志只写「进度 0/2 → 1/2」，看不出等级动没动、也不知道这一条算几振。现在每条都按<b>「乱舞等级 · 起始进度 → 结束进度」</b>写清楚，右上角直接给<b>+N 振</b>：</p>' +
+     '<p>同级：<b>乱舞 5 · 0/6 → 3/6</b>，右上角 <b>+3振</b>；<br>跨级：<b>乱舞 5→6 · 4/6 → 1/8</b>，右上角 <b>+3振</b>（1 把补满 5 级，2 把进了 6 级）。</p>' +
+     '<p>编辑保存时改乱舞也按同一格式只记<b>一条</b>（不再拆成「乱舞」和「乱舞进度」两条），跨几级都能算对总振数；老日志会自动按进度推算，不用手动改。</p>',
+     '2026.11'],
     ['V2.40 置顶按收藏先后排，乱舞进度改成「升下一级还差几把」',
      '<p><b>收藏置顶：</b>置顶区不再固定按编号排，而是<b>按收藏时间先后</b>——先收藏的在前，后点的星排在后面；取消再重新收藏会排到最后。老存档里已有的置顶按原来的编号顺序补上时间（看起来和以前一样），新收藏的一律排在它们之后。</p>' +
      '<p><b>乱舞进度：</b>不再显示「已喂 0/2」这种进度式数字，改成直接给<b>升下一级还差几把</b>：卡片上是「乱舞 4→5 · 还差 2 把」，编辑框标签跟着变成「<b>升乱舞 5 还需</b>」，里面填的就是还差的数量（填 0 表示下一把就升）。新增刀剑弹窗、喂刀后的提示、变动记录里的文案也一并改成「还差 X 把」。</p>',
