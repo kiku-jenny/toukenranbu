@@ -7540,6 +7540,7 @@ function initPetals(){
   bindGrid();
   renderSidebar();
   initEvents();
+  applyTheme(themeState());   /* 把主题与 theme-color 再对一次，避免首屏 meta 还是默认色 */
   switchTab('catalog');
   cloudBoot();   /* 已启用云同步时：先拉云端，再允许自动上传 */
 })();
