@@ -760,6 +760,82 @@
   .pager button:disabled{opacity:.35;cursor:not-allowed;}
   .pager .pg-info{font-size:11px;color:#a98f95;margin:0 4px;font-family:ui-monospace,Menlo,monospace;}
 
+  /* ---------- 每日统计 ---------- */
+  .log-date{width:auto;flex:0 0 auto;font-size:11.5px;padding:7px 26px 7px 10px;}
+  .daily-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;}
+  .day-nav{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto;}
+  .day-date{width:auto;padding:7px 10px;font-size:12px;}
+  .day-kpis{display:flex;gap:9px;flex-wrap:wrap;margin-top:2px;}
+  .day-kpi{
+    flex:1 1 92px;min-width:92px;border:1px solid var(--line);border-radius:12px;padding:9px 12px;
+    background:linear-gradient(160deg,#fff 0%,#fdf4f6 100%);
+  }
+  .day-kpi small{display:block;font-size:9.5px;color:#a98f95;letter-spacing:.12em;margin-bottom:3px;}
+  .day-kpi b{
+    display:block;font-family:ui-monospace,Menlo,monospace;font-size:16px;font-weight:700;
+    color:var(--accent-deep);letter-spacing:-.02em;line-height:1.3;word-break:break-all;
+  }
+  .day-kpi b.up{color:var(--red);}
+  .day-kpi b.down{color:var(--green);}
+  .day-recent{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);}
+  .day-recent .dr-lbl{font-size:10px;color:#a98f95;letter-spacing:.1em;margin-right:2px;}
+  .day-recent .dr-sum{margin-left:auto;font-size:10px;color:#a98f95;letter-spacing:.02em;font-family:ui-monospace,Menlo,monospace;}
+  .day-chip{
+    border:1px solid var(--line);background:#fff;border-radius:16px;padding:3px 9px;
+    font-size:10px;color:var(--sub);letter-spacing:.02em;transition:.15s;
+    font-family:ui-monospace,Menlo,monospace;
+  }
+  .day-chip:hover{border-color:var(--line-strong);color:var(--accent-deep);background:#fffafb;}
+  .day-chip.on{background:linear-gradient(120deg,#e79dad,#d2768b);border-color:transparent;color:#fff;font-weight:600;}
+  .day-table{min-width:0;}
+  .day-table th{font-size:9.5px;padding:8px 10px;}
+  .day-table th:first-child{width:42%;}
+  .day-table td{padding:9px 10px;font-size:11px;line-height:1.55;white-space:normal;vertical-align:middle;}
+  .day-table th:nth-child(2),.day-table td:nth-child(2),
+  .day-table th:nth-child(3),.day-table td:nth-child(3),
+  .day-table th:nth-child(4),.day-table td:nth-child(4){text-align:right;}
+  .day-table .dt-rb{text-align:left;}
+  .day-name b{display:block;font-weight:600;color:var(--ink);letter-spacing:.02em;font-family:inherit;}
+  .day-name small{display:block;font-size:9px;color:#b7a3a8;font-family:ui-monospace,Menlo,monospace;margin-top:1px;}
+  .day-lv{font-family:ui-monospace,Menlo,monospace;color:#6d5a5e;font-size:10.5px;white-space:nowrap;}
+  .day-lv b{color:var(--ink);font-weight:700;}
+  .day-lv i{display:inline;font-style:normal;color:#c0a9ae;font-size:10px;margin:0 3px;}
+  .day-delta{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:11.5px;white-space:nowrap;}
+  .day-delta.up{color:var(--red);}
+  .day-delta.down{color:var(--green);}
+  .day-delta.flat{color:#b7a3a8;font-weight:400;}
+  .day-rb{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;color:#55806a;white-space:nowrap;}
+  .day-rb s{text-decoration:none;color:#a9c2b3;}
+  .day-rb em{font-style:normal;font-size:9px;color:#8aa898;display:block;margin-top:1px;}
+  .day-tag{
+    display:inline-block;margin-left:5px;padding:0 5px;border-radius:4px;font-size:9px;line-height:1.6;
+    background:#eef2fb;border:1px solid #dbe3f4;color:#5a6f9e;vertical-align:1px;letter-spacing:.02em;font-weight:400;
+  }
+
+  @media (max-width:600px){
+    .day-nav{width:100%;margin-left:0;}
+    .day-date{flex:1;min-width:0;}
+    .day-kpi{flex:1 1 calc(50% - 9px);min-width:calc(50% - 9px);padding:8px 10px;}
+    .day-kpi b{font-size:15px;}
+    .day-recent{gap:5px;}
+    .day-recent .dr-sum{margin-left:0;flex:1 1 100%;}
+    /* 窄屏改成每振一块，名称一行、指标一行，避免四列挤在一起 */
+    .day-table{display:block;}
+    .day-table thead{display:none;}
+    .day-table tbody{display:block;}
+    .day-table tr{display:block;padding:9px 11px;border-bottom:1px dashed var(--line);}
+    .day-table tr:last-child{border-bottom:none;}
+    .day-table td{
+      display:flex;justify-content:space-between;align-items:center;gap:10px;
+      padding:2px 0;border:none;text-align:left !important;width:auto !important;
+    }
+    .day-table td:first-child{display:block;padding:0 0 5px;}
+    .day-table td[data-l]::before{content:attr(data-l);flex:0 0 auto;font-size:9.5px;color:#a98f95;letter-spacing:.06em;}
+    .day-name b{font-size:12px;}
+    .day-lv,.day-rb{font-size:10px;}
+    .day-delta{font-size:11px;}
+  }
+
   @media (max-width:1180px){
     .log-table{min-width:0;display:block;}
     .log-table thead{display:none;}
@@ -966,13 +1042,14 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞本丸管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.41</div>
+        <div class="brand-sub">HONMARU KEEPER V2.42</div>
       </div>
     </div>
 
     <nav class="menu">
       <button class="menu-item active" data-tab="catalog"><i>📖</i>刀剑图鉴<span class="menu-count" id="menuCount">0/0</span></button>
       <button class="menu-item" data-tab="logs"><i>📝</i>变动记录<span class="menu-count" id="menuLogCount">0</span></button>
+      <button class="menu-item" data-tab="daily"><i>📊</i>每日统计</button>
       <button class="menu-item" data-tab="resources"><i>🪵</i>资源记录</button>
       <button class="menu-item" data-tab="records"><i>🎪</i>活动记录</button>
     </nav>
@@ -1126,7 +1203,7 @@
         <div class="panel-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
           <div style="flex:1;min-width:220px;">
             <h2>日志明细</h2>
-            <p style="margin-bottom:0;">图鉴保存、新增 / 删除刀剑、活动登记里的「乱舞 +1」、资源记录的变化、以及活动里补录的新刀都会留一条日志：改了哪一振 / 哪项资源、从多少变成多少。最新的排在最前面，单条可以删。</p>
+            <p style="margin-bottom:0;">图鉴保存、新增 / 删除刀剑、活动登记里的「乱舞 +1」、资源记录的变化、以及活动里补录的新刀都会留一条日志：改了哪一振 / 哪项资源、从多少变成多少。最新的排在最前面，单条可以删，也可以按日期筛。</p>
           </div>
           <button class="btn" id="btnClearLogs" style="margin-left:auto;">清空日志</button>
         </div>
@@ -1137,6 +1214,7 @@
             <input id="logSearch" placeholder="搜索刀剑名称 / 变动内容 / 日期…">
             <button class="clear" id="btnClearLogSearch" aria-label="清空">✕</button>
           </div>
+          <select class="select log-date" id="logDate" title="按日期筛选"></select>
           <div class="log-stat" id="logStat"></div>
         </div>
         <div class="log-kinds" id="logKinds">
@@ -1166,6 +1244,54 @@
           </table>
         </div>
         <div class="pager" id="logPager"></div>
+      </div>
+    </section>
+
+    <!-- ========== 每日统计 ========== -->
+    <section id="viewDaily" class="view" hidden>
+      <div class="panel" style="padding:16px;">
+        <div class="panel-head daily-head">
+          <div style="flex:1;min-width:200px;">
+            <h2>每日统计</h2>
+            <p>按天汇总等级、经验与乱舞的变化。同一振当天改了几次会合并成一行，只算当天：起始值取当天最早一条记录，结束值取最晚一条。</p>
+          </div>
+          <div class="day-nav">
+            <button class="icon-btn" id="btnDayPrev" title="前一天">‹</button>
+            <input class="input day-date" type="date" id="dayDate">
+            <button class="icon-btn" id="btnDayNext" title="后一天">›</button>
+            <button class="btn" id="btnDayToday">今天</button>
+          </div>
+        </div>
+        <div class="day-kpis" id="dayKpis"></div>
+        <div class="day-recent" id="dayRecent"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>① 刀剑等级</h2>
+          <p>当天等级有变化的刀剑；<b>起始 → 现在</b> 是这一天第一次和最后一次记录到的等级。</p>
+        </div>
+        <div class="res-table-wrap">
+          <table class="res-table day-table">
+            <thead><tr><th>刀剑</th><th>等级变化</th><th>变化</th></tr></thead>
+            <tbody id="dayLvBody"></tbody>
+          </table>
+        </div>
+        <div class="res-empty" id="dayLvEmpty" hidden></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>② 经验 / 乱舞增长</h2>
+          <p>当天经验或乱舞有变化的刀剑，同一振合并累计；乱舞按「获得几振」计，跨等级也能算对。</p>
+        </div>
+        <div class="res-table-wrap">
+          <table class="res-table day-table">
+            <thead><tr><th>刀剑</th><th>经验增长</th><th class="dt-rb">乱舞变化</th><th>获得振数</th></tr></thead>
+            <tbody id="dayExpBody"></tbody>
+          </table>
+        </div>
+        <div class="res-empty" id="dayExpEmpty" hidden></div>
       </div>
     </section>
 
@@ -1961,7 +2087,7 @@ const RES_MAX = 999999999;
    ========================================================= */
 const KEY = 'honmaru_keeper_v3';
 let S = null;
-const ui = {tab:'catalog', q:'', type:'', own:'', kiwame:'', ranbu:'', level:'', sort:'no', edit:{}, logQ:'', logKind:'', logPage:1};
+const ui = {tab:'catalog', q:'', type:'', own:'', kiwame:'', ranbu:'', level:'', sort:'no', edit:{}, logQ:'', logKind:'', logDate:'', logPage:1, day:''};
 
 function uid(){ return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 function seedTw(){
@@ -4000,6 +4126,7 @@ function logMatched(d){
   const q = (ui.logQ || '').toLowerCase();
   let list = (d.logs || []).slice();
   if(ui.logKind) list = list.filter(function(l){ return (l.kind || 'sword') === ui.logKind; });
+  if(ui.logDate) list = list.filter(function(l){ return fmtDate(new Date(l.ts)) === ui.logDate; });
   if(!q) return list;
   return list.filter(function(l){
     const hay = (l.name + ' ' + logFlat(l) + ' ' + logActOf(l) + ' ' + (l.ses || '') + ' ' +
@@ -4007,6 +4134,29 @@ function logMatched(d){
                  fmtTime(l.ts) + ' ' + fmtDate(new Date(l.ts))).toLowerCase();
     return hay.indexOf(q) >= 0;
   });
+}
+/* 有日志的日期，新的在前：[{date, n}] */
+function logDates(d){
+  const map = {};
+  (d.logs || []).forEach(function(l){
+    const k = fmtDate(new Date(l.ts));
+    map[k] = (map[k] || 0) + 1;
+  });
+  return Object.keys(map).sort().reverse().map(function(k){ return {date:k, n:map[k]}; });
+}
+/* 变动记录页的日期下拉 */
+function renderLogDate(d){
+  const sel = $('#logDate');
+  if(!sel) return;
+  const list = logDates(d);
+  if(ui.logDate && !list.some(function(x){ return x.date === ui.logDate; })) ui.logDate = '';
+  let html = '<option value="">全部日期</option>';
+  html += list.map(function(x){
+    return '<option value="' + x.date + '"' + (x.date === ui.logDate ? ' selected' : '') + '>' +
+      x.date + ' · ' + x.n + ' 条</option>';
+  }).join('');
+  sel.innerHTML = html;
+  sel.value = ui.logDate || '';
 }
 function renderLogKinds(d){
   const box = $('#logKinds');
@@ -4034,8 +4184,11 @@ function renderLogs(){
     wrap.hidden = true;
     pager.innerHTML = '';
     $('#logStat').textContent = '';
+    const sel0 = $('#logDate');
+    if(sel0) sel0.innerHTML = '<option value="">全部日期</option>';
     return;
   }
+  renderLogDate(d);
   const all = logMatched(d);
   const total = all.length;
   const pages = Math.max(1, Math.ceil(total / LOG_PER));
@@ -4046,8 +4199,9 @@ function renderLogs(){
 
   const today = fmtDate(new Date());
   const todayCount = (d.logs || []).filter(function(l){ return fmtDate(new Date(l.ts)) === today; }).length;
+  const filtered = ui.logQ || ui.logKind || ui.logDate;
   $('#logStat').textContent = '共 ' + (d.logs || []).length + ' 条 · 今日 ' + todayCount + ' 条' +
-    ((ui.logQ || ui.logKind) ? ' · 当前 ' + total + ' 条' : '');
+    (filtered ? ' · 当前 ' + total + ' 条' : '');
   const mc = $('#menuLogCount');
   if(mc) mc.textContent = String((d.logs || []).length);
   renderLogKinds(d);
@@ -4057,6 +4211,7 @@ function renderLogs(){
     const cond = [];
     if(ui.logQ) cond.push('「' + ui.logQ + '」');
     if(ui.logKind) cond.push(LOG_KINDS[ui.logKind]);
+    if(ui.logDate) cond.push(ui.logDate);
     empty.textContent = cond.length
       ? '没有匹配 ' + cond.join(' / ') + ' 的日志，换个条件试试。'
       : '还没有日志：图鉴保存、增删刀剑、活动登记喂刀、资源记录变化都会自动记在这里。';
@@ -4130,6 +4285,259 @@ function renderLogs(){
       renderLogs();
     };
   });
+}
+
+/* =========================================================
+   每日统计：按天合并同一振的等级 / 经验 / 乱舞变动
+   ========================================================= */
+function dailyAgg(d, date){
+  const map = {};
+  const out = {rows:[], logs:0, newCnt:0, delCnt:0, resCnt:0, lvTotal:0, expTotal:0, rbTotal:0};
+
+  (d.logs || []).forEach(function(l){
+    if(fmtDate(new Date(l.ts)) !== date) return;
+    out.logs++;
+    if(l.kind === 'new'){ out.newCnt++; return; }
+    if(l.kind === 'del'){ out.delCnt++; return; }
+    if(l.kind === 'res'){ out.resCnt++; return; }
+    const no = Number(l.no);
+    if(!no) return;
+    const chs = l.changes || [];
+    const kChg = chs.some(function(c){ return c.f === 'k'; });
+
+    /* 先把这一条日志自己的变动摘出来，再合进这振的当天汇总 */
+    let lvA = null, lvB = null, expD = 0, hasExp = false;
+    let polarA = null, polarB = null;
+    let rbA = null, rbB = null, rbGain = 0, hasRb = false, legacyLv = 0, legacyRp = 0, legacy = false;
+
+    chs.forEach(function(c){
+      if(c.f === 'lv'){
+        const a = Number(c.from) || 0, b = Number(c.to) || 0;
+        if(kChg){ if(polarA === null) polarA = a; if(polarB === null) polarB = b; }
+        else if(lvA === null){ lvA = a; lvB = b; }
+      }else if(c.f === 'exp'){
+        if(!kChg){ hasExp = true; expD += (Number(c.to) || 0) - (Number(c.from) || 0); }
+      }else if(c.f === 'ranbu'){
+        hasRb = true;
+        if(!rbB) rbB = {r:Number(c.r2), rp:Number(c.rp2) || 0, n:Number(c.n2) || 0};
+        rbA = {r:Number(c.r), rp:Number(c.rp) || 0, n:Number(c.n) || 0};
+        rbGain += ranbuChangeGain(c);
+      }else if(c.f === 'r' || c.f === 'rp'){
+        /* V2.41 之前的老日志：乱舞等级和进度是两条 */
+        hasRb = true; legacy = true;
+        const a = Number(c.from) || 0, b = Number(c.to) || 0;
+        if(!rbA) rbA = {r:null, rp:null, n:0};
+        if(!rbB) rbB = {r:null, rp:null, n:0};
+        if(c.f === 'r'){ legacyLv += b - a; rbA.r = a; rbB.r = b; }
+        else{ legacyRp += b - a; rbA.rp = a; rbB.rp = b; }
+      }
+    });
+
+    /* 只关心等级 / 经验 / 乱舞这三类；只改了名字、获取方式的不进统计 */
+    if(lvA === null && !kChg && !hasExp && !hasRb) return;
+
+    let rec = map[no];
+    if(!rec){
+      rec = map[no] = {
+        no:no, name:l.name || ('No.' + no), cnt:0,
+        lvFrom:null, lvTo:null, lvGain:0, hasLv:false,
+        expGain:0, hasExp:false,
+        rbFrom:null, rbTo:null, rbGain:0, hasRb:false,
+        polar:false, polarFrom:null, polarLv:null
+      };
+    }
+    rec.cnt++;
+    if(l.name) rec.name = l.name;
+
+    if(lvA !== null){
+      rec.hasLv = true;
+      if(rec.lvTo === null) rec.lvTo = lvB;    /* 日志新的在前，第一次见到的是最新值 */
+      rec.lvFrom = lvA;                        /* 一路被更老的记录覆盖，最后就是当天起始值 */
+      rec.lvGain += (lvB - lvA);
+    }
+    if(kChg){
+      rec.polar = true;
+      if(rec.polarFrom === null && polarA !== null) rec.polarFrom = polarA;
+      if(rec.polarLv === null && polarB !== null) rec.polarLv = polarB;
+    }
+    if(hasExp){
+      rec.hasExp = true;
+      rec.expGain += expD;
+    }
+    if(hasRb){
+      rec.hasRb = true;
+      if(rec.rbTo === null && rbB) rec.rbTo = rbB;
+      if(rbA) rec.rbFrom = rbA;
+      rec.rbGain += legacy ? (legacyLv > 0 ? legacyLv : Math.max(0, legacyRp)) : rbGain;
+    }
+  });
+
+  out.rows = Object.keys(map).map(function(k){ return map[k]; });
+  out.rows.forEach(function(r){
+    if(!r.polar) out.lvTotal += r.lvGain;
+    out.expTotal += r.expGain;
+    out.rbTotal += r.rbGain;
+  });
+  return out;
+}
+
+function signedNum(n, unit){
+  n = Number(n) || 0;
+  if(!n) return '0' + (unit || '');
+  return (n > 0 ? '+' : '-') + fmtNum(Math.abs(n)) + (unit || '');
+}
+function dayShift(n){
+  const base = ui.day || fmtDate(new Date());
+  const dt = new Date(base + 'T00:00:00');
+  if(isNaN(dt.getTime())) return;
+  dt.setDate(dt.getDate() + n);
+  ui.day = fmtDate(dt);
+  renderDaily();
+}
+function dayNameCell(rec){
+  const row = rowOf(rec.no);
+  const meta = ['No.' + String(rec.no).padStart(3, '0')];
+  if(row && row.type) meta.push(row.type);
+  const cnt = rec.cnt > 1 ? '<span class="day-tag">×' + rec.cnt + '</span>' : '';
+  return '<div class="day-name"><b>' + esc(rec.name) + cnt + '</b><small>' + esc(meta.join(' · ')) + '</small></div>';
+}
+function renderDaily(){
+  const d = curData();
+  const inp = $('#dayDate');
+  if(!inp) return;
+  if(!ui.day) ui.day = fmtDate(new Date());
+  inp.value = ui.day;
+
+  const kpi = $('#dayKpis'), recent = $('#dayRecent');
+  const lvBody = $('#dayLvBody'), expBody = $('#dayExpBody');
+  const lvEmpty = $('#dayLvEmpty'), expEmpty = $('#dayExpEmpty');
+  const lvWrap = lvBody ? lvBody.parentNode.parentNode : null;
+  const expWrap = expBody ? expBody.parentNode.parentNode : null;
+
+  /* 最近有记录的日期，方便一天天回看 */
+  const dates = d ? logDates(d) : [];
+  if(recent){
+    recent.innerHTML = '<span class="dr-lbl">最近记录</span>' + (dates.length
+      ? dates.slice(0, 7).map(function(x){
+          return '<button class="day-chip' + (x.date === ui.day ? ' on' : '') + '" data-day="' + x.date + '">' +
+            x.date.slice(5) + ' · ' + x.n + '</button>';
+        }).join('')
+      : '<span class="muted">还没有记录</span>');
+    Array.prototype.forEach.call(recent.querySelectorAll('[data-day]'), function(b){
+      b.onclick = function(){ ui.day = b.dataset.day; renderDaily(); };
+    });
+  }
+
+  if(!d){
+    if(kpi) kpi.innerHTML = '';
+    if(lvWrap) lvWrap.hidden = true;
+    if(expWrap) expWrap.hidden = true;
+    lvEmpty.hidden = false; lvEmpty.textContent = '还没有账号，先在左侧新建一个账号。';
+    expEmpty.hidden = false; expEmpty.textContent = '还没有账号，先在左侧新建一个账号。';
+    return;
+  }
+
+  const st = dailyAgg(d, ui.day);
+  const expUnit = function(no){
+    const row = rowOf(no);
+    return row && Number(row.k) === 1 ? '极化经验' : '普刀累计经验';
+  };
+
+  if(kpi){
+    const dsp = function(v, unit){
+      if(!v) return {cls:'', txt:'—'};
+      return {cls:(v > 0 ? 'up' : 'down'), txt:signedNum(v, unit)};
+    };
+    const lvD = dsp(st.lvTotal, ' 级'), expD = dsp(st.expTotal), rbD = dsp(st.rbTotal, ' 振');
+    kpi.innerHTML =
+      '<div class="day-kpi"><small>变动刀剑</small><b>' + st.rows.length + ' 振</b></div>' +
+      '<div class="day-kpi"><small>等级</small><b class="' + lvD.cls + '">' + lvD.txt + '</b></div>' +
+      '<div class="day-kpi"><small>经验</small><b class="' + expD.cls + '" title="当天所有刀剑的经验增减合计">' + expD.txt + '</b></div>' +
+      '<div class="day-kpi"><small>乱舞</small><b class="' + rbD.cls + '">' + rbD.txt + '</b></div>';
+  }
+  if(recent){
+    const bits = ['日志 ' + st.logs + ' 条'];
+    if(st.newCnt) bits.push('新刀 ' + st.newCnt);
+    if(st.delCnt) bits.push('删除 ' + st.delCnt);
+    if(st.resCnt) bits.push('资源 ' + st.resCnt);
+    const sum = document.createElement('span');
+    sum.className = 'dr-sum';
+    sum.textContent = bits.join(' · ');
+    recent.appendChild(sum);
+  }
+
+  /* ① 等级 */
+  const lvRows = st.rows.filter(function(r){ return (r.hasLv && r.lvGain !== 0) || r.polar; });
+  lvRows.sort(function(a, b){ return Math.abs(b.lvGain) - Math.abs(a.lvGain) || a.no - b.no; });
+  if(lvRows.length){
+    if(lvWrap) lvWrap.hidden = false;
+    lvEmpty.hidden = true;
+    lvBody.innerHTML = lvRows.map(function(r){
+      let lvTxt, deltaTxt;
+      if(r.hasLv && r.lvGain !== 0){
+        const tag = r.polar ? '<span class="day-tag">当天极化</span>' : '';
+        lvTxt = '<span class="day-lv"><b>Lv ' + r.lvFrom + '</b><i>→</i><b>Lv ' + r.lvTo + '</b>' + tag + '</span>';
+        deltaTxt = '<span class="day-delta ' + (r.lvGain > 0 ? 'up' : 'down') + '">' + signedNum(r.lvGain, ' 级') + '</span>';
+      }else{
+        const from = r.polarFrom !== null ? r.polarFrom : '?';
+        const to = r.polarLv !== null ? r.polarLv : ((rowOf(r.no) || {}).lv || '?');
+        lvTxt = '<span class="day-lv"><b>Lv ' + from + '</b><i>→</i><b>极 Lv ' + to + '</b><span class="day-tag">极化</span></span>';
+        deltaTxt = '<span class="day-delta flat">重新计级</span>';
+      }
+      return '<tr><td>' + dayNameCell(r) + '</td><td data-l="等级变化">' + lvTxt + '</td><td data-l="变化">' + deltaTxt + '</td></tr>';
+    }).join('');
+  }else{
+    if(lvWrap) lvWrap.hidden = true;
+    lvBody.innerHTML = '';
+    lvEmpty.hidden = false;
+    lvEmpty.textContent = !(d.logs || []).length
+      ? '这个账号还没有变动记录：保存图鉴、喂刀、记资源后，会按天统计在这里。'
+      : (st.logs ? '这一天没有等级变化。' : '这一天没有变动记录，换个日期看看。');
+  }
+
+  /* ② 经验 / 乱舞 */
+  const expRows = st.rows.filter(function(r){ return r.hasExp || r.hasRb; });
+  expRows.sort(function(a, b){ return (b.rbGain - a.rbGain) || (b.expGain - a.expGain) || a.no - b.no; });
+  if(expRows.length){
+    if(expWrap) expWrap.hidden = false;
+    expEmpty.hidden = true;
+    expBody.innerHTML = expRows.map(function(r){
+      let expTxt = '<span class="day-delta flat">—</span>';
+      if(r.hasExp){
+        expTxt = '<span class="day-delta ' + (r.expGain > 0 ? 'up' : (r.expGain < 0 ? 'down' : 'flat')) + '" title="' +
+          esc(expUnit(r.no)) + '">' + signedNum(r.expGain) + '</span>';
+      }
+      let rbTxt = '<span class="day-delta flat">—</span>';
+      if(r.hasRb && r.rbFrom && r.rbTo){
+        const a = r.rbFrom, b = r.rbTo;
+        const ar = a.r === null ? '?' : a.r, br = b.r === null ? '?' : b.r;
+        const head = (ar === br) ? ('乱舞 ' + br) : ('乱舞 ' + ar + ' → ' + br);
+        const rpA = (a.rp === null || a.rp === undefined) ? '?' : a.rp;
+        const rpB = (b.rp === null || b.rp === undefined) ? '?' : b.rp;
+        /* 老日志没存本级需求，用这振的花数回算 */
+        const fl = (rowOf(r.no) || {}).fl || 0;
+        const needOf = function(rv, stored){
+          if(stored) return stored;
+          const rr = Number(rv);
+          return (rr ? (ranbuNeed(fl, rr) || '?') : '?');
+        };
+        const sub = (br !== '?' && Number(br) >= 10) ? 'MAX'
+          : (rpA + '/' + needOf(ar, a.n) + ' → ' + rpB + '/' + needOf(br, b.n));
+        rbTxt = '<span class="day-rb">' + head + '<em>' + sub + '</em></span>';
+      }
+      const gainTxt = r.rbGain
+        ? '<span class="day-delta up">' + signedNum(r.rbGain, ' 振') + '</span>'
+        : '<span class="day-delta flat">—</span>';
+      return '<tr><td>' + dayNameCell(r) + '</td><td data-l="经验增长">' + expTxt + '</td><td data-l="乱舞变化" class="dt-rb">' + rbTxt + '</td><td data-l="获得振数">' + gainTxt + '</td></tr>';
+    }).join('');
+  }else{
+    if(expWrap) expWrap.hidden = true;
+    expBody.innerHTML = '';
+    expEmpty.hidden = false;
+    expEmpty.textContent = !(d.logs || []).length
+      ? '这个账号还没有变动记录：保存图鉴、喂刀、记资源后，会按天统计在这里。'
+      : (st.logs ? '这一天没有经验或乱舞变化。' : '这一天没有变动记录，换个日期看看。');
+  }
 }
 
 /* 单条日志删除：只删记录，不动图鉴 / 活动 / 资源数据 */
@@ -6356,6 +6764,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.42 新增「每日统计」页签，变动记录可按日期筛',
+     '<p><b>变动记录：</b>搜索框旁边多了一个<b>日期下拉</b>，列出有记录的每一天（带条数），选一天就只看那天；可以和关键字、类型筛选一起用，点「全部日期」恢复。</p>' +
+     '<p><b>每日统计：</b>侧栏新增页签，按天看两件事——<b>① 刀剑等级</b>（起始 Lv → 现在 Lv、升降几级，当天极化会单独标出）、<b>② 经验 / 乱舞增长</b>（经验增减、乱舞等级与进度、获得几振）。</p>' +
+     '<p>同一振当天改了几次会<b>合并成一行</b>累计，跨等级喂刀也按实际振数算；顶部有当天合计和最近有记录的日期，可以一天天往前翻。</p>',
+     '2026.11'],
     ['V2.41 变动记录里的喂刀：看清等级怎么变、这次一共获得几振',
      '<p>以前乱舞日志只写「进度 0/2 → 1/2」，看不出等级动没动、也不知道这一条算几振。现在每条都按<b>「乱舞等级 · 起始进度 → 结束进度」</b>写清楚，右上角直接给<b>+N 振</b>：</p>' +
      '<p>同级：<b>乱舞 5 · 0/6 → 3/6</b>，右上角 <b>+3振</b>；<br>跨级：<b>乱舞 5→6 · 4/6 → 1/8</b>，右上角 <b>+3振</b>（1 把补满 5 级，2 把进了 6 级）。</p>' +
@@ -6616,6 +7029,7 @@ function openFeedback(){
 const TITLES = {
   catalog:['刀剑','图鉴库'],
   logs:['刀剑','变动记录'],
+  daily:['本丸','每日统计'],
   resources:['本丸','资源记录'],
   records:['本丸','活动记录']
 };
@@ -6623,6 +7037,7 @@ function renderAll(){
   renderSidebar();
   if(ui.tab === 'catalog') renderCatalog();
   if(ui.tab === 'logs') renderLogs();
+  if(ui.tab === 'daily') renderDaily();
   if(ui.tab === 'resources') renderResources();
   if(ui.tab === 'records') renderCalc();
 }
@@ -6631,6 +7046,7 @@ function switchTab(tab){
   $$('.menu-item').forEach(function(m){ m.classList.toggle('active', m.dataset.tab === tab); });
   $('#viewCatalog').hidden = tab !== 'catalog';
   $('#viewLogs').hidden = tab !== 'logs';
+  $('#viewDaily').hidden = tab !== 'daily';
   $('#viewResources').hidden = tab !== 'resources';
   $('#viewRecords').hidden = tab !== 'records';
   $('#pageTitle').innerHTML = '<span>'+TITLES[tab][0]+'</span>'+TITLES[tab][1];
@@ -6760,6 +7176,22 @@ function initEvents(){
       renderLogs();
     };
   });
+  const logDate = $('#logDate');
+  if(logDate) logDate.onchange = function(){
+    ui.logDate = this.value || '';
+    ui.logPage = 1;
+    renderLogs();
+  };
+  const dayDate = $('#dayDate');
+  if(dayDate) dayDate.onchange = function(){
+    ui.day = this.value || fmtDate(new Date());
+    renderDaily();
+  };
+  const dayPrev = $('#btnDayPrev'); if(dayPrev) dayPrev.onclick = function(){ dayShift(-1); };
+  const dayNext = $('#btnDayNext'); if(dayNext) dayNext.onclick = function(){ dayShift(1); };
+  const dayToday = $('#btnDayToday'); if(dayToday) dayToday.onclick = function(){
+    ui.day = fmtDate(new Date()); renderDaily();
+  };
 
   $('#btnAddRes').onclick = addRes;
 
