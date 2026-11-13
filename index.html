@@ -1305,7 +1305,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.46</div>
+        <div class="brand-sub">HONMARU KEEPER V2.47</div>
       </div>
     </div>
 
@@ -1458,8 +1458,8 @@
         <span class="filter-label">等级</span>
         <div class="chips" id="levelFilters">
           <button class="chip active" data-lv="">全部</button>
-          <button class="chip" data-lv="ge100">100 及以上</button>
-          <button class="chip" data-lv="lt100">100 以下</button>
+          <button class="chip" data-lv="ge100" title="按折算后的极等级算：已极化看极化等级，普刀按经验折算（普 Lv99 折算下来只有 30 多级）">极 100 及以上</button>
+          <button class="chip" data-lv="lt100" title="折算后的极等级不到 100，含还没极化、经验还没攒够门槛的普刀">极 100 以下</button>
         </div>
       </div>
 
@@ -3050,6 +3050,33 @@ function isOpen(no){
   const d = curData();
   return !!(d && Array.isArray(d.open) && d.open.indexOf(no) >= 0);
 }
+/* 普刀和极刀放在同一把尺子上：都折算成「极化后」的等级 / 经验再看。
+   极刀本来就在极化经验条上，用自己的经验（填了）或等级；
+   普刀的经验栏是普刀累计（含门槛），极化时门槛那段会被扣掉，
+   所以先减 ded 再查极化条 —— 普 Lv99 折算下来只有 30 多级，别拿 99 当 99 级极化看。 */
+function polarLvOf(x){
+  if(!x) return 1;
+  if(Number(x.k) === 1){
+    if(expIsSet(x.exp)) return lvFromRawExp(x.type, Math.max(0, Number(x.exp) || 0), x.fl);
+    return clampNum(x.lv, 1, 199, 1);
+  }
+  const m = expProfile(x.type, x.fl);
+  if(!m) return clampNum(x.lv, 1, 99, 1);
+  const e = expIsSet(x.exp) ? Math.max(0, Number(x.exp) || 0) : puCum(clampNum(x.lv, 1, 99, 1));
+  const after = Math.max(0, e - m.ded);
+  return after ? lvFromRawExp(x.type, after, x.fl) : 1;
+}
+function polarExpOf(x){
+  if(!x) return 0;
+  const m = expProfile(x.type, x.fl);
+  if(!m) return Math.max(0, Number(x.exp) || 0);
+  if(Number(x.k) === 1){
+    return expIsSet(x.exp) ? Math.max(0, Number(x.exp) || 0)
+                           : cumExp(x.type, clampNum(x.lv, 1, 199, 1), x.fl);
+  }
+  const e = expIsSet(x.exp) ? Math.max(0, Number(x.exp) || 0) : puCum(clampNum(x.lv, 1, 99, 1));
+  return Math.max(0, e - m.ded);          /* 扣掉门槛，和极刀的经验同口径 */
+}
 function filteredRows(){
   const d = curData();
   if(!d) return [];
@@ -3064,8 +3091,8 @@ function filteredRows(){
     if(ui.kiwame === 'open' && (!os.has(x.no) || x.k === 1)) return false;
     if(ui.ranbu === '10' && x.r !== 10) return false;
     if(ui.ranbu === 'under' && x.r >= 10) return false;
-    if(ui.level === 'ge100' && x.lv < 100) return false;
-    if(ui.level === 'lt100' && x.lv >= 100) return false;
+    if(ui.level === 'ge100' && polarLvOf(x) < 100) return false;
+    if(ui.level === 'lt100' && polarLvOf(x) >= 100) return false;
     if(ui.q){
       const q = ui.q.toLowerCase();
       const hay = (x.name + ' ' + x.no + ' ' + String(x.no).padStart(3, '0') + ' no.' + x.no +
@@ -3077,9 +3104,16 @@ function filteredRows(){
 }
 function sortedRows(list){
   const arr = list.slice();
-  if(ui.sort === 'lvDesc') arr.sort(function(a,b){ return b.lv - a.lv || a.no - b.no; });
-  else if(ui.sort === 'lvAsc') arr.sort(function(a,b){ return a.lv - b.lv || a.no - b.no; });
-  else if(ui.sort === 'expDesc') arr.sort(function(a,b){ return b.exp - a.exp || a.no - b.no; });
+  /* 等级 / 经验都按「折算极等级」这一套口径排，普刀才不会拿着 99 去跟极 120 比 */
+  if(ui.sort === 'lvDesc') arr.sort(function(a,b){
+    return polarLvOf(b) - polarLvOf(a) || polarExpOf(b) - polarExpOf(a) || a.no - b.no;
+  });
+  else if(ui.sort === 'lvAsc') arr.sort(function(a,b){
+    return polarLvOf(a) - polarLvOf(b) || polarExpOf(b) - polarExpOf(a) || a.no - b.no;
+  });
+  else if(ui.sort === 'expDesc') arr.sort(function(a,b){
+    return polarExpOf(b) - polarExpOf(a) || polarLvOf(b) - polarLvOf(a) || a.no - b.no;
+  });
   else if(ui.sort === 'ranbuDesc') arr.sort(function(a,b){ return b.r - a.r || a.no - b.no; });
   else if(ui.sort === 'name') arr.sort(function(a,b){ return a.name.localeCompare(b.name, 'zh'); });
   else arr.sort(function(a,b){ return a.no - b.no; });
@@ -3165,7 +3199,7 @@ function renderFilters(){
     if(!op) na++;
     if(op && Number(x.k) !== 1) wait++;
     if(Number(x.r) === 10) maxR++; else underR++;
-    if(Number(x.lv) >= 100) ge++; else lt++;
+    if(polarLvOf(x) >= 100) ge++; else lt++;
   });
   const total = d.tw.length;
 
@@ -3979,6 +4013,13 @@ function renderCatalog(){
   const favN = d.tw.filter(function(x){ return Number(x.fav) === 1; }).length;
   $('#gridCount').textContent = '共 ' + list.length + ' 振 / 已拥有 ' + ownedN + ' / 全 ' + d.tw.length + ' 振' +
     (favN ? ' · ⭐ 置顶 ' + favN : '');
+  /* 按等级筛的时候提醒一句：普刀卡片上的「等级」是普刀等级，排序 / 筛选用的是折算后的极等级 */
+  const hintEl = $('#gridHint');
+  if(hintEl){
+    hintEl.textContent = ui.level
+      ? '等级按「折算极等级」筛：已极化看极化等级，普刀看卡片下方那行「折算等级」'
+      : '点卡片「✎ 修改」编辑，保存后锁定 · 可多张同时改';
+  }
   if(!list.length){
     grid.innerHTML = '';
     empty.hidden = false;
@@ -7125,6 +7166,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.47 等级筛选与排序改按「折算极等级」，普刀不再拿 99 去比极 120',
+     '<p><b>筛选</b>：「100 及以上 / 100 以下」现在按<b>折算后的极等级</b>算：已极化看极化等级；普刀按经验扣掉极化门槛（短 60 / 胁·枪·薙 65 / 打 70 / 太 75 / 大太 80）再折算，所以「普 99 攒满、极化后是极 199」的刀会出现在「极 100 及以上」里。经验没填的普刀，按当前等级的最低累计折算，不当 0 算。</p>' +
+     '<p><b>排序</b>：「等级由高到低 / 由低到高」也按折算极等级排，同级再按折算经验高低；「经验由高到低」统一成<b>折算后的极化经验</b>（普刀先扣门槛），不再出现普刀 190 万排到极刀几千万前面的情况。</p>' +
+     '<p>普刀卡片下面那条「折算等级 Lv xx」就是排序用的等级，可以对着看。</p>',
+     '2026.11'],
     ['V2.46 乱舞改回单独一张表，等级和经验仍然合在一起',
      '<p>上一版把乱舞也塞进了同一行，等级、经验、乱舞、振数挤在一条里，反而看不清哪项在动。现在拆成两块：</p>' +
      '<p><b>📈 等级 · 经验</b>：一把刀一行，左边等级 <b>起始 → 现在 + 升降几级</b>，右边这一天涨了多少经验；<b>🌾 乱舞</b>：单独一张表，看乱舞等级 / 进度变化和<b>获得几振</b>。</p>' +
