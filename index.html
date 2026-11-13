@@ -972,6 +972,9 @@
   .chg-del em{font-style:normal;font-weight:700;margin-right:5px;color:#7a6a5d;}
   .chg-new{background:rgba(90,111,158,.14);border-color:rgba(90,111,158,.3);color:#5a6f9e;}
   .chg-new em{font-style:normal;font-weight:700;margin-right:5px;color:#4a5f92;}
+  .chg-plv{border-color:var(--line-strong);}
+  .chg-plv em{font-style:normal;font-weight:700;margin-right:5px;}
+  .chg-plv b{color:var(--accent-deep);}
   .chg-res{background:rgba(151,112,47,.14);border-color:rgba(151,112,47,.28);color:#96702f;}
   .chg-res b{color:#a4792f;}
   .chg-res .chg-to{color:#b39a76;white-space:nowrap;}
@@ -1055,7 +1058,16 @@
   .day-cell-l{align-items:flex-start;}
   .day-name b{display:block;font-weight:600;color:var(--ink);letter-spacing:.02em;font-family:inherit;}
   .day-name small{display:block;font-size:9px;color:var(--muted-2);font-family:ui-monospace,Menlo,monospace;margin-top:1px;}
+  .day-k{display:inline-block;margin-left:5px;padding:0 4px;border-radius:4px;font-size:9px;line-height:1.55;
+    font-weight:400;font-family:ui-monospace,Menlo,monospace;vertical-align:1px;letter-spacing:.04em;}
+  .day-k.k1{background:var(--tint-a);border:1px solid var(--line-strong);color:var(--accent-deep);}
+  .day-k.k0{background:var(--tint-b);border:1px solid var(--line);color:var(--muted);}
   .day-lv{font-family:ui-monospace,Menlo,monospace;color:var(--ink-2);font-size:10.5px;white-space:nowrap;}
+  .day-lv em{font-style:normal;font-size:9px;color:var(--muted-2);border:1px solid var(--line);
+    border-radius:3px;padding:0 3px;margin-right:4px;vertical-align:1px;}
+  .day-lv.dim b{color:var(--muted);font-weight:600;}
+  .day-sub{font-size:9px;color:var(--muted-2);font-family:ui-monospace,Menlo,monospace;
+    margin-top:1px;white-space:nowrap;}
   .day-lv b{color:var(--ink);font-weight:700;}
   .day-lv i{display:inline;font-style:normal;color:var(--muted);font-size:10px;margin:0 3px;}
   .day-delta{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:11.5px;white-space:nowrap;}
@@ -1093,6 +1105,12 @@
     .day-cell{display:block;flex:1 1 auto;min-width:0;text-align:right;}
     .day-cell-l{text-align:right;}
     .day-cell .day-delta{margin-left:6px;}
+    /* 等级列在窄屏一行一个元素，别把「极 Lv 35 → 36」和「普 Lv 99 +1 级」挤成一坨 */
+    #dayLvBody .day-cell .day-lv,
+    #dayLvBody .day-cell .day-sub,
+    #dayLvBody .day-cell .day-delta{display:block;margin-left:0;}
+    #dayLvBody .day-cell .day-sub,
+    #dayLvBody .day-cell .day-delta{margin-top:1px;}
     .day-table td{line-height:1.5;}
     .day-lv,.day-rb{font-size:10px;}
     .day-delta{font-size:11px;}
@@ -1305,7 +1323,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.49</div>
+        <div class="brand-sub">HONMARU KEEPER V2.50</div>
       </div>
     </div>
 
@@ -2406,7 +2424,7 @@ function blankData(){
 }
 /* 变动日志：{id, kind, no, name, act, ses, src, date, changes:[{f, ...}], ts}
    kind = sword（图鉴字段） / ranbu（活动登记喂刀 +1） / res（资源快照变化） */
-const LOG_FIELDS = {name:'名称', type:'刀种', fl:'花数', k:'极化', r:'乱舞', rp:'乱舞进度', lv:'等级', exp:'经验', src:'获取方式', own:'拥有状态'};
+const LOG_FIELDS = {name:'名称', type:'刀种', fl:'花数', k:'极化', r:'乱舞', rp:'乱舞进度', lv:'等级', plv:'极化等级', exp:'经验', src:'获取方式', own:'拥有状态'};
 const LOG_KINDS = {sword:'图鉴', ranbu:'乱舞 +1', res:'资源', new:'新刀', del:'删除'};
 function resItemOf(key){
   const hit = RES_ITEMS.filter(function(it){ return it.key === key; })[0];
@@ -3526,11 +3544,17 @@ function commitEdit(no){
     });
   }
   Object.keys(LOG_FIELDS).forEach(function(f){
-    if(f === 'r' || f === 'rp') return;      // 已并进上面那条乱舞记录
+    if(f === 'r' || f === 'rp' || f === 'plv') return;   // 乱舞并成一条、极化等级下面单独算
     const a = before[f], b = next[f];
     const same = (f === 'src' || f === 'name' || f === 'type') ? String(a) === String(b) : Number(a) === Number(b);
     if(!same) changes.push({f:f, from:a, to:b});
   });
+  /* 普刀只涨了经验、卡面等级没动，但换算出的极化等级升级了 —— 这也算升一级，
+     单独记一条，每日统计和变动记录里都能看到「极化等级 35 → 36」 */
+  if(before.k === 0 && next.k === 0){
+    const pA = polarLvOf(before), pB = polarLvOf(next);
+    if(pA !== pB) changes.push({f:'plv', from:pA, to:pB});
+  }
   Object.assign(row, next);
   delete ui.edit[no];
 
@@ -4412,6 +4436,7 @@ function timeParts(ts){
 }
 function logVal(f, v){
   if(f === 'k') return v === 1 ? '极' : '普';
+  if(f === 'plv') return 'Lv ' + (Number(v) || 0);
   if(f === 'own') return Number(v) === 0 ? '未拥有' : '已拥有';
   if(f === 'src') return String(v || '').trim() || '—';
   if(f === 'exp') return fmtNum(v);
@@ -4455,6 +4480,9 @@ function logFlat(l){
     if(c.f === 'roster'){
       return (l.kind === 'del' ? '删除' : '新刀') + ' 刀帐变动 ' + c.from + '→' + c.to;
     }
+    if(c.f === 'plv'){
+      return '极化等级 Lv ' + (Number(c.from) || 0) + '→Lv ' + (Number(c.to) || 0);
+    }
     return LOG_FIELDS[c.f] + ' ' + logVal(c.f, c.from) + '→' + logVal(c.f, c.to);
   }).join('  ');
 }
@@ -4473,6 +4501,11 @@ function logChangeHTML(c, kind){
     const isDel = kind === 'del';
     return '<span class="chg ' + (isDel ? 'chg-del' : 'chg-new') + '"><em>' +
            (isDel ? '删除' : '新刀') + '</em> 刀帐变动 ' + c.from + '→' + c.to + '</span>';
+  }
+  if(c.f === 'plv'){
+    const a = Number(c.from) || 0, b = Number(c.to) || 0;
+    return '<span class="chg chg-plv"><em>极化等级</em> <s>Lv ' + a + '</s> → <b>Lv ' + b + '</b>' +
+           (b > a ? ' ⬆' : '') + '</span>';
   }
   if(c.f === 'res'){
     const it = resItemOf(c.key);
@@ -4505,6 +4538,11 @@ function logDeltaList(l){
     if(c.f === 'roster'){ out.push((Number(c.to) || 0) - (Number(c.from) || 0)); return; }
     if(c.f === 'res'){ out.push((Number(c.to) || 0) - (Number(c.from) || 0)); return; }
     if(c.f === 'rp' && rUp) return;
+    /* 普刀等级本身也变了的话，变动值里已经有它的 +N，不重复算一次极化等级 */
+    if(c.f === 'plv'){
+      if(!changes.some(function(x){ return x.f === 'lv'; })) out.push((Number(c.to) || 0) - (Number(c.from) || 0));
+      return;
+    }
     if(c.f === 'lv' || c.f === 'exp' || c.f === 'r' || c.f === 'rp'){
       const v = (Number(c.to) || 0) - (Number(c.from) || 0);
       if(v) out.push(v);
@@ -4707,6 +4745,7 @@ function dailyAgg(d, date){
     /* 先把这一条日志自己的变动摘出来，再合进这振的当天汇总 */
     let lvA = null, lvB = null, expD = 0, hasExp = false;
     let polarA = null, polarB = null;
+    let plvA = null, plvB = null, plvD = 0, hasPlv = false;
     let rbA = null, rbB = null, rbGain = 0, hasRb = false, legacyLv = 0, legacyRp = 0, legacy = false;
 
     chs.forEach(function(c){
@@ -4714,6 +4753,13 @@ function dailyAgg(d, date){
         const a = Number(c.from) || 0, b = Number(c.to) || 0;
         if(kChg){ if(polarA === null) polarA = a; if(polarB === null) polarB = b; }
         else if(lvA === null){ lvA = a; lvB = b; }
+      }else if(c.f === 'plv'){
+        /* 普刀自己的等级没动、极化等级升级：日志里是单独一条 */
+        hasPlv = true;
+        const a = Number(c.from) || 0, b = Number(c.to) || 0;
+        if(plvB === null) plvB = b;
+        plvA = a;
+        plvD += (b - a);
       }else if(c.f === 'exp'){
         if(!kChg){ hasExp = true; expD += (Number(c.to) || 0) - (Number(c.from) || 0); }
       }else if(c.f === 'ranbu'){
@@ -4733,13 +4779,14 @@ function dailyAgg(d, date){
     });
 
     /* 只关心等级 / 经验 / 乱舞这三类；只改了名字、获取方式的不进统计 */
-    if(lvA === null && !kChg && !hasExp && !hasRb) return;
+    if(lvA === null && !kChg && !hasExp && !hasRb && !hasPlv) return;
 
     let rec = map[no];
     if(!rec){
       rec = map[no] = {
         no:no, name:l.name || ('No.' + no), cnt:0,
         lvFrom:null, lvTo:null, lvGain:0, hasLv:false,
+        plvFrom:null, plvTo:null, plvGain:0, hasPlv:false,
         expGain:0, hasExp:false,
         rbFrom:null, rbTo:null, rbGain:0, hasRb:false,
         polar:false, polarFrom:null, polarLv:null
@@ -4753,6 +4800,12 @@ function dailyAgg(d, date){
       if(rec.lvTo === null) rec.lvTo = lvB;    /* 日志新的在前，第一次见到的是最新值 */
       rec.lvFrom = lvA;                        /* 一路被更老的记录覆盖，最后就是当天起始值 */
       rec.lvGain += (lvB - lvA);
+    }
+    if(hasPlv){
+      rec.hasPlv = true;
+      if(rec.plvTo === null) rec.plvTo = plvB;
+      rec.plvFrom = plvA;
+      rec.plvGain += plvD;
     }
     if(kChg){
       rec.polar = true;
@@ -4773,7 +4826,7 @@ function dailyAgg(d, date){
 
   out.rows = Object.keys(map).map(function(k){ return map[k]; });
   out.rows.forEach(function(r){
-    if(!r.polar) out.lvTotal += r.lvGain;
+    if(!r.polar) out.lvTotal += r.lvGain + (r.hasPlv ? r.plvGain : 0);
     out.expTotal += r.expGain;
     out.rbTotal += r.rbGain;
   });
@@ -4798,7 +4851,55 @@ function dayNameCell(rec){
   const row = rowOf(rec.no);
   const meta = ['No.' + String(rec.no).padStart(3, '0')];
   if(row && row.type) meta.push(row.type);
-  return '<div class="day-name"><b>' + esc(rec.name) + '</b><small>' + esc(meta.join(' · ')) + '</small></div>';
+  /* 标明这把现在是普刀还是极刀：两边「等级」的含义不一样，普刀看的是极化等级 */
+  const isK = row && Number(row.k) === 1;
+  return '<div class="day-name"><b>' + esc(rec.name) +
+    '<span class="day-k ' + (isK ? 'k1' : 'k0') + '">' + (isK ? '极' : '普') + '</span></b>' +
+    '<small>' + esc(meta.join(' · ')) + '</small></div>';
+}
+/* 等级格：
+   当天极化 → 普刀 Lv a → 极 Lv b
+   极刀     → Lv a → b
+   普刀     → 主行写极化等级（经验涨了也可能升级），普刀自己的等级放副行
+   只动了经验、等级没变，也把当前等级写出来，不留「—」 */
+function dayLvHTML(r){
+  const row = rowOf(r.no) || {};
+  const isK = Number(row.k) === 1;
+  const deltaOf = function(num){
+    const v = Number(num) || 0;
+    /* 等级没变就只写等级，不摆一个「—」占位 */
+    return v ? '<span class="day-delta ' + (v > 0 ? 'up' : 'down') + '">' + signedNum(v, ' 级') + '</span>' : '';
+  };
+  const pairOf = function(pre, a, b){
+    return '<span class="day-lv">' + (pre ? '<em>' + pre + '</em>' : '') +
+           '<b>Lv ' + a + '</b><i>→</i><b>Lv ' + b + '</b></span>';
+  };
+  const oneOf = function(pre, v){
+    return '<span class="day-lv dim">' + (pre ? '<em>' + pre + '</em>' : '') + '<b>Lv ' + v + '</b></span>';
+  };
+
+  if(r.polar){
+    const from = r.polarFrom !== null ? r.polarFrom : '?';
+    const to = r.polarLv !== null ? r.polarLv : (row.lv || '?');
+    return '<span class="day-lv"><b>Lv ' + from + '</b><i>→</i><b>极 Lv ' + to + '</b></span>' +
+           '<span class="day-tag">当天极化</span>' + deltaOf(0);
+  }
+  if(r.hasPlv){
+    const sub = (r.hasLv && r.lvGain)
+      ? '<span class="day-sub">普 Lv ' + r.lvFrom + ' → ' + r.lvTo + '</span>'
+      : '<span class="day-sub">普 Lv ' + (row.lv || '?') + '</span>';
+    return pairOf('极', r.plvFrom, r.plvTo) + sub + deltaOf(r.plvGain);
+  }
+  if(r.hasLv && r.lvGain){
+    if(isK) return pairOf('', r.lvFrom, r.lvTo) + deltaOf(r.lvGain);
+    /* 普刀等级涨了、但还没到门槛，极化等级没动 */
+    return pairOf('普', r.lvFrom, r.lvTo) +
+           '<span class="day-sub">极 Lv ' + polarLvOf(row) + '</span>' + deltaOf(r.lvGain);
+  }
+  /* 只动了经验：等级照写出来 */
+  if(isK) return oneOf('', row.lv || '?') + deltaOf(0);
+  return oneOf('极', polarLvOf(row)) +
+         '<span class="day-sub">普 Lv ' + (row.lv || '?') + '</span>' + deltaOf(0);
 }
 function dayPages(el, pages, page, go){
   if(!el) return;
@@ -4865,10 +4966,12 @@ function renderDaily(){
 
   /* ① 等级 · 经验：一把刀一行 */
   const lvAll = st.rows.filter(function(r){
-    return (r.hasLv && r.lvGain !== 0) || r.polar || r.hasExp;
+    return (r.hasLv && r.lvGain !== 0) || r.polar || r.hasExp || r.hasPlv;
   });
   lvAll.sort(function(a, b){
-    return (Math.abs(b.lvGain) - Math.abs(a.lvGain)) || (b.expGain - a.expGain) || (a.no - b.no);
+    const ga = Math.abs(a.lvGain + (a.hasPlv ? a.plvGain : 0));
+    const gb = Math.abs(b.lvGain + (b.hasPlv ? b.plvGain : 0));
+    return (gb - ga) || (b.expGain - a.expGain) || (a.no - b.no);
   });
 
   if(!lvAll.length){
@@ -4885,24 +4988,13 @@ function renderDaily(){
     if(ui.dayPageLv < 1) ui.dayPageLv = 1;
     const start = (ui.dayPageLv - 1) * DAY_PER;
     lvBody.innerHTML = lvAll.slice(start, start + DAY_PER).map(function(r){
-      let lvTxt = '<span class="day-delta flat">—</span>';
-      if(r.hasLv && r.lvGain !== 0){
-        const tag = r.polar ? '<span class="day-tag">当天极化</span>' : '';
-        lvTxt = '<span class="day-lv"><b>Lv ' + r.lvFrom + '</b><i>→</i><b>Lv ' + r.lvTo + '</b>' + tag + '</span>' +
-                '<span class="day-delta ' + (r.lvGain > 0 ? 'up' : 'down') + '">' + signedNum(r.lvGain, ' 级') + '</span>';
-      }else if(r.polar){
-        const from = r.polarFrom !== null ? r.polarFrom : '?';
-        const to = r.polarLv !== null ? r.polarLv : ((rowOf(r.no) || {}).lv || '?');
-        lvTxt = '<span class="day-lv"><b>Lv ' + from + '</b><i>→</i><b>极 Lv ' + to + '</b></span>' +
-                '<span class="day-tag">极化 · 重新计级</span>';
-      }
       let expTxt = '<span class="day-delta flat">—</span>';
       if(r.hasExp){
         expTxt = '<span class="day-delta ' + (r.expGain > 0 ? 'up' : (r.expGain < 0 ? 'down' : 'flat')) + '" title="' +
           esc(expUnit(r.no)) + '">' + signedNum(r.expGain) + '</span>';
       }
       return '<tr><td>' + dayNameCell(r) + '</td>' +
-        '<td data-l="等级"><div class="day-cell day-cell-l">' + lvTxt + '</div></td>' +
+        '<td data-l="等级"><div class="day-cell day-cell-l">' + dayLvHTML(r) + '</div></td>' +
         '<td data-l="经验增长"><div class="day-cell">' + expTxt + '</div></td></tr>';
     }).join('');
     dayPages(lvPager, pages, ui.dayPageLv, function(pg){ ui.dayPageLv = pg; renderDaily(); });
@@ -7177,6 +7269,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.50 每日统计标出普 / 极，普刀经验涨到极化等级也算升级',
+     '<p>「等级 · 经验」表里，刀名旁边加了 <b>普 / 极</b> 标记。等级列对普刀写的是<b>极化等级</b>（普刀自己的等级放在下面一行小字）；当天只涨了经验、等级没动，也会把当前等级写出来，不再只摆一条「—」。</p>' +
+     '<p>普刀经验涨到下一个极化等级时按<b>升级</b>算：显示「极 Lv 34 → Lv 36 · +2 级」，顶部「等级 +N 级」也跟着加。变动记录里会单独记一条 <b>「极化等级 Lv 34 → Lv 36」</b>，和「经验 1,800,000 → 2,600,000」并排，翻日志就知道是哪次喂刀升上去的。</p>' +
+     '<p>只有经验变化、极化等级没变时，日志里仍然只写经验那一条，不多记。</p>',
+     '2026.11'],
     ['V2.49 界面统一叫「极化等级」，不再出现「折算等级」',
      '<p>卡片小条、等级筛选提示、⇄ 换算弹窗里原来写「折算等级」的地方，全部改成 <b>极化等级</b>：普刀累计经验扣掉门槛、换算到极化那条经验条之后的等级，就是这把刀的极化等级；已极化的刀本来就读极化等级，现在两种卡写法一致。</p>' +
      '<p>筛选和排序的逻辑没动，还是按这个等级排，只是名字统一了。</p>',
