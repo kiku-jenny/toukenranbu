@@ -265,8 +265,27 @@
     border:1px solid var(--line);border-radius:var(--radius);
     padding:20px 18px;position:sticky;top:20px;
     height:calc(100vh - 40px);display:flex;flex-direction:column;
+    overflow:hidden;
     box-shadow:var(--shadow);
   }
+  /* 内容比一屏高时，只让内层滚动：顶部的菜单按钮不会压住滑上来的条目 */
+  .side-scroll{
+    flex:1;min-height:0;display:flex;flex-direction:column;
+    overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;
+    margin-right:-6px;padding-right:6px;
+    scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent;
+    -webkit-overflow-scrolling:touch;
+  }
+  .side-scroll > *{flex:0 0 auto;}
+  /* 往下滑时顶部内容轻轻淡出，避免半截条目卡在顶部 */
+  .side-scroll.scrolled{
+    -webkit-mask-image:linear-gradient(180deg,transparent 0,#000 18px);
+    mask-image:linear-gradient(180deg,transparent 0,#000 18px);
+  }
+  .side-scroll::-webkit-scrollbar{width:5px;}
+  .side-scroll::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:99px;}
+  .side-scroll::-webkit-scrollbar-thumb:hover{background:var(--muted-2);}
+  .side-scroll::-webkit-scrollbar-track{background:transparent;}
   .main{
     flex:1;min-width:0;background:linear-gradient(180deg,var(--card) 0%,var(--surface-2) 100%);
     border:1px solid var(--line);border-radius:var(--radius);
@@ -1216,9 +1235,9 @@
     .menu-btn{display:block;}
     .shell{display:block;z-index:auto;}
     .sidebar{
-      position:fixed;left:0;top:0;z-index:95;height:100vh;width:280px;flex:none;
+      position:fixed;left:0;top:0;bottom:0;z-index:95;height:auto;width:280px;flex:none;
       border-radius:0 18px 18px 0;transform:translateX(-102%);transition:transform .26s ease;
-      padding-top:60px;
+      padding-top:60px;padding-bottom:calc(18px + env(safe-area-inset-bottom));
     }
     .sidebar.open{transform:translateX(0);}
     .main{min-height:calc(100vh - 24px);padding:18px 16px 22px;}
@@ -1271,11 +1290,12 @@
 
 <div class="shell">
   <aside class="sidebar" id="sidebar">
+    <div class="side-scroll">
     <div class="brand">
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.43</div>
+        <div class="brand-sub">HONMARU KEEPER V2.44</div>
       </div>
     </div>
 
@@ -1319,6 +1339,7 @@
       </div>
       <div class="side-note" id="storageNote"><span id="storageText">数据仅保存在本机浏览器</span><button class="storage-backup" id="btnStorageBackup" hidden>导出备份</button></div>
       <div class="sync-note" id="syncNote" title="点此设置多设备同步">☁ 云同步：未开启</div>
+    </div>
     </div>
   </aside>
 
@@ -7046,6 +7067,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.44 侧栏底部不再被切掉：菜单可以上下滚动',
+     '<p>手机上打开侧栏时，底部的<b>存储用量</b>和<b>云同步状态</b>以前会被屏幕边缘切掉，看不到也点不到。</p>' +
+     '<p>现在侧栏整栏可以上下滑动：内容超过一屏时手指往里滑就行，滑到底能完整看到「数据仅保存在本机浏览器 · 已用 …」和「☁ 云同步」；iPhone 的底部安全区也留出来了，不会被系统手势条压住。</p>' +
+     '<p>电脑上窗口拉得很矮时同理，侧栏内部自己滚，页面主内容不受影响。</p>',
+     '2026.11'],
     ['V2.43 改名「刀剑乱舞管家」、本丸名可改、三套配色 + 夜间模式',
      '<p><b>改名：</b>网页标题和侧栏标题统一成<b>「刀剑乱舞管家」</b>，书签里也是这个名字。</p>' +
      '<p><b>本丸名：</b>点标题下面那行「日服 · 本丸一号」，或侧栏账号行右边的<b>铅笔按钮</b>，就能给当前本丸改名（最多 12 字，同一服务器不能重名）。改名不影响图鉴、资源、活动和变动记录。</p>' +
@@ -7497,7 +7523,16 @@ function initEvents(){
 
   $('#menuBtn').onclick = function(){
     $('#sidebar').classList.add('open'); $('#scrim').classList.add('on');
+    const sc = document.querySelector('.side-scroll');
+    if(sc){ sc.scrollTop = 0; sc.classList.remove('scrolled'); }
   };
+  /* 侧栏内容超过一屏时可上下滑动，滑动后顶部淡出提示 */
+  (function(){
+    const sc = document.querySelector('.side-scroll'); if(!sc) return;
+    sc.addEventListener('scroll', function(){
+      sc.classList.toggle('scrolled', sc.scrollTop > 2);
+    }, {passive:true});
+  })();
   /* 滚动一段后把悬浮菜单按钮淡化，别一直压住卡片左上角的星标 */
   window.addEventListener('scroll', function(){
     const b = $('#menuBtn'); if(!b) return;
