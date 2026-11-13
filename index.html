@@ -1041,17 +1041,23 @@
   .day-chip.on{background:linear-gradient(120deg,var(--accent-3),var(--accent-2));border-color:transparent;color:var(--on-accent);font-weight:600;}
   .day-table{min-width:0;}
   .day-table th{font-size:9.5px;padding:8px 10px;}
-  .day-table th:first-child{width:42%;}
+  .day-table th:first-child{width:29%;}
+  .day-table th:nth-child(2){width:20%;}
+  .day-table th:nth-child(3){width:18%;}
+  .day-table th:nth-child(5){width:13%;}
   .day-table td{padding:9px 10px;font-size:11px;line-height:1.55;white-space:normal;vertical-align:middle;}
   .day-table th:nth-child(2),.day-table td:nth-child(2),
   .day-table th:nth-child(3),.day-table td:nth-child(3),
-  .day-table th:nth-child(4),.day-table td:nth-child(4){text-align:right;}
+  .day-table th:nth-child(5),.day-table td:nth-child(5){text-align:right;}
   .day-table .dt-rb{text-align:left;}
+  /* 一格两行：主信息 + 变化量 */
+  .day-cell{display:flex;flex-direction:column;align-items:flex-end;gap:1px;line-height:1.5;}
+  .day-cell-l{align-items:flex-start;}
   .day-name b{display:block;font-weight:600;color:var(--ink);letter-spacing:.02em;font-family:inherit;}
   .day-name small{display:block;font-size:9px;color:var(--muted-2);font-family:ui-monospace,Menlo,monospace;margin-top:1px;}
   .day-lv{font-family:ui-monospace,Menlo,monospace;color:var(--ink-2);font-size:10.5px;white-space:nowrap;}
   .day-lv b{color:var(--ink);font-weight:700;}
-  .day-lv i{display:inline;font-style:normal;color:var(--muted-3);font-size:10px;margin:0 3px;}
+  .day-lv i{display:inline;font-style:normal;color:var(--muted);font-size:10px;margin:0 3px;}
   .day-delta{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:11.5px;white-space:nowrap;}
   .day-delta.up{color:var(--red);}
   .day-delta.down{color:var(--green);}
@@ -1084,6 +1090,10 @@
     .day-table td:first-child{display:block;padding:0 0 5px;}
     .day-table td[data-l]::before{content:attr(data-l);flex:0 0 auto;font-size:9.5px;color:var(--muted);letter-spacing:.06em;}
     .day-name b{font-size:12px;}
+    .day-cell{display:block;flex:1 1 auto;min-width:0;text-align:right;}
+    .day-cell-l{text-align:right;}
+    .day-cell .day-delta{margin-left:6px;}
+    .day-table td{line-height:1.5;}
     .day-lv,.day-rb{font-size:10px;}
     .day-delta{font-size:11px;}
   }
@@ -1295,7 +1305,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.44</div>
+        <div class="brand-sub">HONMARU KEEPER V2.45</div>
       </div>
     </div>
 
@@ -1529,30 +1539,17 @@
 
       <div class="panel">
         <div class="panel-head">
-          <h2>① 刀剑等级</h2>
-          <p>当天等级有变化的刀剑；<b>起始 → 现在</b> 是这一天第一次和最后一次记录到的等级。</p>
+          <h2>🌿 当天变化</h2>
+          <p>这天等级、经验或乱舞有变化的刀剑，同一振合并成一行：等级看 <b>起始 → 现在</b>，乱舞按 <b>获得几振</b> 算，跨等级也对得上。</p>
         </div>
         <div class="res-table-wrap">
           <table class="res-table day-table">
-            <thead><tr><th>刀剑</th><th>等级变化</th><th>变化</th></tr></thead>
-            <tbody id="dayLvBody"></tbody>
+            <thead><tr><th>刀剑</th><th>等级</th><th>经验增长</th><th class="dt-rb">乱舞变化</th><th>获得振数</th></tr></thead>
+            <tbody id="dayBody"></tbody>
           </table>
         </div>
-        <div class="res-empty" id="dayLvEmpty" hidden></div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head">
-          <h2>② 经验 / 乱舞增长</h2>
-          <p>当天经验或乱舞有变化的刀剑，同一振合并累计；乱舞按「获得几振」计，跨等级也能算对。</p>
-        </div>
-        <div class="res-table-wrap">
-          <table class="res-table day-table">
-            <thead><tr><th>刀剑</th><th>经验增长</th><th class="dt-rb">乱舞变化</th><th>获得振数</th></tr></thead>
-            <tbody id="dayExpBody"></tbody>
-          </table>
-        </div>
-        <div class="res-empty" id="dayExpEmpty" hidden></div>
+        <div class="res-empty" id="dayEmpty" hidden></div>
+        <div class="pager" id="dayPager"></div>
       </div>
     </section>
 
@@ -2348,7 +2345,7 @@ const RES_MAX = 999999999;
    ========================================================= */
 const KEY = 'honmaru_keeper_v3';
 let S = null;
-const ui = {tab:'catalog', q:'', type:'', own:'', kiwame:'', ranbu:'', level:'', sort:'no', edit:{}, logQ:'', logKind:'', logDate:'', logPage:1, day:''};
+const ui = {tab:'catalog', q:'', type:'', own:'', kiwame:'', ranbu:'', level:'', sort:'no', edit:{}, logQ:'', logKind:'', logDate:'', logPage:1, day:'', dayPage:1};
 
 function uid(){ return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 function seedTw(){
@@ -4335,6 +4332,7 @@ function addRes(){
    变动记录
    ========================================================= */
 const LOG_PER = 10;
+const DAY_PER = 10;
 function fmtTime(ts){
   const d = new Date(ts);
   function p(n){ return String(n).padStart(2,'0'); }
@@ -4726,14 +4724,14 @@ function dayShift(n){
   if(isNaN(dt.getTime())) return;
   dt.setDate(dt.getDate() + n);
   ui.day = fmtDate(dt);
+  ui.dayPage = 1;
   renderDaily();
 }
 function dayNameCell(rec){
   const row = rowOf(rec.no);
   const meta = ['No.' + String(rec.no).padStart(3, '0')];
   if(row && row.type) meta.push(row.type);
-  const cnt = rec.cnt > 1 ? '<span class="day-tag">×' + rec.cnt + '</span>' : '';
-  return '<div class="day-name"><b>' + esc(rec.name) + cnt + '</b><small>' + esc(meta.join(' · ')) + '</small></div>';
+  return '<div class="day-name"><b>' + esc(rec.name) + '</b><small>' + esc(meta.join(' · ')) + '</small></div>';
 }
 function renderDaily(){
   const d = curData();
@@ -4742,18 +4740,15 @@ function renderDaily(){
   if(!ui.day) ui.day = fmtDate(new Date());
   inp.value = ui.day;
 
-  const lvBody = $('#dayLvBody'), expBody = $('#dayExpBody');
-  const lvEmpty = $('#dayLvEmpty'), expEmpty = $('#dayExpEmpty');
-  const lvWrap = lvBody ? lvBody.parentNode.parentNode : null;
-  const expWrap = expBody ? expBody.parentNode.parentNode : null;
+  const body = $('#dayBody'), pager = $('#dayPager'), empty = $('#dayEmpty');
+  const wrap = body ? body.parentNode.parentNode : null;
   const dayCount = $('#dayLogCount');
 
   if(!d){
     if(dayCount) dayCount.textContent = '';
-    if(lvWrap) lvWrap.hidden = true;
-    if(expWrap) expWrap.hidden = true;
-    lvEmpty.hidden = false; lvEmpty.textContent = '还没有账号，先在左侧新建一个账号。';
-    expEmpty.hidden = false; expEmpty.textContent = '还没有账号，先在左侧新建一个账号。';
+    if(wrap) wrap.hidden = true;
+    if(pager) pager.innerHTML = '';
+    empty.hidden = false; empty.textContent = '还没有账号，先在左侧新建一个账号。';
     return;
   }
 
@@ -4769,77 +4764,112 @@ function renderDaily(){
       : '这天没有记录';
   }
 
-  /* ① 等级 */
-  const lvRows = st.rows.filter(function(r){ return (r.hasLv && r.lvGain !== 0) || r.polar; });
-  lvRows.sort(function(a, b){ return Math.abs(b.lvGain) - Math.abs(a.lvGain) || a.no - b.no; });
-  if(lvRows.length){
-    if(lvWrap) lvWrap.hidden = false;
-    lvEmpty.hidden = true;
-    lvBody.innerHTML = lvRows.map(function(r){
-      let lvTxt, deltaTxt;
-      if(r.hasLv && r.lvGain !== 0){
-        const tag = r.polar ? '<span class="day-tag">当天极化</span>' : '';
-        lvTxt = '<span class="day-lv"><b>Lv ' + r.lvFrom + '</b><i>→</i><b>Lv ' + r.lvTo + '</b>' + tag + '</span>';
-        deltaTxt = '<span class="day-delta ' + (r.lvGain > 0 ? 'up' : 'down') + '">' + signedNum(r.lvGain, ' 级') + '</span>';
-      }else{
-        const from = r.polarFrom !== null ? r.polarFrom : '?';
-        const to = r.polarLv !== null ? r.polarLv : ((rowOf(r.no) || {}).lv || '?');
-        lvTxt = '<span class="day-lv"><b>Lv ' + from + '</b><i>→</i><b>极 Lv ' + to + '</b><span class="day-tag">极化</span></span>';
-        deltaTxt = '<span class="day-delta flat">重新计级</span>';
-      }
-      return '<tr><td>' + dayNameCell(r) + '</td><td data-l="等级变化">' + lvTxt + '</td><td data-l="变化">' + deltaTxt + '</td></tr>';
-    }).join('');
-  }else{
-    if(lvWrap) lvWrap.hidden = true;
-    lvBody.innerHTML = '';
-    lvEmpty.hidden = false;
-    lvEmpty.textContent = !(d.logs || []).length
-      ? '这个账号还没有变动记录：保存图鉴、喂刀、记资源后，会按天统计在这里。'
-      : (st.logs ? '这一天没有等级变化。' : '这一天没有变动记录，换个日期看看。');
-  }
+  /* 等级 / 经验 / 乱舞有变化的都进同一张表，一把刀一行 */
+  const all = st.rows.filter(function(r){
+    return (r.hasLv && r.lvGain !== 0) || r.polar || r.hasExp || r.hasRb;
+  });
+  all.sort(function(a, b){
+    return (Math.abs(b.lvGain) - Math.abs(a.lvGain)) ||
+           (b.rbGain - a.rbGain) ||
+           (b.expGain - a.expGain) ||
+           (a.no - b.no);
+  });
 
-  /* ② 经验 / 乱舞 */
-  const expRows = st.rows.filter(function(r){ return r.hasExp || r.hasRb; });
-  expRows.sort(function(a, b){ return (b.rbGain - a.rbGain) || (b.expGain - a.expGain) || a.no - b.no; });
-  if(expRows.length){
-    if(expWrap) expWrap.hidden = false;
-    expEmpty.hidden = true;
-    expBody.innerHTML = expRows.map(function(r){
-      let expTxt = '<span class="day-delta flat">—</span>';
-      if(r.hasExp){
-        expTxt = '<span class="day-delta ' + (r.expGain > 0 ? 'up' : (r.expGain < 0 ? 'down' : 'flat')) + '" title="' +
-          esc(expUnit(r.no)) + '">' + signedNum(r.expGain) + '</span>';
-      }
-      let rbTxt = '<span class="day-delta flat">—</span>';
-      if(r.hasRb && r.rbFrom && r.rbTo){
-        const a = r.rbFrom, b = r.rbTo;
-        const ar = a.r === null ? '?' : a.r, br = b.r === null ? '?' : b.r;
-        const head = (ar === br) ? ('乱舞 ' + br) : ('乱舞 ' + ar + ' → ' + br);
-        const rpA = (a.rp === null || a.rp === undefined) ? '?' : a.rp;
-        const rpB = (b.rp === null || b.rp === undefined) ? '?' : b.rp;
-        /* 老日志没存本级需求，用这振的花数回算 */
-        const fl = (rowOf(r.no) || {}).fl || 0;
-        const needOf = function(rv, stored){
-          if(stored) return stored;
-          const rr = Number(rv);
-          return (rr ? (ranbuNeed(fl, rr) || '?') : '?');
-        };
-        const sub = (br !== '?' && Number(br) >= 10) ? 'MAX'
-          : (rpA + '/' + needOf(ar, a.n) + ' → ' + rpB + '/' + needOf(br, b.n));
-        rbTxt = '<span class="day-rb">' + head + '<em>' + sub + '</em></span>';
-      }
-      const gainTxt = r.rbGain
-        ? '<span class="day-delta up">' + signedNum(r.rbGain, ' 振') + '</span>'
-        : '<span class="day-delta flat">—</span>';
-      return '<tr><td>' + dayNameCell(r) + '</td><td data-l="经验增长">' + expTxt + '</td><td data-l="乱舞变化" class="dt-rb">' + rbTxt + '</td><td data-l="获得振数">' + gainTxt + '</td></tr>';
-    }).join('');
-  }else{
-    if(expWrap) expWrap.hidden = true;
-    expBody.innerHTML = '';
-    expEmpty.hidden = false;
-    expEmpty.textContent = !(d.logs || []).length
+  if(!all.length){
+    if(wrap) wrap.hidden = true;
+    body.innerHTML = '';
+    if(pager) pager.innerHTML = '';
+    empty.hidden = false;
+    empty.textContent = !(d.logs || []).length
       ? '这个账号还没有变动记录：保存图鉴、喂刀、记资源后，会按天统计在这里。'
-      : (st.logs ? '这一天没有经验或乱舞变化。' : '这一天没有变动记录，换个日期看看。');
+      : (st.logs ? '这一天没有等级、经验或乱舞的变化。' : '这一天没有变动记录，换个日期看看。');
+    return;
+  }
+  if(wrap) wrap.hidden = false;
+  empty.hidden = true;
+
+  const pages = Math.max(1, Math.ceil(all.length / DAY_PER));
+  if(ui.dayPage > pages) ui.dayPage = pages;
+  if(ui.dayPage < 1) ui.dayPage = 1;
+  const start = (ui.dayPage - 1) * DAY_PER;
+  const rows = all.slice(start, start + DAY_PER);
+
+  body.innerHTML = rows.map(function(r){
+    /* 等级：起始 → 现在，下面跟变化级数 */
+    let lvTxt = '<span class="day-delta flat">—</span>';
+    if(r.hasLv && r.lvGain !== 0){
+      const tag = r.polar ? '<span class="day-tag">当天极化</span>' : '';
+      lvTxt = '<span class="day-lv"><b>Lv ' + r.lvFrom + '</b><i>→</i><b>Lv ' + r.lvTo + '</b>' + tag + '</span>' +
+              '<span class="day-delta ' + (r.lvGain > 0 ? 'up' : 'down') + '">' + signedNum(r.lvGain, ' 级') + '</span>';
+    }else if(r.polar){
+      const from = r.polarFrom !== null ? r.polarFrom : '?';
+      const to = r.polarLv !== null ? r.polarLv : ((rowOf(r.no) || {}).lv || '?');
+      lvTxt = '<span class="day-lv"><b>Lv ' + from + '</b><i>→</i><b>极 Lv ' + to + '</b></span>' +
+              '<span class="day-tag">极化 · 重新计级</span>';
+    }
+
+    /* 经验 */
+    let expTxt = '<span class="day-delta flat">—</span>';
+    if(r.hasExp){
+      expTxt = '<span class="day-delta ' + (r.expGain > 0 ? 'up' : (r.expGain < 0 ? 'down' : 'flat')) + '" title="' +
+        esc(expUnit(r.no)) + '">' + signedNum(r.expGain) + '</span>';
+    }
+
+    /* 乱舞：等级变化 + 进度 */
+    let rbTxt = '<span class="day-delta flat">—</span>';
+    if(r.hasRb && r.rbFrom && r.rbTo){
+      const a = r.rbFrom, b = r.rbTo;
+      const ar = a.r === null ? '?' : a.r, br = b.r === null ? '?' : b.r;
+      const head = (ar === br) ? ('乱舞 ' + br) : ('乱舞 ' + ar + ' → ' + br);
+      const rpA = (a.rp === null || a.rp === undefined) ? '?' : a.rp;
+      const rpB = (b.rp === null || b.rp === undefined) ? '?' : b.rp;
+      /* 老日志没存本级需求，用这振的花数回算 */
+      const fl = (rowOf(r.no) || {}).fl || 0;
+      const needOf = function(rv, stored){
+        if(stored) return stored;
+        const rr = Number(rv);
+        return (rr ? (ranbuNeed(fl, rr) || '?') : '?');
+      };
+      const sub = (br !== '?' && Number(br) >= 10) ? 'MAX'
+        : (rpA + '/' + needOf(ar, a.n) + ' → ' + rpB + '/' + needOf(br, b.n));
+      rbTxt = '<span class="day-rb">' + head + '<em>' + sub + '</em></span>';
+    }
+
+    /* 这一条一共拿到几振 */
+    const gainTxt = r.rbGain
+      ? '<span class="day-delta up">' + signedNum(r.rbGain, ' 振') + '</span>'
+      : '<span class="day-delta flat">—</span>';
+
+    return '<tr><td>' + dayNameCell(r) + '</td>' +
+      '<td data-l="等级"><div class="day-cell">' + lvTxt + '</div></td>' +
+      '<td data-l="经验增长"><div class="day-cell">' + expTxt + '</div></td>' +
+      '<td data-l="乱舞变化" class="dt-rb"><div class="day-cell day-cell-l">' + rbTxt + '</div></td>' +
+      '<td data-l="获得振数"><div class="day-cell">' + gainTxt + '</div></td></tr>';
+  }).join('');
+
+  /* 分页：每天可能几十振，一页 10 振 */
+  if(pager){
+    if(pages <= 1){ pager.innerHTML = ''; return; }
+    const btns = [];
+    btns.push('<button data-page="' + (ui.dayPage - 1) + '"' + (ui.dayPage <= 1 ? ' disabled' : '') + '>‹ 上一页</button>');
+    let from = Math.max(1, ui.dayPage - 2), to = Math.min(pages, from + 4);
+    from = Math.max(1, to - 4);
+    if(from > 1) btns.push('<button data-page="1">1</button>' + (from > 2 ? '<span class="pg-info">…</span>' : ''));
+    for(let i = from; i <= to; i++){
+      btns.push('<button data-page="' + i + '" class="' + (i === ui.dayPage ? 'on' : '') + '">' + i + '</button>');
+    }
+    if(to < pages) btns.push((to < pages - 1 ? '<span class="pg-info">…</span>' : '') + '<button data-page="' + pages + '">' + pages + '</button>');
+    btns.push('<button data-page="' + (ui.dayPage + 1) + '"' + (ui.dayPage >= pages ? ' disabled' : '') + '>下一页 ›</button>');
+    btns.push('<span class="pg-info">第 ' + ui.dayPage + ' / ' + pages + ' 页 · 每页 ' + DAY_PER + ' 振</span>');
+    pager.innerHTML = btns.join('');
+    Array.prototype.forEach.call(pager.querySelectorAll('button[data-page]'), function(b){
+      b.onclick = function(){
+        const pg = Number(b.dataset.page);
+        if(!pg || pg === ui.dayPage || pg < 1 || pg > pages) return;
+        ui.dayPage = pg;
+        renderDaily();
+      };
+    });
   }
 }
 
@@ -7067,6 +7097,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.45 每日统计：等级和经验并成一张表，列表分页',
+     '<p>以前「刀剑等级」和「经验 / 乱舞增长」是上下两张表，同一振要来回对。现在合成<b>一张「当天变化」表</b>：一把刀一行，从左到右依次是<b>等级（起始 → 现在 + 变化几级）、经验增长、乱舞变化、获得振数</b>，哪项没变就显示「—」。</p>' +
+     '<p>名称右边那个 <b>×2</b> 小标去掉了（它原来表示「当天记录了几条」，容易和振数看混）；同一天多次变动照样合并累计，喂刀跨等级也能算对。</p>' +
+     '<p>列表<b>每页 10 振</b>，底部可以翻页；换日期、点「今天」都会回到第 1 页。</p>',
+     '2026.11'],
     ['V2.44 侧栏底部不再被切掉：菜单可以上下滚动',
      '<p>手机上打开侧栏时，底部的<b>存储用量</b>和<b>云同步状态</b>以前会被屏幕边缘切掉，看不到也点不到。</p>' +
      '<p>现在侧栏整栏可以上下滑动：内容超过一屏时手指往里滑就行，滑到底能完整看到「数据仅保存在本机浏览器 · 已用 …」和「☁ 云同步」；iPhone 的底部安全区也留出来了，不会被系统手势条压住。</p>' +
@@ -7509,12 +7544,13 @@ function initEvents(){
   const dayDate = $('#dayDate');
   if(dayDate) dayDate.onchange = function(){
     ui.day = this.value || fmtDate(new Date());
+    ui.dayPage = 1;
     renderDaily();
   };
   const dayPrev = $('#btnDayPrev'); if(dayPrev) dayPrev.onclick = function(){ dayShift(-1); };
   const dayNext = $('#btnDayNext'); if(dayNext) dayNext.onclick = function(){ dayShift(1); };
   const dayToday = $('#btnDayToday'); if(dayToday) dayToday.onclick = function(){
-    ui.day = fmtDate(new Date()); renderDaily();
+    ui.day = fmtDate(new Date()); ui.dayPage = 1; renderDaily();
   };
 
   $('#btnAddRes').onclick = addRes;
