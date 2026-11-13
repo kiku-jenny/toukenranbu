@@ -1305,7 +1305,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.47</div>
+        <div class="brand-sub">HONMARU KEEPER V2.48</div>
       </div>
     </div>
 
@@ -2085,6 +2085,11 @@ function expShown(v){
   if(Number(v.k) === 1) return cumExp(v.type, clampNum(v.lv, 1, 199, 1), v.fl);
   return puCum(clampNum(v.lv, 1, 99, 1));
 }
+/* 普刀距极 Lv199 还差多少：口径和卡片小条、换算弹窗完全一致
+   （总量 puMaxTotal − 当前普刀累计 expShown），别再让卡片摆总量、小条摆剩余 */
+function puLeftExp(v){
+  return Math.max(0, puMaxTotal(v.type, v.fl) - expShown(v));
+}
 /* 经验栏的悬停说明：普刀那栏是普刀累计（含门槛），提示里给出折算后的极化经验和到极199 的总量 */
 function expTitle(v){
   const k1 = Number(v.k) === 1;
@@ -2184,12 +2189,17 @@ function estHTML(type, exp, fl, opt){
 
   const unsure = k === 0 && String(type) === '打刀' && !(Number(fl) > 0);
   if(unsure) tip += '（花数未设，暂按 3 花打算；2 花打请先选花数）';
+  /* 普刀的「还差」只读时已经摆在卡片那一行（距极199），小条这里只讲折算等级；
+     编辑态卡片没有那一行，还差留在这里，改等级 / 经验时能立刻看到 */
+  const leftBit = (k === 1 || opt.editable)
+    ? '<i class="kw-left' + (left ? '' : ' done') + '">' +
+        (left ? '还差 ' + fmtNum(left) : '已达 Lv199') + '</i>'
+    : '';
   return '<div class="kw-pre" data-pre="1" title="' + esc(tip) + '">' +
          '<span>' + head + '</span><b>Lv ' + lv + '</b>' +
          (opt.editable && opt.no ? '<button class="kw-swap" data-act="expcalc" data-no="' + opt.no +
            '" title="打开换算：填等级看所需经验，填经验定等级">⇄</button>' : '') +
-         '<i class="kw-left' + (left ? '' : ' done') + '">' +
-           (left ? '还差 ' + fmtNum(left) : '已达 Lv199') + '</i>' +
+         leftBit +
          '</div>';
 }
 
@@ -3277,7 +3287,8 @@ function cardHTML(x){
         '<span>等级</span><b>Lv '+v.lv+'</b>' +
         (v.k===1
           ? '<span>极化经验</span><b class="ro-exp" title="'+esc(expTitle(v))+'">'+fmtNum(expShown(v))+'</b>'
-          : '<span>到极199</span><b class="ro-exp" title="'+esc(puTotalTitle(v))+'">'+fmtNum(puMaxTotal(v.type, v.fl))+'</b>') +
+          : '<span title="'+esc(puTotalTitle(v))+'">距极199</span><b class="ro-exp" title="'+esc(puTotalTitle(v))+'">'+
+              (puLeftExp(v) ? fmtNum(puLeftExp(v)) : '已满')+'</b>') +
         '<span>获取方式</span><b class="ro-src" title="'+esc(srcTxt)+'">'+(srcTxt?esc(srcTxt):'—')+'</b>' +
       '</div>' +
       (showEst ? estHTML(v.type, v.exp, v.fl, {k:v.k, lv:v.lv}) : '') +
@@ -7166,6 +7177,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.48 普刀「到极199」改成「距极199」，卡片和小条不再两个数',
+     '<p>以前普刀卡片那行摆的是<b>总量</b>（短刀 160,056,086），下面小条摆的是<b>还差</b>（159,999,286），Lv25 时正好差一个 56,800 的当前累计，看着像两个数打架。</p>' +
+     '<p>现在卡片那行改成 <b>距极199</b>，只显示还差多少，和换算弹窗、编辑时的小条完全同一个口径；小条只留「折算等级 Lv xx」，不再重复还差。总量（太刀 185,882,300 等）挪到悬停里，点一下仍能看到「共需 = 门槛 + 极化条」的拆分。</p>' +
+     '<p>已经攒满的普刀显示「已满」，不再是一串 0。</p>',
+     '2026.11'],
     ['V2.47 等级筛选与排序改按「折算极等级」，普刀不再拿 99 去比极 120',
      '<p><b>筛选</b>：「100 及以上 / 100 以下」现在按<b>折算后的极等级</b>算：已极化看极化等级；普刀按经验扣掉极化门槛（短 60 / 胁·枪·薙 65 / 打 70 / 太 75 / 大太 80）再折算，所以「普 99 攒满、极化后是极 199」的刀会出现在「极 100 及以上」里。经验没填的普刀，按当前等级的最低累计折算，不当 0 算。</p>' +
      '<p><b>排序</b>：「等级由高到低 / 由低到高」也按折算极等级排，同级再按折算经验高低；「经验由高到低」统一成<b>折算后的极化经验</b>（普刀先扣门槛），不再出现普刀 190 万排到极刀几千万前面的情况。</p>' +
