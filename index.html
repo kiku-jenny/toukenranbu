@@ -1323,7 +1323,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.52</div>
+        <div class="brand-sub">HONMARU KEEPER V2.53</div>
       </div>
     </div>
 
@@ -1476,7 +1476,7 @@
         <span class="filter-label">等级</span>
         <div class="chips" id="levelFilters">
           <button class="chip active" data-lv="">全部</button>
-          <button class="chip" data-lv="ge100" title="按极化等级算：已极化看极化等级，普刀按经验换算（普 Lv99 换算下来只有 30 多级）">极 100 及以上</button>
+          <button class="chip" data-lv="ge100" title="按极化等级算：已极化看极化等级，普刀按经验加上门槛后查极化条">极 100 及以上</button>
           <button class="chip" data-lv="lt100" title="极化等级不到 100，含还没极化、经验还没攒够门槛的普刀">极 100 以下</button>
         </div>
       </div>
@@ -1861,11 +1861,11 @@ const WEEK = ['周一','周二','周三','周四','周五','周六','周日'];
    普刀用的是另一条完全不同的条（1–99，Lv99 累计 1,927,800 = 192.78 万），见下面的 PU_CUM。
    同一个等级，极化刀要的经验是普刀的上百倍——两条**绝不能混用**：
      · 极化刀：经验直接查这张极化表（不扣门槛）
-     · 普刀：普刀累计经验 − 极化门槛（短 60 / 胁·枪·薙 65 / 打 70 / 太 75 / 大太 80
+     · 普刀：普刀累计经验 + 极化门槛（短 60 / 胁·枪·薙 65 / 打 70 / 太 75 / 大太 80
        那一段的普刀累计）→ 这个差值就是普刀经验栏**存和显示**的值，
        再查这张表才是「极化后等级」（V2.37 起不再显示折算前的普刀累计）
    表里另一页「普通」= 这张表 + 门槛（逐级核对到 Lv199 完全吻合），
-   所以普 99（1,927,800）扣掉门槛只剩 100 多万，折算只有 30 多级。
+   普刀每一级的经验条 = 极化条该级 + 门槛，所以查等级时直接加门槛。
    剑：普刀、极化都照大太刀算。
    ========================================================= */
 const POLAR_TABLE = {
@@ -1987,7 +1987,7 @@ const POLAR_TABLE = {
 /* 普刀（未极化）1–99 的累计经验条，取自「等级计算表」第二页 C 列「初」。
    满级 Lv99 只有 1,927,800，跟极化经验条完全不是一个量级（极 Lv99 要 6,200 万～9,300 万）。
    极化时游戏会扣掉门槛等级（短 60 / 胁·枪·薙 65 / 打 70 / 太 75 / 大太 80）那一段的普刀经验，
-   剩下的才带进极化经验条，所以「普 99」折算到极化后只有 30 多级。 */
+   查极化等级时用「普刀经验 + 门槛」去查极化条。 */
 const PU_CUM = [0,100,300,700,1300,2100,3100,4300,5700,7300,9100,11100,13300,15700,18300,21100,24100,27300,30700,34300,38200,42400,46900,51700,56800,62200,67900,73900,80200,86800,93700,100900,108400,116200,124300,132700,141400,150400,159700,169300,179300,189700,200500,211700,223300,235300,247700,260500,273700,287300,301300,315700,330500,345700,361300,377300,393700,410500,427700,445300,463400,482000,501100,520700,540800,561400,582500,604100,626200,648800,672000,695800,720200,745200,770800,797000,823800,851200,879200,907800,937200,967400,998400,1030200,1062800,1096200,1130400,1165400,1201200,1237800,1277800,1327800,1387800,1457800,1537800,1627800,1727800,1827800,1927800];
 const PU_MAX = 1927800;                    /* 普刀 Lv99 的累计经验 */
 function puCum(lv){
@@ -2054,12 +2054,12 @@ function cumExp(type, lv, fl){
    （旧表里 1.6 / 1.61 这类「亿」占位值由 fixLegacyExp 转成真实数字后再走这里。） */
 const EXP_MIN_VALID = 1;
 function expIsSet(v){ return Number(v) >= EXP_MIN_VALID; }
-/* 普刀累计经验 − 极化门槛 → 折算极化后的等级（1–199） */
+/* 普刀累计经验 + 极化门槛 → 极化经验条上的值，再查等级（1–199） */
 function kiwameLv(type, exp, fl){
   const m = expProfile(type, fl);
   if(!m) return null;                       // 没有经验条配置的刀种不估算
-  const after = Math.max(0, Number(exp) || 0) - m.ded;
-  return {lv: lvFromRawExp(type, Math.max(0, after), fl), after: Math.max(0, after), ded: m.ded, label: m.label};
+  const after = Math.max(0, Number(exp) || 0) + m.ded;
+  return {lv: lvFromRawExp(type, after, fl), after: after, ded: m.ded, label: m.label};
 }
 /* 极化满级（Lv199）需要的**极化**经验（极刀栏就是填这个） */
 function expMaxTotal(type, fl){
@@ -2103,14 +2103,11 @@ function expShown(v){
   if(Number(v.k) === 1) return cumExp(v.type, clampNum(v.lv, 1, 199, 1), v.fl);
   return puCum(clampNum(v.lv, 1, 99, 1));
 }
-/* 普刀已经走完的进度 = 门槛 + 已极化经验条。
-   普刀累计低于门槛时，极化条上还是 0，进度按门槛封底（门槛以下那段进不了极化条，
-   不能拿去抵扣总量，否则 Lv25 这种会把剩余算小一截）。
-   距极 Lv199 = (极化条 Lv199 + 门槛) − 已达 */
+/* 普刀已经走完的进度 = 普刀经验 + 门槛（就是它在极化条上的位置） */
 function puDoneExp(v){
   const m = expProfile(v.type, v.fl);
   const ded = m ? m.ded : 0;
-  return Math.max(expShown(v), ded);
+  return expShown(v) + ded;
 }
 function puLeftExp(v){
   return Math.max(0, puMaxTotal(v.type, v.fl) - puDoneExp(v));
@@ -2126,15 +2123,13 @@ function expTitle(v){
     return (set ? '极化经验 ' + fmtNum(val) : '未填极化经验，按 Lv' + v.lv + ' 的最低值 ' + fmtNum(val)) +
            '（极化经验条，不含门槛 ' + fmtNum(ded) + '）';
   }
-  const at = Math.max(0, val - ded);
-  /* 低于门槛时说清楚还差多少才进门槛，别只显示「= 0 极化经验」让人以为没算 */
-  const below = val < ded
-    ? '（还没到门槛，还差 ' + fmtNum(ded - val) + ' 才进极化条）'
-    : '';
-  return (set ? '普刀累计经验 ' + fmtNum(val) : '未填经验，按普刀 Lv' + v.lv + ' 的最低累计 ' + fmtNum(val)) +
-         ' − 门槛 ' + fmtNum(ded) + '（' + (POL_LV[v.type] || '?') + ' 级那段）= 极化经验 ' + fmtNum(at) + below +
-         '，极化等级 Lv ' + lvFromRawExp(v.type, at, v.fl) +
-         '；普刀攒到极 Lv199 共需 ' + fmtNum(puMaxTotal(v.type, v.fl)) + '（门槛 + 极化条 Lv199）';
+  const at = val + ded;
+  const left = Math.max(0, puMaxTotal(v.type, v.fl) - at);
+  return (set ? '普刀累计 ' + fmtNum(val) : '未填，按普刀 Lv' + v.lv + ' 的最低累计 ' + fmtNum(val)) +
+         ' + ' + fmtNum(ded) + ' = 极化经验 ' + fmtNum(at) +
+         ' · 极化等级 Lv ' + lvFromRawExp(v.type, at, v.fl) +
+         '；到极 Lv199 共需 ' + fmtNum(puMaxTotal(v.type, v.fl)) +
+         (left ? '，还差 ' + fmtNum(left) : '，已满');
 }
 /* 普刀卡片上只摆「到极 Lv199 共需」这一个经验数，折算细节放悬停里 */
 function puTotalTitle(v){
@@ -2144,19 +2139,14 @@ function puTotalTitle(v){
   const cur = expShown(v);
   const done = puDoneExp(v);
   const left = Math.max(0, capPu - done);
-  const at = Math.max(0, done - m.ded);        /* 已极化经验条 */
-  /* 算式全摊开：距极199 =（极化条 Lv199 + 门槛）−（门槛 + 已极化经验条） */
-  return '距极199 = 极化条 Lv199 ' + fmtNum(capPu - m.ded) + ' + 门槛 ' + fmtNum(m.ded) +
-         ' = ' + fmtNum(capPu) + '，− 已达（门槛 ' + fmtNum(m.ded) + ' + 极化经验 ' + fmtNum(at) + ' = ' +
-         fmtNum(done) + '）' +
-         (cur < m.ded
-           ? '（普刀累计 ' + fmtNum(cur) + ' 还没到门槛，门槛以下不计进度）'
-           : (expIsSet(v.exp) ? '' : '（未填经验，按 Lv' + v.lv + ' 的最低累计估）')) +
+  return '距极199 = 到极 Lv199 共需 ' + fmtNum(capPu) + ' − 已达 ' + fmtNum(done) +
+         '（普刀累计 ' + fmtNum(cur) + ' + ' + fmtNum(m.ded) + '）' +
+         (expIsSet(v.exp) ? '' : '（未填经验，按 Lv' + v.lv + ' 的最低累计估）') +
          ' = ' + (left ? fmtNum(left) : '0（已满）');
 }
 /* 卡片小条。两条经验条各用各的：
    已极化 → 直接查极化经验条（不扣门槛），距 Lv199 就是极化条的差值
-   普刀   → 经验栏是普刀累计，先减门槛再查极化条得折算等级；
+   普刀   → 经验栏是普刀累计，加上门槛再查极化条得极化等级；
             到极 Lv199 的总量 = 门槛 + 极化条 Lv199（太刀 185,882,300），
             所以「普刀累计 + 距 Lv199 还需」正好等于这个总量，能直接相加验算 */
 function estHTML(type, exp, fl, opt){
@@ -2192,28 +2182,18 @@ function estHTML(type, exp, fl, opt){
     head = '极化等级';
   }else{
     cap = cumExp(type, 199, fl);          /* 极化条 Lv199 */
-    /* 普刀经验栏存的是普刀自己的累计（含门槛），和表里「普通」页一致：
-       减掉门槛那段进极化条查等级；到极 Lv199 的总量 = 门槛 + 极化条 Lv199。 */
-    const capPu = cap + m.ded;            /* 普刀攒到极 Lv199 共需（太刀 185,882,300） */
+    const capPu = cap + m.ded;            /* 到极 Lv199 总经验 */
     const baseCum = puCum(lvIn);
     const cum = hasExp ? Math.max(0, Number(exp) || 0) : baseCum;   /* 普刀累计，可含满级后溢出 */
-    at = Math.max(0, cum - m.ded);        /* 扣除门槛后带进极化条的部分 */
-    lv = lvFromRawExp(type, at, fl);      /* 折算到极化后的等级 */
-    left = Math.max(0, capPu - Math.max(cum, m.ded));   /* 门槛以下不计进度，和卡片一致 */
-    const sum = '普刀 Lv ' + lvIn + ' · 普刀累计 ' + fmtNum(cum) +
-                ' − 门槛 ' + fmtNum(m.ded) + '（' + POL_LV[type] + ' 级那段）= ' + fmtNum(at) +
-                ' 极化经验' + (hasExp ? '' : '（未填，按该等级最低累计算）');
-    if(at <= 0){
-      tip = sum + '，还没到门槛，极化后从 Lv1 开始；普刀攒到极 Lv199 共需 ' +
-            fmtNum(capPu) + '（门槛 ' + fmtNum(m.ded) + ' + 极化条 ' + fmtNum(cap) + '）';
-    }else if(at >= cap){
-      tip = sum + '，已超过极化 Lv199 所需的 ' + fmtNum(cap) + '，按 Lv199 算' +
-            '（多出 ' + fmtNum(at - cap) + '，满级后攒的经验不再累计等级）';
+    at = cum + m.ded;                     /* 普刀经验 + 门槛 = 极化经验条上的值 */
+    lv = lvFromRawExp(type, at, fl);
+    left = Math.max(0, capPu - at);
+    const sum = '普刀累计 ' + fmtNum(cum) + ' + ' + fmtNum(m.ded) + ' = 极化经验 ' + fmtNum(at) +
+                (hasExp ? '' : '（未填，按 Lv' + lvIn + ' 的最低累计算）');
+    if(at >= cap){
+      tip = sum + ' → 极化等级 Lv199（已超出 ' + fmtNum(cap) + '，多出 ' + fmtNum(at - cap) + '）';
     }else{
-      tip = sum + ' → 极化等级 Lv ' + lv +
-            '（该等级极化条 ' + fmtNum(cumExp(type, lv, fl)) + '）' +
-            '；普刀攒到极 Lv199 共需 ' + fmtNum(capPu) + '（门槛 ' + fmtNum(m.ded) +
-            ' + 极化条 ' + fmtNum(cap) + '），还差 ' + fmtNum(left);
+      tip = sum + ' → 极化等级 Lv ' + lv + '；到极 Lv199 共需 ' + fmtNum(capPu) + '，还差 ' + fmtNum(left);
     }
     if(hasExp && Number(exp) < baseCum){
       tip += '（填的 ' + fmtNum(exp) + ' 比 Lv' + lvIn + ' 的最低累计 ' + fmtNum(baseCum) +
@@ -2279,10 +2259,8 @@ function openExpCalc(no){
     sub: draft.type + flTxt + ' · ' + barName(m) + (m.sameAs ? '，剑与大太刀共用' : '') + (isK
       ? '（Lv199 共 ' + fmtNum(cap) + '）' +
         ' · 已极化：这里的经验是极化后的那条，不扣门槛 ' + fmtNum(m.ded) + '；填经验会同时把等级改成经验对应值'
-      : '（到极 Lv199 共 <b>' + fmtNum(cap + m.ded) + '</b> = 极化经验条 Lv199 ' + fmtNum(cap) +
-        ' + 门槛 ' + fmtNum(m.ded) + '）' +
-        ' · 普刀：这栏填<b>普刀自己的累计经验</b>（Lv99 = ' + fmtNum(PU_MAX) + '，满级后可继续攒）；' +
-        '门槛以下那段进不了极化条，不计入进度'),
+      : '（Lv199 共 <b>' + fmtNum(cap + m.ded) + '</b>）' +
+        ' · 普刀：这栏填<b>普刀自己的累计经验</b>（Lv99 = ' + fmtNum(PU_MAX) + '，满级后可继续攒）'),
     body:'<div class="add-grid">' +
         '<label class="fld full"><span>' + (isK ? '极化后等级（1–199）' : '普刀等级（1–99）') + '</span>' +
           '<input type="number" id="ecLv" min="1" max="' + (isK ? 199 : 99) + '" step="1" value="' + lv0 + '"></label>' +
@@ -2299,8 +2277,7 @@ function openExpCalc(no){
         closeModal();
         toast(isK ? '已填成 Lv ' + lv + ' · 极化经验 ' + fmtNum(v)
                   : '已填成普刀 Lv ' + lv + ' · 累计 ' + fmtNum(v) + '，极化等级 Lv ' +
-                    lvFromRawExp(draft.type, Math.max(0, v - m.ded), draft.fl) +
-                    '；到极 Lv199 总经验 ' + fmtNum(cap + m.ded));
+                    lvFromRawExp(draft.type, v + m.ded, draft.fl));
       }}
     ]
   });
@@ -2315,17 +2292,14 @@ function openExpCalc(no){
   }
   function puTip(v){
     const capPu = cap + m.ded;
-    const at = Math.max(0, v - m.ded);
+    const at = v + m.ded;                 /* 极化经验 = 普刀累计 + 门槛 */
     const kl = lvFromRawExp(draft.type, at, draft.fl);
     const pl = puLvFromCum(v);
-    const done = Math.max(v, m.ded);      /* 已达 = 门槛 + 极化经验条，门槛以下不计 */
-    const left = Math.max(0, capPu - done);
-    return '到极 Lv199 总经验 <b>' + fmtNum(capPu) + '</b>（极化经验条 Lv199 <b>' + fmtNum(cap) +
-      '</b> + 门槛 <b>' + fmtNum(m.ded) + '</b>）；已达 <b>' + fmtNum(done) + '</b>（门槛 ' +
-      fmtNum(m.ded) + ' + 极化经验 <b>' + fmtNum(at) + '</b>' +
-      (v < m.ded ? '，普刀累计 ' + fmtNum(v) + ' 还没到门槛，门槛以下不计进度' : '') + '），' +
-      (left ? '还差 <b>' + fmtNum(left) + '</b>' : '已够，多出 <b>' + fmtNum(done - capPu) + '</b>') +
-      '。极化等级 <b>Lv ' + kl + '</b> · 普刀 <b>Lv ' + pl + '</b>';
+    const left = Math.max(0, capPu - at);
+    return '普刀累计 <b>' + fmtNum(v) + '</b> + ' + fmtNum(m.ded) + ' = 极化经验 <b>' + fmtNum(at) +
+      '</b> → 极化等级 <b>Lv ' + kl + '</b> · 普刀 <b>Lv ' + pl + '</b>' +
+      (left ? '；到极 Lv199 共需 <b>' + fmtNum(capPu) + '</b>，还差 <b>' + fmtNum(left) + '</b>'
+            : '；已达极 Lv199（共 ' + fmtNum(capPu) + '），多出 <b>' + fmtNum(at - capPu) + '</b>');
   }
   lvEl.oninput = function(){
     if(lvEl.value === '') return;
@@ -3103,7 +3077,7 @@ function isOpen(no){
 /* 普刀和极刀放在同一把尺子上：都折算成「极化后」的等级 / 经验再看。
    极刀本来就在极化经验条上，用自己的经验（填了）或等级；
    普刀的经验栏是普刀累计（含门槛），极化时门槛那段会被扣掉，
-   所以先减 ded 再查极化条 —— 普 Lv99 折算下来只有 30 多级，别拿 99 当 99 级极化看。 */
+   查极化等级时直接加 ded 再查极化条。 */
 function polarLvOf(x){
   if(!x) return 1;
   if(Number(x.k) === 1){
@@ -3113,8 +3087,8 @@ function polarLvOf(x){
   const m = expProfile(x.type, x.fl);
   if(!m) return clampNum(x.lv, 1, 99, 1);
   const e = expIsSet(x.exp) ? Math.max(0, Number(x.exp) || 0) : puCum(clampNum(x.lv, 1, 99, 1));
-  const after = Math.max(0, e - m.ded);
-  return after ? lvFromRawExp(x.type, after, x.fl) : 1;
+  /* 普刀每一级的经验条 = 极化条 + 门槛：普刀经验直接加上门槛再查极化条 */
+  return lvFromRawExp(x.type, e + m.ded, x.fl);
 }
 function polarExpOf(x){
   if(!x) return 0;
@@ -3125,7 +3099,7 @@ function polarExpOf(x){
                            : cumExp(x.type, clampNum(x.lv, 1, 199, 1), x.fl);
   }
   const e = expIsSet(x.exp) ? Math.max(0, Number(x.exp) || 0) : puCum(clampNum(x.lv, 1, 99, 1));
-  return Math.max(0, e - m.ded);          /* 扣掉门槛，和极刀的经验同口径 */
+  return e + m.ded;                       /* 普刀经验 + 门槛 = 极化经验条上的值 */
 }
 function filteredRows(){
   const d = curData();
@@ -4135,9 +4109,9 @@ function bindGrid(){
       if(Number(lvInp.value) > capLv){ lvInp.value = capLv; draft.lv = capLv; }
       const expInp = card.querySelector('input[data-f="exp"]');
       /* 两栏口径不同，切换时经验值要跟着换算：
-         普 → 极：普刀累计 − 门槛 = 极化经验（普 99 太刀 1,927,800 → 1,157,000）
-         极 → 普：极化经验 + 门槛 = 普刀累计
-         极态没动过经验时，直接还原切换前的普刀累计，避免门槛前那一段来回掉级。 */
+         普 → 极：普刀累计 + 门槛 = 极化经验（普 99 太刀 1,927,800 → 2,698,600）
+         极 → 普：极化经验 − 门槛 = 普刀累计
+         极态没动过经验时，直接还原切换前的普刀累计。 */
       if(prevK !== draft.k){
         const pm = expProfile(draft.type, draft.fl);
         const ded = pm ? pm.ded : 0;
@@ -4146,13 +4120,13 @@ function bindGrid(){
           const puExp = curExp >= 0 ? curExp : puCum(clampNum(draft.lv, 1, 99, 1));
           draft._puExp = puExp;
           draft._puLv = clampNum(draft.lv, 1, 99, 1);
-          draft.exp = Math.max(0, puExp - ded);
+          draft.exp = puExp + ded;
           draft.lv = lvFromRawExp(draft.type, draft.exp, draft.fl);
         }else{
           const unchanged = curExp >= 0 && draft._puExp !== undefined &&
-                            curExp === Math.max(0, draft._puExp - ded);
+                            curExp === draft._puExp + ded;
           draft.exp = unchanged ? draft._puExp
-                                : (curExp >= 0 ? curExp + ded
+                                : (curExp >= 0 ? Math.max(0, curExp - ded)
                                                : puCum(clampNum(draft._puLv || draft.lv, 1, 99, 1)));
           draft.lv = puLvFromCum(draft.exp);
           delete draft._puExp;
@@ -7291,13 +7265,17 @@ function closeModal(){
 
 function openNotice(){
   const items = [
-    ['V2.52 普刀「到极 Lv199」一律按「极化经验条 + 门槛」算，门槛以下的经验不再抵扣',
-     '<p>普刀的到极 Lv199 总经验 = <b>极化经验条 Lv199 + 门槛</b>：太刀 185,882,300、大太刀 / 剑 192,374,702、' +
-     '三花打 179,373,257、二花打 173,002,032、胁差·枪·薙 166,522,811、短刀 160,056,086。换算弹窗标题、读数、卡片悬停现在都是这个数，不再出现「Lv199 共 172,353,232」这种只有极化条、没有门槛的写法。</p>' +
-     '<p>已达进度 = <b>门槛 + 极化经验条</b>。普刀累计低于门槛时，门槛以下那段进不了极化条、不计入进度，' +
-     '所以五虎退 Lv25（累计 56,800）的「距极199」是 <b>159,610,786</b>（极化条全量），不会再被那 56,800 抵成 159,599,286 这种对不上的数。' +
-     '过门槛的照旧抵：童子切 Lv99（1,927,800）= 185,882,300 − 1,927,800 = 183,954,500。</p>' +
-     '<p>卡片、编辑态小条、换算弹窗三处用的是同一个函数，数字不会再打架。</p>',
+    ['V2.53 普刀查极化等级直接加门槛（普刀每级经验条 = 极化经验条 + 门槛）',
+     '<p>普刀那一栏填的还是普刀累计经验，换成极化等级时<b>直接加上门槛值</b>再查极化条，不再先减：' +
+     '童子切安綱 太刀 Lv99（1,927,800）+ 770,800 = 2,698,600 → <b>极化 Lv37</b>；' +
+     '五虎退 短刀 Lv25（56,800）+ 445,300 = 502,100 → <b>极化 Lv32</b>。</p>' +
+     '<p>距极199 也跟着走这条：到极 Lv199 共需（太刀 185,882,300）− 已达（普刀经验 + 门槛）。' +
+     '界面上的门槛说明都去掉了，卡片、小条、⇄ 换算弹窗只给极化经验和等级。</p>' +
+     '<p>图鉴的等级筛选 / 排序、每日统计里的极化等级升级，用的都是这一个换算。</p>',
+     '2026.11'],
+    ['V2.52 普刀「到极 Lv199」总量 = 极化经验条 + 门槛',
+     '<p>换算弹窗里原来只写极化条（打刀 2 花 172,353,232），现在写含门槛的总量 <b>173,002,032</b>，' +
+     '和卡片、小条同一个数。</p>',
      '2026.11'],
     ['V2.51 普刀「距极199」算式摊开，经验没到门槛时写清还差多少',
      '<p>普刀的「距极199」一直是 <b>门槛 + 极化条 Lv199 − 已达</b>：已达低于门槛也照减，不会漏掉门槛那截。之前悬停只报总数，容易和「极化条 Lv199」混，现在直接写算式，例如 <b>648,800 + 172,353,232 = 173,002,032，− 已达 300,000 = 172,702,032</b>。</p>' +
