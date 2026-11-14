@@ -1323,7 +1323,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.50</div>
+        <div class="brand-sub">HONMARU KEEPER V2.51</div>
       </div>
     </div>
 
@@ -2120,8 +2120,12 @@ function expTitle(v){
            '（极化经验条，不含门槛 ' + fmtNum(ded) + '）';
   }
   const at = Math.max(0, val - ded);
+  /* 低于门槛时说清楚还差多少才进门槛，别只显示「= 0 极化经验」让人以为没算 */
+  const below = val < ded
+    ? '（还没到门槛，还差 ' + fmtNum(ded - val) + ' 才进极化条）'
+    : '';
   return (set ? '普刀累计经验 ' + fmtNum(val) : '未填经验，按普刀 Lv' + v.lv + ' 的最低累计 ' + fmtNum(val)) +
-         ' − 门槛 ' + fmtNum(ded) + '（' + (POL_LV[v.type] || '?') + ' 级那段）= 极化经验 ' + fmtNum(at) +
+         ' − 门槛 ' + fmtNum(ded) + '（' + (POL_LV[v.type] || '?') + ' 级那段）= 极化经验 ' + fmtNum(at) + below +
          '，极化等级 Lv ' + lvFromRawExp(v.type, at, v.fl) +
          '；普刀攒到极 Lv199 共需 ' + fmtNum(puMaxTotal(v.type, v.fl)) + '（门槛 + 极化条 Lv199）';
 }
@@ -2132,10 +2136,11 @@ function puTotalTitle(v){
   const capPu = puMaxTotal(v.type, v.fl);
   const cur = expShown(v);
   const left = Math.max(0, capPu - cur);
-  return '普刀攒到极 Lv199 共需 ' + fmtNum(capPu) + ' = 门槛 ' + fmtNum(m.ded) +
-         '（' + (POL_LV[v.type] || '?') + ' 级那段）+ 极化条 Lv199 ' + fmtNum(capPu - m.ded) +
-         '；当前普刀累计 ' + fmtNum(cur) + '，' +
-         (left ? '还差 ' + fmtNum(left) : '已经够了，极化后即 Lv199');
+  /* 算式全摊开：距极199 = 门槛 + 极化条 Lv199 − 已达（已达低于门槛也照减，不会漏掉门槛那截） */
+  return '距极199 = 门槛 ' + fmtNum(m.ded) + '（' + (POL_LV[v.type] || '?') + ' 级那段）+ 极化条 Lv199 ' +
+         fmtNum(capPu - m.ded) + ' = ' + fmtNum(capPu) + '，' +
+         '− 已达 ' + fmtNum(cur) + (expIsSet(v.exp) ? '' : '（未填经验，按 Lv' + v.lv + ' 的最低累计估）') +
+         ' = ' + (left ? fmtNum(left) : '0（已满）');
 }
 /* 卡片小条。两条经验条各用各的：
    已极化 → 直接查极化经验条（不扣门槛），距 Lv199 就是极化条的差值
@@ -2301,7 +2306,8 @@ function openExpCalc(no){
     const pl = puLvFromCum(v);
     const left = Math.max(0, capPu - v);
     return '普刀累计 <b>' + fmtNum(v) + '</b> − 门槛 <b>' + fmtNum(m.ded) + '</b> = <b>' + fmtNum(at) +
-      '</b> 极化经验 → 极化等级 <b>Lv ' + kl + '</b> · 普刀 <b>Lv ' + pl + '</b>' +
+      '</b> 极化经验' + (v < m.ded ? '（还没到门槛，还差 <b>' + fmtNum(m.ded - v) + '</b>）' : '') +
+      ' → 极化等级 <b>Lv ' + kl + '</b> · 普刀 <b>Lv ' + pl + '</b>' +
       (left ? '；到极 Lv199 共需 <b>' + fmtNum(capPu) + '</b>，还差 <b>' + fmtNum(left) + '</b>'
             : '；已达极 Lv199（共 ' + fmtNum(capPu) + '），多出 <b>' + fmtNum(v - capPu) + '</b>');
   }
@@ -7269,6 +7275,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.51 普刀「距极199」算式摊开，经验没到门槛时写清还差多少',
+     '<p>普刀的「距极199」一直是 <b>门槛 + 极化条 Lv199 − 已达</b>：已达低于门槛也照减，不会漏掉门槛那截。之前悬停只报总数，容易和「极化条 Lv199」混，现在直接写算式，例如 <b>648,800 + 172,353,232 = 173,002,032，− 已达 300,000 = 172,702,032</b>。</p>' +
+     '<p>经验低于门槛时（Lv25 这种），换算弹窗和悬停会补一句<b>「还没到门槛，还差 X」</b>，不会再只跳出一个「= 0 极化经验」让人以为算丢了。等级对应的最低累计（Lv25 = 56,800）仍照旧抵扣，毕竟极化前这段经验也算数。</p>',
+     '2026.11'],
     ['V2.50 每日统计标出普 / 极，普刀经验涨到极化等级也算升级',
      '<p>「等级 · 经验」表里，刀名旁边加了 <b>普 / 极</b> 标记。等级列对普刀写的是<b>极化等级</b>（普刀自己的等级放在下面一行小字）；当天只涨了经验、等级没动，也会把当前等级写出来，不再只摆一条「—」。</p>' +
      '<p>普刀经验涨到下一个极化等级时按<b>升级</b>算：显示「极 Lv 34 → Lv 36 · +2 级」，顶部「等级 +N 级」也跟着加。变动记录里会单独记一条 <b>「极化等级 Lv 34 → Lv 36」</b>，和「经验 1,800,000 → 2,600,000」并排，翻日志就知道是哪次喂刀升上去的。</p>' +
