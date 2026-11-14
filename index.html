@@ -1323,7 +1323,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.55</div>
+        <div class="brand-sub">HONMARU KEEPER V2.56</div>
       </div>
     </div>
 
@@ -4254,14 +4254,12 @@ function renderResources(){
   const asc = resAsc(d);
   const last = asc[asc.length-1] || null;
   const prev = asc.length > 1 ? asc[asc.length-2] : null;
-  const first = asc[0] || null;
 
   $('#resCount').textContent = '共 ' + asc.length + ' 条';
 
   $('#resStats').innerHTML = RES_ITEMS.map(function(it){
     const val = last ? (last.vals[it.key] || 0) : 0;
     const dPrev = prev ? val - (prev.vals[it.key] || 0) : null;
-    const dAll = (first && last && first !== last) ? val - (first.vals[it.key] || 0) : null;
     function cls(n){ return n > 0 ? 'up' : (n < 0 ? 'down' : 'flat'); }
     function txt(n){ return n > 0 ? '▲ +' + fmtNum(n) : (n < 0 ? '▼ -' + fmtNum(-n) : '— 0'); }
     return '<div class="res-card">' +
@@ -4269,7 +4267,6 @@ function renderResources(){
       '<div class="res-val">'+fmtNum(val)+'</div>' +
       '<div class="res-delta">' +
         '<span class="'+cls(dPrev||0)+'">较上次 ' + (dPrev === null ? '—' : txt(dPrev)) + '</span>' +
-        (dAll === null ? '' : '<span class="'+cls(dAll)+'">累计 ' + txt(dAll) + '</span>') +
       '</div>' +
     '</div>';
   }).join('');
@@ -7258,6 +7255,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.56 资源卡片去掉「累计」一行，只留「较上次」',
+     '<p>木炭、玉钢、冷却材、砥石、小判五张卡片下方原来并排两行：' +
+     '「较上次 ▲ +67,526」和「累计 ▲ +67,526」。现在只保留<b>较上次</b>，' +
+     '「累计」（第一条到最新一条的变化）不再显示；表格和周 / 月增长表都不受影响。</p>',
+     '2026.11'],
     ['V2.55 普刀「距极199」按「总经验 − 普刀累计」算，换算不再显示中间段',
      '<p>普刀还差多少直接是 <b>到极 Lv199 总经验 − 普刀累计</b>（填多少就减多少，不再按门槛分段）：' +
      '五虎退 Lv25（56,800）= 160,056,086 − 56,800 = <b>159,999,286</b>；' +
