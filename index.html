@@ -1372,7 +1372,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.61</div>
+        <div class="brand-sub">HONMARU KEEPER V2.62</div>
       </div>
     </div>
 
@@ -3558,6 +3558,7 @@ function startEdit(no){
 function cancelEdit(no){
   delete ui.edit[no];
   repaintCard(no);
+  focusCard(no);            // 取消也一样：卡片收回原尺寸后别把人甩出去
 }
 
 /* 编辑态里改经验/刀种/极化时，实时刷新「极化后预估」 */
@@ -7666,6 +7667,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.62 取消编辑也回到这一振',
+     '<p>「取消」和「保存」是一个毛病：卡片一收回去，页面变短就把人甩出画面。现在点「取消」也会把这一振整张摆回视口里，' +
+     '和保存后的定位规则一致（整张可见就不动，上沿 / 下沿被切才贴边对齐）。取消照旧不写数据、不记日志。</p>',
+     '2026.11'],
     ['V2.61 卡片保存后自动回到这一振',
      '<p>以前在卡片里改完点「保存」，卡片从编辑态收回原尺寸、页面一下变短，人就被甩到卡片外面，' +
      '得再往回滑才找得到刚才那振。现在保存后会把<b>这一振整张摆回视口里</b>（上沿或下沿被切就贴着边对齐），' +
