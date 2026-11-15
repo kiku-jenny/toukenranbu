@@ -748,6 +748,27 @@
   .res-edit-form .fld{margin-top:0;}
   .res-edit-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:9px;}
   @media (max-width:560px){ .res-edit-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
+  /* 批量设置拥有状态 */
+  .ob-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
+  .ob-tools .btn{padding:3px 10px;font-size:11px;}
+  .ob-cnt{margin-left:auto;font-size:10.5px;color:var(--sub);letter-spacing:.04em;}
+  .ob-cnt.none{color:var(--accent-deep);}
+  .ob-list{
+    max-height:46vh;overflow:auto;border:1px solid var(--line-soft);border-radius:12px;
+    background:var(--surface-2);padding:4px;
+  }
+  .ob-item{
+    display:flex;align-items:center;gap:7px;padding:5px 7px;border-radius:8px;
+    font-size:12px;color:var(--ink-2);cursor:pointer;
+  }
+  .ob-item:hover{background:var(--tint-a);}
+  .ob-item input{flex:0 0 auto;accent-color:var(--accent);margin:0;}
+  .ob-no{flex:0 0 auto;font-size:10px;color:var(--muted-2);font-variant-numeric:tabular-nums;}
+  .ob-name{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ob-k{font-style:normal;font-size:9px;margin-left:4px;padding:0 4px;border-radius:6px;background:var(--tint-a);color:var(--accent-deep);}
+  .ob-st{flex:0 0 auto;font-size:9.5px;padding:1px 6px;border-radius:8px;}
+  .ob-st.on{background:var(--tint-a);color:var(--accent-deep);}
+  .ob-st.off{background:rgba(140,120,125,.10);color:var(--muted);}
   .res-empty{padding:26px;text-align:center;color:var(--sub);font-size:12px;}
   .res-tabs{display:flex;gap:6px;margin:0 0 10px;}
   .res-tab{
@@ -1329,7 +1350,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.57</div>
+        <div class="brand-sub">HONMARU KEEPER V2.58</div>
       </div>
     </div>
 
@@ -1452,6 +1473,7 @@
           <button class="chip active" data-own="">全部</button>
           <button class="chip" data-own="1">已拥有</button>
           <button class="chip" data-own="0">未拥有</button>
+          <button class="chip ghost" id="btnOwnBatch">☑ 批量设置</button>
         </div>
       </div>
 
@@ -1502,7 +1524,7 @@
         <div class="panel-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
           <div style="flex:1;min-width:220px;">
             <h2>日志明细</h2>
-            <p style="margin-bottom:0;">图鉴保存、新增 / 删除刀剑、活动登记里的「乱舞 +1」、资源记录的变化、以及活动里补录的新刀都会留一条日志：改了哪一振 / 哪项资源、从多少变成多少。最新的排在最前面，单条可以删，也可以按日期筛。</p>
+            <p style="margin-bottom:0;">图鉴保存、批量设置拥有状态、新增 / 删除刀剑、活动登记里的「乱舞 +1」、资源记录的新增与编辑、以及活动里补录的新刀都会留一条日志：改了哪一振 / 哪项资源、从多少变成多少。最新的排在最前面，单条可以删，也可以按日期筛。</p>
           </div>
           <button class="btn" id="btnClearLogs" style="margin-left:auto;">清空日志</button>
         </div>
@@ -2418,7 +2440,7 @@ function blankData(){
 }
 /* 变动日志：{id, kind, no, name, act, ses, src, date, changes:[{f, ...}], ts}
    kind = sword（图鉴字段） / ranbu（活动登记喂刀 +1） / res（资源快照变化） */
-const LOG_FIELDS = {name:'名称', type:'刀种', fl:'花数', k:'极化', r:'乱舞', rp:'乱舞进度', lv:'等级', plv:'极化等级', exp:'经验', src:'获取方式', own:'拥有状态'};
+const LOG_FIELDS = {name:'名称', type:'刀种', fl:'花数', k:'极化', r:'乱舞', rp:'乱舞进度', lv:'等级', plv:'极化等级', exp:'经验', src:'获取方式', own:'拥有状态', date:'日期'};
 const LOG_KINDS = {sword:'图鉴', ranbu:'乱舞 +1', res:'资源', new:'新刀', del:'删除'};
 function resItemOf(key){
   const hit = RES_ITEMS.filter(function(it){ return it.key === key; })[0];
@@ -2451,6 +2473,11 @@ function normLogs(arr){
       }else if(c.f === 'roster'){
         if(kind !== 'new' && kind !== 'del') return;
         changes.push({f:'roster', from:clampNum(c.from, 0, 9999, 0), to:clampNum(c.to, 0, 9999, 0)});
+      }else if(c.f === 'date'){
+        if(kind !== 'res') return;
+        const a = String(c.from || ''), b = String(c.to || '');
+        if(a && b && /^\d{4}-\d{2}-\d{2}$/.test(a) && /^\d{4}-\d{2}-\d{2}$/.test(b))
+          changes.push({f:'date', from:a, to:b});
       }else if(kind !== 'res' && LOG_FIELDS[c.f]){
         changes.push({f:c.f, from:c.from, to:c.to});
       }
@@ -3539,7 +3566,7 @@ function commitEdit(no){
     });
   }
   Object.keys(LOG_FIELDS).forEach(function(f){
-    if(f === 'r' || f === 'rp' || f === 'plv') return;   // 乱舞并成一条、极化等级下面单独算
+    if(f === 'r' || f === 'rp' || f === 'plv' || f === 'date') return;   // 乱舞并成一条、极化等级下面单独算、日期只属于资源记录
     const a = before[f], b = next[f];
     const same = (f === 'src' || f === 'name' || f === 'type') ? String(a) === String(b) : Number(a) === Number(b);
     if(!same) changes.push({f:f, from:a, to:b});
@@ -3574,6 +3601,94 @@ function commitEdit(no){
   }else{
     toast('「' + row.name + '」没有改动，未写入日志');
   }
+}
+
+/* 批量设置拥有状态：按当前筛选列出，勾好一次改完，不用一振一振点「修改」 */
+function openOwnBatch(){
+  const d = curData();
+  if(!d) return;
+  if(!d.tw.length){ toast('这个账号还没有刀剑，先用「＋ 新增刀剑」', true); return; }
+  const rows = sortedRows(filteredRows());
+  if(!rows.length){ toast('当前筛选下没有刀剑，先放宽筛选', true); return; }
+  const scopeTxt = ui.own === '1' ? '已拥有' : (ui.own === '0' ? '未拥有' : '全部');
+  const items = rows.map(function(x){
+    const own = Number(x.own) !== 0;
+    return '<label class="ob-item">' +
+      '<input type="checkbox" class="ob-cb" value="' + x.no + '" checked>' +
+      '<span class="ob-no">' + String(x.no).padStart(3, '0') + '</span>' +
+      '<span class="ob-name">' + esc(x.name) + (Number(x.k) === 1 ? '<i class="ob-k">极</i>' : '') + '</span>' +
+      '<span class="ob-st ' + (own ? 'on' : 'off') + '">' + (own ? '已拥有' : '未拥有') + '</span>' +
+    '</label>';
+  }).join('');
+  openModal({
+    title: '批量设置拥有状态',
+    sub: '列表是当前筛选结果（' + scopeTxt + ' · ' + rows.length + ' 振），默认全选；勾好再点下面的按钮，只会改状态不同的那些。',
+    body: '<div class="ob-tools" id="obTools">' +
+        '<button class="btn" data-ob="all">全选</button>' +
+        '<button class="btn" data-ob="none">全不选</button>' +
+        '<button class="btn" data-ob="inv">反选</button>' +
+        '<span class="ob-cnt" id="obCnt"></span>' +
+      '</div>' +
+      '<div class="ob-list" id="obList">' + items + '</div>',
+    actions: [
+      {text:'取消', cls:'btn', onClick:closeModal},
+      {text:'设为未拥有', cls:'btn', onClick:function(){ applyOwnBatch(0); }},
+      {text:'设为已拥有', cls:'btn primary', onClick:function(){ applyOwnBatch(1); }}
+    ]
+  });
+  const list = $('#obList');
+  const cnt = $('#obCnt');
+  function syncCnt(){
+    const all = list.querySelectorAll('.ob-cb');
+    let n = 0;
+    Array.prototype.forEach.call(all, function(el){ if(el.checked) n++; });
+    cnt.textContent = '已选 ' + n + ' / ' + all.length + ' 振';
+    cnt.classList.toggle('none', n === 0);
+  }
+  $$('#obTools button[data-ob]').forEach(function(b){
+    b.onclick = function(){
+      const boxes = list.querySelectorAll('.ob-cb');
+      const mode = b.dataset.ob;
+      Array.prototype.forEach.call(boxes, function(el){
+        if(mode === 'all') el.checked = true;
+        else if(mode === 'none') el.checked = false;
+        else el.checked = !el.checked;
+      });
+      syncCnt();
+    };
+  });
+  list.addEventListener('change', syncCnt);
+  syncCnt();
+}
+function applyOwnBatch(val){
+  const d = curData();
+  if(!d) return;
+  const nos = $$('#obList .ob-cb').filter(function(el){ return el.checked; })
+    .map(function(el){ return Number(el.value); });
+  if(!nos.length){ toast('先勾选要设置的刀剑', true); return; }
+  if(!Array.isArray(d.logs)) d.logs = [];
+  let changed = 0;
+  nos.forEach(function(no){
+    const row = rowOf(no);
+    if(!row) return;
+    const before = Number(row.own) === 0 ? 0 : 1;
+    if(before === val) return;
+    row.own = val;
+    changed++;
+    d.logs.unshift({id:uid(), no:no, name:row.name, kind:'sword',
+                    changes:[{f:'own', from:before, to:val}], ts:Date.now()});
+  });
+  if(d.logs.length > 2000) d.logs.length = 2000;
+  const label = val ? '已拥有' : '未拥有';
+  if(!changed){
+    closeModal();
+    toast('勾选的 ' + nos.length + ' 振本来就是「' + label + '」，没有改动');
+    return;
+  }
+  ui.logPage = 1;
+  save(); closeModal();
+  renderCatalog(); renderFilters(); renderStats(); renderLogs(); renderSidebar();
+  toast('已把 ' + changed + ' 振设为「' + label + '」' + (nos.length > changed ? ' · 另 ' + (nos.length - changed) + ' 振本来就是' : ''));
 }
 
 /* 删除一振（新增错了，或想清掉不想要的条目） */
@@ -4391,7 +4506,7 @@ function openResEdit(id){
   }).join('');
   openModal({
     title: '编辑资源记录',
-    sub: '保存后这一条的数值、较上次和周 / 月增长都会跟着重算。',
+    sub: '保存后这一条的数值、较上次和周 / 月增长都会跟着重算，改动会补一条日志（标「编辑更新」）。',
     body: '<div class="res-edit-form">' +
         '<label class="fld"><span>日期</span><input type="date" id="erDate" value="' + esc(r.date) + '"></label>' +
         '<div class="res-edit-grid">' + fields + '</div>' +
@@ -4414,10 +4529,24 @@ function saveResEdit(id){
     const el = $('#er' + it.key);
     vals[it.key] = clampNum(el && el.value !== '' ? el.value : 0, 0, RES_MAX, 0);
   });
+  /* 改完也要留痕：日期挪了、数值变了都写进一条新日志，能看到「从多少改成多少」 */
+  const oldDate = r.date;
+  const oldVals = Object.assign({}, r.vals || {});
+  const changes = [];
+  if(date !== oldDate) changes.push({f:'date', from:oldDate, to:date});
+  RES_ITEMS.forEach(function(it){
+    const from = clampNum(oldVals[it.key], 0, RES_MAX, 0);
+    if(from !== vals[it.key]) changes.push({f:'res', key:it.key, from:from, to:vals[it.key]});
+  });
   r.date = date;
   r.vals = vals;
-  save(); closeModal(); renderResources();
-  toast('已更新 ' + date + ' 的资源记录');
+  if(changes.length){
+    pushLog({kind:'res', name:'资源记录', date:date, src:'编辑', changes:changes});
+  }
+  save();
+  closeModal(); renderResources();
+  toast('已更新 ' + date + ' 的资源记录' +
+    (changes.length ? ' · 记下 ' + changes.length + ' 项改动' : ' · 没有改动'));
 }
 
 function addRes(){
@@ -4705,7 +4834,7 @@ function renderLogs(){
     const actShort = actName.replace(/（[^）]*）/g, '');
     let nameCell, actCell;
     if(l.kind === 'res'){
-      const srcTxt = l.src === '活动' ? '活动写入' : '手动记录';
+      const srcTxt = l.src === '活动' ? '活动写入' : (l.src === '编辑' ? '编辑更新' : '手动记录');
       nameCell = '<td class="lt-name"><b>资源记录</b><span class="lg-badge lg-res">资源</span>' +
         '<div class="muted" style="font-size:9.5px;">' + esc(l.date || fmtDate(new Date(l.ts))) + ' · ' + srcTxt + '</div>' +
         '<div class="m-time">' + fmtTime(l.ts) + '</div></td>';
@@ -7308,6 +7437,12 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.58 资源编辑也记日志 · 图鉴可批量设置拥有状态',
+     '<p>资源记录点「编辑」保存后会补一条新日志（标「编辑更新」），改过的数值和日期都写清从多少改成多少；' +
+     '没改动就不写，不留空记录。</p>' +
+     '<p>图鉴「拥有」这行多了 <b>☑ 批量设置</b>：按当前筛选（刀种 / 搜索 / 极化 / 乱舞 / 等级）把刀列出来并默认全选，' +
+     '可以全选 / 全不选 / 反选，再一键「设为已拥有」或「设为未拥有」。只有状态真的变了的才动手，也各留一条日志。</p>',
+     '2026.11'],
     ['V2.57 资源记录明细可以编辑，增长跟着重算',
      '<p>每条记录右边多了<b>编辑</b>：点开能改日期和五项数值（预填当前值），保存后' +
      '卡片上的数值与「较上次」、明细每一行的小字、周 / 月增长表都按新数据重新算。</p>' +
@@ -7729,6 +7864,8 @@ function initEvents(){
   $$('#ownFilters .chip[data-own]').forEach(function(b){
     b.onclick = function(){ ui.own = b.dataset.own; renderCatalog(); };
   });
+  const ownBatchBtn = $('#btnOwnBatch');
+  if(ownBatchBtn) ownBatchBtn.onclick = openOwnBatch;
   $$('#kiwameFilters .chip[data-kw]').forEach(function(b){
     b.onclick = function(){ ui.kiwame = b.dataset.kw; renderCatalog(); };
   });
