@@ -1054,6 +1054,18 @@
   .log-date{width:auto;flex:0 0 auto;font-size:11.5px;padding:7px 26px 7px 10px;}
   .day-nav{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto;}
   .day-date{width:auto;padding:7px 10px;font-size:12px;}
+  .day-modes{display:flex;gap:4px;flex-wrap:wrap;align-self:center;}
+  .day-mode{
+    border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:3px 11px;
+    font-size:10.5px;color:var(--sub);letter-spacing:.02em;transition:.15s;
+  }
+  .day-mode:hover{border-color:var(--line-strong);color:var(--accent-deep);}
+  .day-mode.on{background:linear-gradient(120deg,var(--accent-3),var(--accent-2));border-color:transparent;color:var(--on-accent);font-weight:700;}
+  .day-range{font-size:10.5px;color:var(--muted);font-family:ui-monospace,Menlo,monospace;white-space:nowrap;}
+  .day-range-wrap{display:flex;align-items:center;gap:5px;}
+  .day-range-wrap .day-date{width:138px;}
+  .day-range-wrap[hidden]{display:none;}
+  .day-range-dash{color:var(--muted-2);font-size:11px;}
   .day-kpis{display:flex;gap:9px;flex-wrap:wrap;margin-top:2px;}
   .day-kpi{
     flex:1 1 92px;min-width:92px;border:1px solid var(--line);border-radius:12px;padding:9px 12px;
@@ -1118,7 +1130,10 @@
 
   @media (max-width:600px){
     .day-nav{width:100%;margin-left:0;}
-    .day-date{flex:1;min-width:0;}
+    .day-date{flex:1 1 118px;min-width:118px;}
+    .day-range-wrap{width:100%;}
+    .day-range-wrap .day-date{min-width:0;}
+    .day-range{white-space:normal;order:9;flex:1 1 100%;}
     .day-kpi{flex:1 1 calc(50% - 9px);min-width:calc(50% - 9px);padding:8px 10px;}
     .day-kpi b{font-size:15px;}
     .day-recent{gap:5px;}
@@ -1357,7 +1372,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.59</div>
+        <div class="brand-sub">HONMARU KEEPER V2.60</div>
       </div>
     </div>
 
@@ -1581,21 +1596,33 @@
     <section id="viewDaily" class="view" hidden>
       <div class="day-bar">
         <div class="day-bar-l">
-          <span class="day-bar-k">按日期查看</span>
+          <span class="day-bar-k">统计范围</span>
+          <div class="day-modes" id="dayModes">
+            <button class="day-mode on" data-dm="day">按日</button>
+            <button class="day-mode" data-dm="week">按周</button>
+            <button class="day-mode" data-dm="month">按月</button>
+            <button class="day-mode" data-dm="range">自定义</button>
+          </div>
           <span class="day-bar-n" id="dayLogCount"></span>
         </div>
         <div class="day-nav">
-          <button class="icon-btn" id="btnDayPrev" title="前一天">‹</button>
+          <button class="icon-btn" id="btnDayPrev" title="上一段">‹</button>
           <input class="input day-date" type="date" id="dayDate">
-          <button class="icon-btn" id="btnDayNext" title="后一天">›</button>
+          <span class="day-range" id="dayRangeTxt"></span>
+          <button class="icon-btn" id="btnDayNext" title="下一段">›</button>
           <button class="btn" id="btnDayToday">今天</button>
+          <span class="day-range-wrap" id="dayRangeWrap" hidden>
+            <input class="input day-date" type="date" id="dayFrom">
+            <span class="day-range-dash">–</span>
+            <input class="input day-date" type="date" id="dayTo">
+          </span>
         </div>
       </div>
 
       <div class="panel">
         <div class="panel-head">
           <h2>📈 等级 · 经验</h2>
-          <p>当天等级或经验有变化的刀剑，同一振合并成一行：等级看 <b>起始 → 现在</b>，后面跟这一天升降了几级；普刀看的是<b>极化等级</b>（经验涨够就升级），普刀自己的等级写在小字里。名字旁边标了这把现在是<b>普</b>还是<b>极</b>。</p>
+          <p>所看范围（一天 / 一周 / 一个月 / 自选起止）内等级或经验有变化的刀剑，同一振合并成一行：等级看 <b>起始 → 现在</b>，后面跟这段里净升降了几级；普刀看的是<b>极化等级</b>（经验涨够就升级），普刀自己的等级写在小字里。名字旁边标了这把现在是<b>普</b>还是<b>极</b>。</p>
         </div>
         <div class="res-table-wrap">
           <table class="res-table day-table day-table-lv">
@@ -1610,7 +1637,7 @@
       <div class="panel">
         <div class="panel-head">
           <h2>🌾 乱舞</h2>
-          <p>当天喂过刀的刀剑，按 <b>获得几振</b> 算：跨等级也是把每一级补满的刀数加起来，不会少算。</p>
+          <p>所看范围里喂过刀的刀剑，按 <b>获得几振</b> 算：跨等级也是把每一级补满的刀数加起来，不会少算；一周 / 一月里多次喂刀会累加，批量把乱舞往下改的算负数。</p>
         </div>
         <div class="res-table-wrap">
           <table class="res-table day-table day-table-rb">
@@ -2413,7 +2440,7 @@ const RES_MAX = 999999999;
    ========================================================= */
 const KEY = 'honmaru_keeper_v3';
 let S = null;
-const ui = {tab:'catalog', q:'', type:'', own:'', kiwame:'', ranbu:'', level:'', sort:'no', edit:{}, logQ:'', logKind:'', logDate:'', logPage:1, day:'', dayPageLv:1, dayPageRb:1};
+const ui = {tab:'catalog', q:'', type:'', own:'', kiwame:'', ranbu:'', level:'', sort:'no', edit:{}, logQ:'', logKind:'', logDate:'', logPage:1, day:'', dayMode:'day', dayFrom:'', dayTo:'', dayPageLv:1, dayPageRb:1};
 
 function uid(){ return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 function seedTw(){
@@ -4989,14 +5016,19 @@ function renderLogs(){
 }
 
 /* =========================================================
-   每日统计：按天合并同一振的等级 / 经验 / 乱舞变动
+   每日统计：把一个区间（一天 / 一周 / 一个月 / 自选范围）里
+   同一振的等级 / 经验 / 乱舞变动合并成一行
    ========================================================= */
-function dailyAgg(d, date){
+function dailyAgg(d, from, to){
   const map = {};
-  const out = {rows:[], logs:0, newCnt:0, delCnt:0, resCnt:0, lvTotal:0, expTotal:0, rbTotal:0};
+  const lo = from, hi = to || from;
+  const out = {rows:[], logs:0, days:0, newCnt:0, delCnt:0, resCnt:0, lvTotal:0, expTotal:0, rbTotal:0};
+  const daySet = {};
 
   (d.logs || []).forEach(function(l){
-    if(fmtDate(new Date(l.ts)) !== date) return;
+    const day = fmtDate(new Date(l.ts));
+    if(day < lo || day > hi) return;
+    daySet[day] = 1;
     out.logs++;
     if(l.kind === 'new'){ out.newCnt++; return; }
     if(l.kind === 'del'){ out.delCnt++; return; }
@@ -5088,9 +5120,12 @@ function dailyAgg(d, date){
     }
   });
 
+  out.days = Object.keys(daySet).length;
   out.rows = Object.keys(map).map(function(k){ return map[k]; });
   out.rows.forEach(function(r){
-    if(!r.polar) out.lvTotal += r.lvGain + (r.hasPlv ? r.plvGain : 0);
+    /* 极化那一下不算「升级」（Lv99 → 极 Lv34 是换算，不是涨了 65 级）；
+       极化之后又在区间里升的级照算，所以只加 lvGain（kChg 那条的 lv 已经单独摘出去了） */
+    out.lvTotal += r.lvGain + (r.hasPlv ? r.plvGain : 0);
     out.expTotal += r.expGain;
     out.rbTotal += r.rbGain;
   });
@@ -5102,11 +5137,56 @@ function signedNum(n, unit){
   if(!n) return '0' + (unit || '');
   return (n > 0 ? '+' : '-') + fmtNum(Math.abs(n)) + (unit || '');
 }
+/* ---------- 统计范围：日 / 周 / 月 / 自定义 ---------- */
+function dayModeOf(){
+  return ['day','week','month','range'].indexOf(ui.dayMode) >= 0 ? ui.dayMode : 'day';
+}
+/* 当前范围：周从周一起算，月按自然月，自定义按起止日（反了自动对调） */
+function dayRange(){
+  const base = ui.day || fmtDate(new Date());
+  const dt = new Date(base + 'T00:00:00');
+  if(isNaN(dt.getTime())) return [fmtDate(new Date()), fmtDate(new Date())];
+  const m = dayModeOf();
+  if(m === 'week'){
+    const dow = (dt.getDay() + 6) % 7;
+    const a = new Date(dt); a.setDate(dt.getDate() - dow);
+    const b = new Date(a); b.setDate(a.getDate() + 6);
+    return [fmtDate(a), fmtDate(b)];
+  }
+  if(m === 'month'){
+    const a = new Date(dt.getFullYear(), dt.getMonth(), 1);
+    const b = new Date(dt.getFullYear(), dt.getMonth() + 1, 0);
+    return [fmtDate(a), fmtDate(b)];
+  }
+  if(m === 'range'){
+    const ok = /^\d{4}-\d{2}-\d{2}$/;
+    let a = ok.test(String(ui.dayFrom || '')) ? ui.dayFrom : base;
+    let b = ok.test(String(ui.dayTo || '')) ? ui.dayTo : a;
+    return a <= b ? [a, b] : [b, a];
+  }
+  return [base, base];
+}
+function daySpan(from, to){
+  const a = new Date(from + 'T00:00:00'), b = new Date(to + 'T00:00:00');
+  if(isNaN(a.getTime()) || isNaN(b.getTime())) return 1;
+  return Math.max(1, Math.round((b - a) / 86400000) + 1);
+}
+/* 范围标题：2026 年 11 月 / 11/09 – 11/15 / 2026-11-09 */
+function dayRangeText(from, to){
+  const m = dayModeOf();
+  if(m === 'month') return from.slice(0,4) + ' 年 ' + Number(from.slice(5,7)) + ' 月';
+  if(from === to) return from;
+  const f = from.slice(5).replace('-', '/'), t = to.slice(5).replace('-', '/');
+  return (from.slice(0,4) === to.slice(0,4)) ? (f + ' – ' + t) : (from + ' – ' + to);
+}
 function dayShift(n){
   const base = ui.day || fmtDate(new Date());
   const dt = new Date(base + 'T00:00:00');
   if(isNaN(dt.getTime())) return;
-  dt.setDate(dt.getDate() + n);
+  const m = dayModeOf();
+  if(m === 'week') dt.setDate(dt.getDate() + 7 * n);
+  else if(m === 'month'){ dt.setDate(1); dt.setMonth(dt.getMonth() + n); }
+  else dt.setDate(dt.getDate() + n);
   ui.day = fmtDate(dt);
   ui.dayPageLv = 1; ui.dayPageRb = 1;
   renderDaily();
@@ -5145,8 +5225,12 @@ function dayLvHTML(r){
   if(r.polar){
     const from = r.polarFrom !== null ? r.polarFrom : '?';
     const to = r.polarLv !== null ? r.polarLv : (row.lv || '?');
+    /* 区间里先极化、后来又升级：极化那一下照写，后面的级数单独跟上 */
+    const after = (r.hasLv && r.lvGain)
+      ? '<span class="day-sub">极 Lv ' + r.lvFrom + ' → ' + r.lvTo + '</span>' : '';
     return '<span class="day-lv"><b>Lv ' + from + '</b><i>→</i><b>极 Lv ' + to + '</b></span>' +
-           '<span class="day-tag">当天极化</span>' + deltaOf(0);
+           '<span class="day-tag">' + (dayModeOf() === 'day' ? '当天极化' : '区间内极化') + '</span>' +
+           after + deltaOf(r.lvGain);
   }
   if(r.hasPlv){
     const sub = (r.hasLv && r.lvGain)
@@ -5165,7 +5249,7 @@ function dayLvHTML(r){
   return oneOf('极', polarLvOf(row)) +
          '<span class="day-sub">普 Lv ' + (row.lv || '?') + '</span>' + deltaOf(0);
 }
-function dayPages(el, pages, page, go){
+function dayPages(el, pages, page, go, per){
   if(!el) return;
   if(pages <= 1){ el.innerHTML = ''; return; }
   const btns = [];
@@ -5178,7 +5262,7 @@ function dayPages(el, pages, page, go){
   }
   if(to < pages) btns.push((to < pages - 1 ? '<span class="pg-info">…</span>' : '') + '<button data-page="' + pages + '">' + pages + '</button>');
   btns.push('<button data-page="' + (page + 1) + '"' + (page >= pages ? ' disabled' : '') + '>下一页 ›</button>');
-  btns.push('<span class="pg-info">第 ' + page + ' / ' + pages + ' 页 · 每页 ' + DAY_PER + ' 振</span>');
+  btns.push('<span class="pg-info">第 ' + page + ' / ' + pages + ' 页 · 每页 ' + (per || DAY_PER) + ' 振</span>');
   el.innerHTML = btns.join('');
   Array.prototype.forEach.call(el.querySelectorAll('button[data-page]'), function(b){
     b.onclick = function(){
@@ -5193,7 +5277,33 @@ function renderDaily(){
   const inp = $('#dayDate');
   if(!inp) return;
   if(!ui.day) ui.day = fmtDate(new Date());
-  inp.value = ui.day;
+  const mode = dayModeOf();
+  const rg = dayRange();
+  const from = rg[0], to = rg[1];
+  const span = daySpan(from, to);
+  const rTxt = dayRangeText(from, to);
+  const per = mode === 'day' ? DAY_PER : 20;
+
+  /* 日期控件：月模式切成 type=month；自定义模式换成两个日期框 */
+  if(mode === 'month'){
+    if(inp.type !== 'month') inp.type = 'month';
+    inp.value = from.slice(0, 7);
+  }else{
+    if(inp.type !== 'date') inp.type = 'date';
+    inp.value = mode === 'range' ? from : ui.day;
+  }
+  inp.hidden = mode === 'range';
+  const dFrom = $('#dayFrom'), dTo = $('#dayTo');
+  const rangeWrap = $('#dayRangeWrap');
+  if(rangeWrap) rangeWrap.hidden = mode !== 'range';
+  if(dFrom && mode === 'range') dFrom.value = from;
+  if(dTo && mode === 'range') dTo.value = to;
+  const navPrev = $('#btnDayPrev'), navNext = $('#btnDayNext'), navToday = $('#btnDayToday');
+  [navPrev, navNext, navToday].forEach(function(b){ if(b) b.hidden = mode === 'range'; });
+  const rt = $('#dayRangeTxt');
+  if(rt) rt.textContent = mode === 'range' ? ('共 ' + span + ' 天')
+    : (mode === 'day' ? '' : rTxt + ' · ' + span + ' 天');
+  $$('#dayModes .day-mode').forEach(function(b){ b.classList.toggle('on', b.dataset.dm === mode); });
 
   const lvBody = $('#dayLvBody'), rbBody = $('#dayRbBody');
   const lvPager = $('#dayLvPager'), rbPager = $('#dayRbPager');
@@ -5213,19 +5323,22 @@ function renderDaily(){
     return;
   }
 
-  const st = dailyAgg(d, ui.day);
+  const st = dailyAgg(d, from, to);
   const expUnit = function(no){
     const row = rowOf(no);
     return row && Number(row.k) === 1 ? '极化经验' : '普刀累计经验';
   };
+  /* 「这一天 / 这一周 / 这个月 / 这段」——换个范围时提示别对不上 */
+  const scope = mode === 'day' ? '这一天' : (mode === 'week' ? '这一周' : (mode === 'month' ? '这个月' : '这段时间'));
   const emptyBase = !(d.logs || []).length
     ? '这个账号还没有变动记录：保存图鉴、喂刀、记资源后，会按天统计在这里。'
-    : (st.logs ? '' : '这一天没有变动记录，换个日期看看。');
+    : (st.logs ? '' : scope + '没有变动记录，换个日期或范围看看。');
 
   if(dayCount){
     dayCount.textContent = st.logs
-      ? ('这天 ' + st.logs + ' 条记录 · 等级 ' + signedNum(st.lvTotal, ' 级') + ' · 乱舞 ' + signedNum(st.rbTotal, ' 振'))
-      : '这天没有记录';
+      ? ((mode === 'day' ? '这天' : rTxt + ' · ' + (st.days || span) + ' 天有记录') + ' · ' + st.logs + ' 条记录 · 等级 ' +
+         signedNum(st.lvTotal, ' 级') + ' · 乱舞 ' + signedNum(st.rbTotal, ' 振'))
+      : (mode === 'day' ? '这天没有记录' : rTxt + ' 没有记录');
   }
 
   /* ① 等级 · 经验：一把刀一行 */
@@ -5243,15 +5356,15 @@ function renderDaily(){
     lvBody.innerHTML = '';
     if(lvPager) lvPager.innerHTML = '';
     lvEmpty.hidden = false;
-    lvEmpty.textContent = emptyBase || '这一天没有等级或经验变化。';
+    lvEmpty.textContent = emptyBase || (scope + '没有等级或经验变化。');
   }else{
     if(lvWrap) lvWrap.hidden = false;
     lvEmpty.hidden = true;
-    const pages = Math.max(1, Math.ceil(lvAll.length / DAY_PER));
+    const pages = Math.max(1, Math.ceil(lvAll.length / per));
     if(ui.dayPageLv > pages) ui.dayPageLv = pages;
     if(ui.dayPageLv < 1) ui.dayPageLv = 1;
-    const start = (ui.dayPageLv - 1) * DAY_PER;
-    lvBody.innerHTML = lvAll.slice(start, start + DAY_PER).map(function(r){
+    const start = (ui.dayPageLv - 1) * per;
+    lvBody.innerHTML = lvAll.slice(start, start + per).map(function(r){
       let expTxt = '<span class="day-delta flat">—</span>';
       if(r.hasExp){
         expTxt = '<span class="day-delta ' + (r.expGain > 0 ? 'up' : (r.expGain < 0 ? 'down' : 'flat')) + '" title="' +
@@ -5261,7 +5374,7 @@ function renderDaily(){
         '<td data-l="等级"><div class="day-cell day-cell-l">' + dayLvHTML(r) + '</div></td>' +
         '<td data-l="经验增长"><div class="day-cell">' + expTxt + '</div></td></tr>';
     }).join('');
-    dayPages(lvPager, pages, ui.dayPageLv, function(pg){ ui.dayPageLv = pg; renderDaily(); });
+    dayPages(lvPager, pages, ui.dayPageLv, function(pg){ ui.dayPageLv = pg; renderDaily(); }, per);
   }
 
   /* ② 乱舞 */
@@ -5273,15 +5386,15 @@ function renderDaily(){
     rbBody.innerHTML = '';
     if(rbPager) rbPager.innerHTML = '';
     rbEmpty.hidden = false;
-    rbEmpty.textContent = emptyBase || '这一天没有喂刀记录。';
+    rbEmpty.textContent = emptyBase || (scope + '没有喂刀记录。');
   }else{
     if(rbWrap) rbWrap.hidden = false;
     rbEmpty.hidden = true;
-    const pages = Math.max(1, Math.ceil(rbAll.length / DAY_PER));
+    const pages = Math.max(1, Math.ceil(rbAll.length / per));
     if(ui.dayPageRb > pages) ui.dayPageRb = pages;
     if(ui.dayPageRb < 1) ui.dayPageRb = 1;
-    const start = (ui.dayPageRb - 1) * DAY_PER;
-    rbBody.innerHTML = rbAll.slice(start, start + DAY_PER).map(function(r){
+    const start = (ui.dayPageRb - 1) * per;
+    rbBody.innerHTML = rbAll.slice(start, start + per).map(function(r){
       let rbTxt = '<span class="day-delta flat">—</span>';
       if(r.rbFrom && r.rbTo){
         const a = r.rbFrom, b = r.rbTo;
@@ -5307,7 +5420,7 @@ function renderDaily(){
         '<td data-l="乱舞变化" class="dt-rb"><div class="day-cell day-cell-l">' + rbTxt + '</div></td>' +
         '<td data-l="获得振数"><div class="day-cell">' + gainTxt + '</div></td></tr>';
     }).join('');
-    dayPages(rbPager, pages, ui.dayPageRb, function(pg){ ui.dayPageRb = pg; renderDaily(); });
+    dayPages(rbPager, pages, ui.dayPageRb, function(pg){ ui.dayPageRb = pg; renderDaily(); }, per);
   }
 }
 /* 单条日志删除：只删记录，不动图鉴 / 活动 / 资源数据 */
@@ -7534,6 +7647,13 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.60 每日统计可以按周 / 按月 / 自选范围看',
+     '<p>顶部「统计范围」加了 <b>按日 / 按周 / 按月 / 自定义</b> 四个切换：按周从周一起算，按月按自然月，' +
+     '自定义直接填起止日期（填反了会自动换过来）。右边的 ‹ › 跟着当前范围翻（前一天 / 上一周 / 上一月），「今天」一键回到当下。</p>' +
+     '<p>同一振在整段里合并成一行：等级看<b>这段起始 → 现在</b>、净升降几级；经验、乱舞进度、获得振数都是整段累加。' +
+     '区间里先极化、后面又升级的，极化那一下标「区间内极化」单独看，之后的级数照样算进合计。' +
+     '周 / 月 / 自选每页 20 振，范围文字和「N 天有记录」都写在标题栏。</p>',
+     '2026.11'],
     ['V2.59 极化 / 乱舞也能批量设置',
      '<p>图鉴「极化」这行的 <b>☑ 批量设置</b>：勾好后点「设为极 / 设为普」，' +
      '经验和等级按卡片上点「极 / 普」同一套口径换算（设为极 = 普刀累计 − 门槛，设为普 = 极化经验 + 门槛），' +
@@ -8052,10 +8172,46 @@ function initEvents(){
   };
   const dayDate = $('#dayDate');
   if(dayDate) dayDate.onchange = function(){
-    ui.day = this.value || fmtDate(new Date());
+    const v = String(this.value || '');
+    if(dayModeOf() === 'month') ui.day = /^\d{4}-\d{2}$/.test(v) ? (v + '-01') : fmtDate(new Date());
+    else ui.day = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : fmtDate(new Date());
     ui.dayPageLv = 1; ui.dayPageRb = 1;
     renderDaily();
   };
+  $$('#dayModes .day-mode').forEach(function(b){
+    b.onclick = function(){
+      const m = b.dataset.dm || 'day';
+      if(ui.dayMode === m) return;
+      ui.dayMode = m;
+      /* 第一次切到自定义：默认最近 7 天，免得两个空框 */
+      if(m === 'range' && (!ui.dayFrom || !ui.dayTo)){
+        const to = ui.day || fmtDate(new Date());
+        const dt = new Date(to + 'T00:00:00');
+        dt.setDate(dt.getDate() - 6);
+        ui.dayFrom = fmtDate(dt);
+        ui.dayTo = to;
+      }
+      ui.dayPageLv = 1; ui.dayPageRb = 1;
+      renderDaily();
+    };
+  });
+  ['dayFrom','dayTo'].forEach(function(id){
+    const el = $('#' + id);
+    if(!el) return;
+    el.onchange = function(){
+      const v = String(this.value || '');
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+      if(id === 'dayFrom') ui.dayFrom = v; else ui.dayTo = v;
+      if(!ui.dayFrom) ui.dayFrom = v;
+      if(!ui.dayTo) ui.dayTo = v;
+      /* 起止反了当场对调并写回状态，免得输入框显示的和实际统计的不一样 */
+      const rg = dayRange();
+      ui.dayFrom = rg[0]; ui.dayTo = rg[1];
+      ui.day = ui.dayTo;                 // 锚点跟着到「止」，翻页 / 切月不跑偏
+      ui.dayPageLv = 1; ui.dayPageRb = 1;
+      renderDaily();
+    };
+  });
   const dayPrev = $('#btnDayPrev'); if(dayPrev) dayPrev.onclick = function(){ dayShift(-1); };
   const dayNext = $('#btnDayNext'); if(dayNext) dayNext.onclick = function(){ dayShift(1); };
   const dayToday = $('#btnDayToday'); if(dayToday) dayToday.onclick = function(){
