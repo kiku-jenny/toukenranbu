@@ -486,6 +486,35 @@
   .btn:active{transform:translateY(0);}
 
   /* ---------- 筛选 ---------- */
+  /* 筛选条：平时收起，只留这一行说明「现在筛的是什么」；点「筛选」展开全部条件 */
+  .filter-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+  .filter-bar[hidden]{display:none;}
+  .filter-toggle{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;padding:7px 12px;}
+  .filter-toggle.on{border-color:var(--line-strong);color:var(--accent-deep);background:var(--surface-2);}
+  .ft-ar{font-size:9px;color:var(--muted);transition:.18s;line-height:1;}
+  .filter-toggle.on .ft-ar{transform:rotate(180deg);}
+  .ft-badge{
+    font-style:normal;font-family:ui-monospace,Menlo,monospace;font-size:9px;font-weight:700;
+    min-width:15px;height:15px;line-height:15px;text-align:center;padding:0 4px;border-radius:8px;
+    background:linear-gradient(120deg,var(--accent-3),var(--accent-2));color:var(--on-accent);
+  }
+  .ft-badge[hidden]{display:none;}
+  .filter-sum{
+    flex:1 1 120px;min-width:0;font-size:10.5px;color:var(--muted);letter-spacing:.02em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .ft-clear{flex:0 0 auto;font-size:11px;padding:5px 11px;}
+  .ft-clear[hidden]{display:none;}
+  .filter-panel[hidden]{display:none;}
+  /* 窄屏：条件多时摘要允许换行，别用省略号把条件吃掉；再窄一点就让摘要独占一行 */
+  @media (max-width:560px){
+    .filter-sum{white-space:normal;line-height:1.55;}
+  }
+  @media (max-width:380px){
+    .filter-sum{flex-basis:100%;order:3;margin-top:-1px;}
+    .ft-clear{order:2;margin-left:auto;}
+  }
+  .filter-panel .filter-row:last-child{margin-bottom:12px;}
   .filter-row{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px;}
   .filter-label{white-space:nowrap;font-size:11.5px;color:var(--muted);letter-spacing:.1em;padding-top:8px;flex:0 0 auto;min-width:34px;}
   .chips{display:flex;flex-wrap:wrap;gap:6px;flex:1;}
@@ -1413,7 +1442,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.65</div>
+        <div class="brand-sub">HONMARU KEEPER V2.66</div>
       </div>
     </div>
 
@@ -1525,6 +1554,15 @@
         </div>
       </div>
 
+      <div class="filter-bar">
+        <button class="btn filter-toggle" id="btnFilterToggle" aria-expanded="false" aria-controls="filterPanel">
+          <span>⚙ 筛选</span><em class="ft-badge" id="filterBadge" hidden>0</em><span class="ft-ar">▾</span>
+        </button>
+        <span class="filter-sum" id="filterSum">全部</span>
+        <button class="chip ghost ft-clear" id="btnFilterClear" hidden>清除筛选</button>
+      </div>
+
+      <div class="filter-panel" id="filterPanel" hidden>
       <div class="filter-row">
         <span class="filter-label">刀种</span>
         <div class="chips" id="typeFilters"></div>
@@ -1550,7 +1588,6 @@
           <button class="chip" data-kw="open">待极化</button>
           <button class="chip ghost" id="btnKBatch">☑ 批量设置</button>
           <button class="chip ghost" id="btnOpenPool">⚙ 极化开放</button>
-          <button class="chip ghost" id="btnResetFilters">清除筛选</button>
           <button class="chip ghost" id="btnResetData">↺ 恢复初始值</button>
         </div>
       </div>
@@ -1572,6 +1609,7 @@
           <button class="chip" data-lv="ge100" title="按极化等级算：已极化看极化等级，普刀按经验加上门槛后查极化条">极 100 及以上</button>
           <button class="chip" data-lv="lt100" title="极化等级不到 100，含还没极化、经验还没攒够门槛的普刀">极 100 以下</button>
         </div>
+      </div>
       </div>
 
       <div class="grid-meta">
@@ -2492,7 +2530,7 @@ const RES_MAX = 999999999;
    ========================================================= */
 const KEY = 'honmaru_keeper_v3';
 let S = null;
-const ui = {tab:'catalog', q:'', type:'', own:'', kiwame:'', ranbu:'', level:'', sort:'no', edit:{}, logQ:'', logKind:'', logDate:'', logPage:1, day:'', dayMode:'day', dayFrom:'', dayTo:'', dayLvSort:'lv', dayPageLv:1, dayPageRb:1};
+const ui = {tab:'catalog', q:'', type:'', own:'', kiwame:'', ranbu:'', level:'', filterOpen:false, sort:'no', edit:{}, logQ:'', logKind:'', logDate:'', logPage:1, day:'', dayMode:'day', dayFrom:'', dayTo:'', dayLvSort:'lv', dayPageLv:1, dayPageRb:1};
 
 function uid(){ return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 function seedTw(){
@@ -3312,9 +3350,57 @@ function setChipCount(el, n){
   s.textContent = n;
 }
 
+/* ---------- 筛选条：平时收起，只留一行写清「现在筛的是什么」 ---------- */
+function filterCondList(){
+  const out = [];
+  if(ui.type) out.push(ui.type);
+  const ownTxt = {'1':'已拥有', '0':'未拥有'}[ui.own];
+  if(ownTxt) out.push(ownTxt);
+  const kwTxt = {'1':'极', '0':'普', 'na':'未开放', 'open':'待极化'}[ui.kiwame];
+  if(kwTxt) out.push(kwTxt);
+  const rbTxt = {'10':'乱舞 MAX', 'under':'未满乱舞'}[ui.ranbu];
+  if(rbTxt) out.push(rbTxt);
+  const lvTxt = {'ge100':'极 100 及以上', 'lt100':'极 100 以下'}[ui.level];
+  if(lvTxt) out.push(lvTxt);
+  return out;
+}
+function renderFilterBar(){
+  const btn = $('#btnFilterToggle'), panel = $('#filterPanel');
+  if(!btn || !panel) return;
+  const hasData = !!curData();
+  const bar = $('.filter-bar');
+  if(bar) bar.hidden = !hasData;          // 还没有账号时，这一行没有意义
+  panel.hidden = !ui.filterOpen;
+  btn.classList.toggle('on', !!ui.filterOpen);
+  btn.setAttribute('aria-expanded', ui.filterOpen ? 'true' : 'false');
+  const conds = filterCondList();
+  const badge = $('#filterBadge'), sum = $('#filterSum'), clr = $('#btnFilterClear');
+  if(badge){ badge.hidden = !conds.length; badge.textContent = String(conds.length); }
+  if(clr) clr.hidden = !conds.length;
+  const d = curData();
+  if(!sum) return;
+  if(!d){ sum.textContent = ''; return; }
+  if(conds.length){
+    sum.textContent = conds.join(' · ') + ' · ' + filteredRows().length + ' 振';
+    sum.title = conds.join(' · ');
+  }else{
+    sum.textContent = '全部 ' + d.tw.length + ' 振';
+    sum.title = '';
+  }
+}
+/* 一键清空：条件是条件，搜索框也一起清（两个入口共用） */
+function clearAllFilters(){
+  ui.q = ''; ui.type = ''; ui.own = ''; ui.kiwame = ''; ui.ranbu = ''; ui.level = '';
+  const s = $('#fSearch');
+  if(s) s.value = '';
+  const sw = $('#searchWrap');
+  if(sw) sw.classList.remove('has-text');
+  renderCatalog();
+  toast('已清除全部筛选');
+}
 function renderFilters(){
   const d = curData();
-  if(!d) return;
+  if(!d){ renderFilterBar(); return; }
   const typeBox = $('#typeFilters');
   const counts = {};
   d.tw.forEach(function(x){ const t = x.type; counts[t] = (counts[t]||0)+1; });
@@ -3361,6 +3447,7 @@ function renderFilters(){
     const map = {'':total, 'ge100':ge, 'lt100':lt};
     setChipCount(b, map[b.dataset.lv] || 0);
   });
+  renderFilterBar();
 }
 
 function cardHTML(x){
@@ -7827,6 +7914,12 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.66 图鉴的筛选条件默认收起来了',
+     '<p>刀种 / 拥有 / 极化 / 乱舞 / 等级这五组原来是常驻的，手机上一打开就占掉大半屏。现在收成工具行下面的一条：' +
+     '<b>⚙ 筛选</b> 点一下展开，再点收起，列表直接往上看。</p>' +
+     '<p>收起时也不会忘了在筛什么：旁边写着当前条件，比如「太刀 · 未拥有 · 41 振」，按钮上的小数字是生效的条件数，' +
+     '有筛选时右边还有一键<b>清除筛选</b>。展开状态在本次使用里保持，刷新页面回到默认收起。</p>',
+     '2026.11'],
     ['V2.65 「查看」的记录可以翻页了',
      '<p>一天里同一振改了很多次，或者看一周 / 一个月时记录攒到十几条，原来只能在一长条里往下滚。现在这些记录<b>分页</b>看：' +
      '电脑每页 6 条、手机每页 5 条，列表下方就是 <b>‹ 上一页 / 第 x / y 页 / 下一页 ›</b>。</p>' +
@@ -8306,11 +8399,14 @@ function initEvents(){
   $$('#levelFilters .chip[data-lv]').forEach(function(b){
     b.onclick = function(){ ui.level = b.dataset.lv; renderCatalog(); };
   });
-  $('#btnResetFilters').onclick = function(){
-    ui.q = ''; ui.type = ''; ui.own = ''; ui.kiwame = ''; ui.ranbu = ''; ui.level = '';
-    search.value = ''; $('#searchWrap').classList.remove('has-text');
-    renderCatalog(); toast('已清除全部筛选');
+  /* 筛选条：点一下展开 / 收起；收起时仍能看到已选条件和结果数 */
+  const ftBtn = $('#btnFilterToggle');
+  if(ftBtn) ftBtn.onclick = function(){
+    ui.filterOpen = !ui.filterOpen;
+    renderFilterBar();
   };
+  const ftClear = $('#btnFilterClear');
+  if(ftClear) ftClear.onclick = clearAllFilters;
   $('#btnAddSword').onclick = openAddSword;
   const fillFlBtn = $('#btnFillFlower');
   if(fillFlBtn) fillFlBtn.onclick = fillFlowerAll;
