@@ -734,7 +734,7 @@
     padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface-2);
   }
   .res-table th:first-child,.res-table td:first-child{text-align:left;}
-  .res-table th:last-child,.res-table td:last-child{text-align:center;width:52px;}
+  .res-table th:last-child,.res-table td:last-child{text-align:center;width:92px;}
   .res-table td{padding:9px 10px;border-bottom:1px dashed var(--line);text-align:right;font-family:ui-monospace,Menlo,monospace;white-space:nowrap;}
   .res-table tr:last-child td{border-bottom:none;}
   .res-table tbody tr:hover{background:var(--surface-2);}
@@ -742,6 +742,12 @@
   .res-table i{display:block;font-style:normal;font-size:9.5px;margin-top:2px;}
   .res-del{border:none;background:none;color:var(--muted-3);font-size:11px;padding:2px 4px;}
   .res-del:hover{color:#c25151;}
+  .res-ops{white-space:nowrap;}
+  .res-edit{border:none;background:none;color:var(--muted-2);font-size:11px;padding:2px 4px;margin-right:2px;}
+  .res-edit:hover{color:var(--accent-deep);}
+  .res-edit-form .fld{margin-top:0;}
+  .res-edit-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:9px;}
+  @media (max-width:560px){ .res-edit-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
   .res-empty{padding:26px;text-align:center;color:var(--sub);font-size:12px;}
   .res-tabs{display:flex;gap:6px;margin:0 0 10px;}
   .res-tab{
@@ -1323,7 +1329,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.56</div>
+        <div class="brand-sub">HONMARU KEEPER V2.57</div>
       </div>
     </div>
 
@@ -4294,9 +4300,13 @@ function renderResources(){
     }).join('');
     return '<tr>' +
       '<td>'+esc(r.date)+(r.actName ? '<span class="res-tag" title="'+esc(r.actName)+'">活动</span>' : '')+'</td>' + cells +
-      '<td><button class="res-del" data-id="'+r.id+'">删除</button></td>' +
+      '<td class="res-ops"><button class="res-edit" data-id="'+r.id+'">编辑</button>' +
+        '<button class="res-del" data-id="'+r.id+'">删除</button></td>' +
     '</tr>';
   }).join('');
+  $$('#resBody .res-edit').forEach(function(b){
+    b.onclick = function(){ openResEdit(b.dataset.id); };
+  });
   $$('#resBody .res-del').forEach(function(b){
     b.onclick = function(){
       const id = b.dataset.id;
@@ -4365,6 +4375,49 @@ function renderResPeriod(d, asc){
     return '<tr><td>' + esc(resPeriodLabel(g.key, mode)) + '</td>' + cells + '</tr>';
   });
   body.innerHTML = out.reverse().join('');
+}
+
+/* 编辑某一条：改完日期或数值后，卡片、每一行的「较上次」、周 / 月增长都按新数据重算 */
+function openResEdit(id){
+  const d = curData();
+  if(!d) return;
+  const r = d.res.filter(function(x){ return x.id === id; })[0];
+  if(!r){ toast('没找到这条记录，刷新一下试试', true); return; }
+  const fields = RES_ITEMS.map(function(it){
+    const v = r.vals[it.key];
+    return '<label class="fld"><span>' + it.icon + ' ' + it.name + '</span>' +
+      '<input type="number" inputmode="numeric" min="0" max="' + RES_MAX + '" ' +
+      'id="er' + it.key + '" value="' + (v === undefined || v === null ? '' : v) + '"></label>';
+  }).join('');
+  openModal({
+    title: '编辑资源记录',
+    sub: '保存后这一条的数值、较上次和周 / 月增长都会跟着重算。',
+    body: '<div class="res-edit-form">' +
+        '<label class="fld"><span>日期</span><input type="date" id="erDate" value="' + esc(r.date) + '"></label>' +
+        '<div class="res-edit-grid">' + fields + '</div>' +
+      '</div>',
+    actions: [
+      {text:'取消', cls:'btn', onClick:closeModal},
+      {text:'保存', cls:'btn primary', onClick:function(){ saveResEdit(id); }}
+    ]
+  });
+}
+function saveResEdit(id){
+  const d = curData();
+  if(!d) return;
+  const r = d.res.filter(function(x){ return x.id === id; })[0];
+  if(!r){ closeModal(); return; }
+  const dateEl = $('#erDate');
+  const date = (dateEl && dateEl.value) ? dateEl.value : r.date;
+  const vals = {};
+  RES_ITEMS.forEach(function(it){
+    const el = $('#er' + it.key);
+    vals[it.key] = clampNum(el && el.value !== '' ? el.value : 0, 0, RES_MAX, 0);
+  });
+  r.date = date;
+  r.vals = vals;
+  save(); closeModal(); renderResources();
+  toast('已更新 ' + date + ' 的资源记录');
 }
 
 function addRes(){
@@ -7255,6 +7308,12 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.57 资源记录明细可以编辑，增长跟着重算',
+     '<p>每条记录右边多了<b>编辑</b>：点开能改日期和五项数值（预填当前值），保存后' +
+     '卡片上的数值与「较上次」、明细每一行的小字、周 / 月增长表都按新数据重新算。</p>' +
+     '<p>改日期也可以：跨周 / 跨月会直接挪到对应的那一行，前后两条的「较上次」一起跟着变。' +
+     '某个值清空按 0 存。变动记录里当时保存的那条日志是留痕，不随编辑回改。</p>',
+     '2026.11'],
     ['V2.56 资源卡片去掉「累计」一行，只留「较上次」',
      '<p>木炭、玉钢、冷却材、砥石、小判五张卡片下方原来并排两行：' +
      '「较上次 ▲ +67,526」和「累计 ▲ +67,526」。现在只保留<b>较上次</b>，' +
