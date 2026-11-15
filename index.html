@@ -1090,9 +1090,23 @@
   .day-chip.on{background:linear-gradient(120deg,var(--accent-3),var(--accent-2));border-color:transparent;color:var(--on-accent);font-weight:600;}
   .day-table{min-width:0;}
   .day-table th{font-size:9.5px;padding:8px 10px;}
-  .day-table th:first-child{width:36%;}
-  .day-table-lv th:nth-child(2){width:30%;}
-  .day-table-rb th:nth-child(2){width:42%;}
+  .day-table th:first-child{width:34%;}
+  .day-table-lv th:nth-child(2){width:26%;}
+  .day-table-rb th:nth-child(2){width:38%;}
+  .day-table th.dt-op,.day-table td.dt-op{width:58px;text-align:center;}
+  .day-view{
+    border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:2px 8px;
+    font-size:10px;color:var(--sub);letter-spacing:.02em;transition:.15s;white-space:nowrap;
+  }
+  .day-view:hover{border-color:var(--line-strong);color:var(--accent-deep);}
+  .day-view em{font-style:normal;font-family:ui-monospace,Menlo,monospace;font-size:9px;color:var(--accent-deep);margin-left:2px;}
+  /* 「查看」弹窗：这段里每条变动的时间 + 变了什么 */
+  .dv-list{display:flex;flex-direction:column;max-height:44vh;overflow:auto;margin-top:2px;}
+  .dv-row{display:flex;gap:9px;align-items:baseline;padding:7px 2px;border-bottom:1px dashed var(--line);}
+  .dv-row:last-child{border-bottom:none;}
+  .dv-i{flex:0 0 18px;text-align:right;font-family:ui-monospace,Menlo,monospace;font-size:9.5px;color:var(--muted-2);}
+  .dv-t{flex:0 0 auto;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--accent-deep);white-space:nowrap;}
+  .dv-c{flex:1 1 auto;min-width:0;font-size:11px;color:var(--sub);line-height:1.65;word-break:break-word;}
   .day-table td{padding:9px 10px;font-size:11px;line-height:1.55;white-space:normal;vertical-align:middle;}
   .day-table th:nth-child(2),.day-table td:nth-child(2),
   .day-table th:nth-child(3),.day-table td:nth-child(3){text-align:right;}
@@ -1163,6 +1177,10 @@
     .day-table td{line-height:1.5;}
     .day-lv,.day-rb{font-size:10px;}
     .day-delta{font-size:11px;}
+    .day-table td.dt-op{justify-content:flex-end;}
+    .day-table td.dt-op::before{display:none;}
+    .dv-row{flex-wrap:wrap;gap:2px 8px;}
+    .dv-c{flex-basis:100%;}
   }
 
   @media (max-width:1180px){
@@ -1372,7 +1390,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.62</div>
+        <div class="brand-sub">HONMARU KEEPER V2.63</div>
       </div>
     </div>
 
@@ -1622,11 +1640,11 @@
       <div class="panel">
         <div class="panel-head">
           <h2>📈 等级 · 经验</h2>
-          <p>所看范围（一天 / 一周 / 一个月 / 自选起止）内等级或经验有变化的刀剑，同一振合并成一行：等级看 <b>起始 → 现在</b>，后面跟这段里净升降了几级；普刀看的是<b>极化等级</b>（经验涨够就升级），普刀自己的等级写在小字里。名字旁边标了这把现在是<b>普</b>还是<b>极</b>。</p>
+          <p>所看范围（一天 / 一周 / 一个月 / 自选起止）内等级或经验有变化的刀剑，同一振合并成一行：等级看 <b>起始 → 现在</b>，后面跟这段里净升降了几级；普刀看的是<b>极化等级</b>（经验涨够就升级），普刀自己的等级写在小字里。名字旁边标了这把现在是<b>普</b>还是<b>极</b>。行尾的<b>查看</b>按时间先后列出这一振在这段里的每一条变动。</p>
         </div>
         <div class="res-table-wrap">
           <table class="res-table day-table day-table-lv">
-            <thead><tr><th>刀剑</th><th>等级</th><th>经验增长</th></tr></thead>
+            <thead><tr><th>刀剑</th><th>等级</th><th>经验增长</th><th class="dt-op">记录</th></tr></thead>
             <tbody id="dayLvBody"></tbody>
           </table>
         </div>
@@ -1637,11 +1655,11 @@
       <div class="panel">
         <div class="panel-head">
           <h2>🌾 乱舞</h2>
-          <p>所看范围里喂过刀的刀剑，按 <b>获得几振</b> 算：跨等级也是把每一级补满的刀数加起来，不会少算；一周 / 一月里多次喂刀会累加，批量把乱舞往下改的算负数。</p>
+          <p>所看范围里喂过刀的刀剑，按 <b>获得几振</b> 算：跨等级也是把每一级补满的刀数加起来，不会少算；一周 / 一月里多次喂刀会累加，批量把乱舞往下改的算负数。行尾的<b>查看</b>同样能按时间看到每次喂刀。</p>
         </div>
         <div class="res-table-wrap">
           <table class="res-table day-table day-table-rb">
-            <thead><tr><th>刀剑</th><th class="dt-rb">乱舞变化</th><th>获得振数</th></tr></thead>
+            <thead><tr><th>刀剑</th><th class="dt-rb">乱舞变化</th><th>获得振数</th><th class="dt-op">记录</th></tr></thead>
             <tbody id="dayRbBody"></tbody>
           </table>
         </div>
@@ -5211,6 +5229,52 @@ function dayShift(n){
   ui.dayPageLv = 1; ui.dayPageRb = 1;
   renderDaily();
 }
+/* 行尾「查看」：这段里这振有几条记录，点开按时间先后列出来 */
+function dayLogCell(rec){
+  const n = Number(rec.cnt) || 0;
+  return '<td data-l="记录" class="dt-op"><button class="day-view" data-no="' + rec.no + '" title="按时间看这振在这段里的 ' +
+    n + ' 条记录">查看' + (n > 1 ? '<em>' + n + '</em>' : '') + '</button></td>';
+}
+/* 这振在 [from, to] 里真正进了统计的那些日志（改名 / 换获取方式这种不算） */
+function dayLogList(no, from, to){
+  const d = curData();
+  if(!d) return [];
+  const REL = {lv:1, exp:1, plv:1, k:1, ranbu:1, r:1, rp:1};
+  return (d.logs || []).filter(function(l){
+    if(l.kind === 'new' || l.kind === 'del' || l.kind === 'res') return false;
+    if(Number(l.no) !== Number(no)) return false;
+    const day = fmtDate(new Date(l.ts));
+    if(day < from || day > to) return false;
+    return (l.changes || []).some(function(c){ return REL[c.f]; });
+  }).sort(function(a, b){ return a.ts - b.ts; });    // 按时间先后，老的在上
+}
+function openDayLogs(no){
+  const d = curData();
+  const row = rowOf(no);
+  if(!d || !row) return;
+  const rg = dayRange();
+  const from = rg[0], to = rg[1];
+  const same = from === to;
+  const list = dayLogList(no, from, to);
+  const body = list.length
+    ? '<div class="dv-list">' + list.map(function(l, i){
+        const full = fmtTime(l.ts);
+        /* 看一天就只写时分秒；看一段带上月 / 日，免得分不清是哪天 */
+        const t = same ? full.slice(11) : (full.slice(5, 10).replace('-', '/') + ' ' + full.slice(11, 16));
+        return '<div class="dv-row">' +
+          '<span class="dv-i">' + (i + 1) + '</span>' +
+          '<span class="dv-t">' + t + '</span>' +
+          '<span class="dv-c">' + esc(logFlat(l)) + '</span>' +
+        '</div>';
+      }).join('') + '</div>'
+    : '<p class="muted" style="margin:0;font-size:12px;">这段里没有找到这振的变动记录。</p>';
+  openModal({
+    title: '「' + row.name + '」的变动时间',
+    sub: (same ? from : (from + ' 至 ' + to)) + ' · 共 ' + list.length + ' 条记录 · 按时间先后',
+    body: body,
+    actions: [{text:'关闭', cls:'btn', onClick:closeModal}]
+  });
+}
 function dayNameCell(rec){
   const row = rowOf(rec.no);
   const meta = ['No.' + String(rec.no).padStart(3, '0')];
@@ -5392,7 +5456,8 @@ function renderDaily(){
       }
       return '<tr><td>' + dayNameCell(r) + '</td>' +
         '<td data-l="等级"><div class="day-cell day-cell-l">' + dayLvHTML(r) + '</div></td>' +
-        '<td data-l="经验增长"><div class="day-cell">' + expTxt + '</div></td></tr>';
+        '<td data-l="经验增长"><div class="day-cell">' + expTxt + '</div></td>' +
+        dayLogCell(r) + '</tr>';
     }).join('');
     dayPages(lvPager, pages, ui.dayPageLv, function(pg){ ui.dayPageLv = pg; renderDaily(); }, per);
   }
@@ -5438,7 +5503,8 @@ function renderDaily(){
         : '<span class="day-delta flat">—</span>';
       return '<tr><td>' + dayNameCell(r) + '</td>' +
         '<td data-l="乱舞变化" class="dt-rb"><div class="day-cell day-cell-l">' + rbTxt + '</div></td>' +
-        '<td data-l="获得振数"><div class="day-cell">' + gainTxt + '</div></td></tr>';
+        '<td data-l="获得振数"><div class="day-cell">' + gainTxt + '</div></td>' +
+        dayLogCell(r) + '</tr>';
     }).join('');
     dayPages(rbPager, pages, ui.dayPageRb, function(pg){ ui.dayPageRb = pg; renderDaily(); }, per);
   }
@@ -7667,6 +7733,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.63 每日统计每振都能查这一段的变动时间',
+     '<p>「等级 · 经验」和「乱舞」两张表最右都多了一列 <b>记录</b>，每振后面一个「查看」：点开就是这一振在当前范围里的' +
+     '<b>每一条变动</b>，按时间先后排好——看一天只写时分秒，看一周 / 一月 / 自选会带上月日，后面跟这条改了什么（等级、经验、乱舞、极化）。</p>' +
+     '<p>只改名字、换获取方式这类不进统计的日志不会混进来；「查看」后面那个小数字就是这段里的记录条数（只有 1 条时不显示）。</p>',
+     '2026.11'],
     ['V2.62 取消编辑也回到这一振',
      '<p>「取消」和「保存」是一个毛病：卡片一收回去，页面变短就把人甩出画面。现在点「取消」也会把这一振整张摆回视口里，' +
      '和保存后的定位规则一致（整张可见就不动，上沿 / 下沿被切才贴边对齐）。取消照旧不写数据、不记日志。</p>',
@@ -8244,6 +8315,12 @@ function initEvents(){
   });
   const dayPrev = $('#btnDayPrev'); if(dayPrev) dayPrev.onclick = function(){ dayShift(-1); };
   const dayNext = $('#btnDayNext'); if(dayNext) dayNext.onclick = function(){ dayShift(1); };
+  const viewDailyEl = $('#viewDaily');
+  if(viewDailyEl) viewDailyEl.addEventListener('click', function(e){
+    const b = e.target.closest('.day-view');
+    if(!b) return;
+    openDayLogs(Number(b.dataset.no));
+  });
   const dayToday = $('#btnDayToday'); if(dayToday) dayToday.onclick = function(){
     ui.day = fmtDate(new Date()); ui.dayPageLv = 1; ui.dayPageRb = 1; renderDaily();
   };
