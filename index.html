@@ -1088,6 +1088,21 @@
   }
   .day-chip:hover{border-color:var(--line-strong);color:var(--accent-deep);background:var(--surface-2);}
   .day-chip.on{background:linear-gradient(120deg,var(--accent-3),var(--accent-2));border-color:transparent;color:var(--on-accent);font-weight:600;}
+  /* 每日统计：区块标题右边的排序切换 */
+  .ph-head{display:flex;align-items:center;justify-content:space-between;gap:8px 14px;flex-wrap:wrap;margin-bottom:6px;}
+  .ph-head h2{margin:0;}
+  .day-sort{display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
+  .day-sort-k{font-size:9.5px;letter-spacing:.14em;color:var(--muted);font-weight:700;margin-right:1px;}
+  .day-sort-b{
+    border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:2px 10px;
+    font-size:10.5px;color:var(--sub);letter-spacing:.02em;transition:.15s;white-space:nowrap;
+  }
+  .day-sort-b:hover{border-color:var(--line-strong);color:var(--accent-deep);}
+  .day-sort-b.on{background:linear-gradient(120deg,var(--accent-3),var(--accent-2));border-color:transparent;color:var(--on-accent);font-weight:700;}
+  .day-sort-note{
+    font-size:10px;color:var(--muted);letter-spacing:.04em;white-space:nowrap;
+    border:1px dashed var(--line);border-radius:12px;padding:2px 9px;
+  }
   .day-table{min-width:0;}
   .day-table th{font-size:9.5px;padding:8px 10px;}
   .day-table th:first-child{width:34%;}
@@ -1390,7 +1405,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.63</div>
+        <div class="brand-sub">HONMARU KEEPER V2.64</div>
       </div>
     </div>
 
@@ -1639,8 +1654,16 @@
 
       <div class="panel">
         <div class="panel-head">
-          <h2>📈 等级 · 经验</h2>
-          <p>所看范围（一天 / 一周 / 一个月 / 自选起止）内等级或经验有变化的刀剑，同一振合并成一行：等级看 <b>起始 → 现在</b>，后面跟这段里净升降了几级；普刀看的是<b>极化等级</b>（经验涨够就升级），普刀自己的等级写在小字里。名字旁边标了这把现在是<b>普</b>还是<b>极</b>。行尾的<b>查看</b>按时间先后列出这一振在这段里的每一条变动。</p>
+          <div class="ph-head">
+            <h2>📈 等级 · 经验</h2>
+            <div class="day-sort" id="dayLvSort" role="group" aria-label="等级经验排序方式">
+              <span class="day-sort-k">排序</span>
+              <button class="day-sort-b on" data-ds="lv" title="按这段里涨的级数从多到少">涨幅</button>
+              <button class="day-sort-b" data-ds="exp" title="按这段里的经验增长从多到少">经验</button>
+              <button class="day-sort-b" data-ds="time" title="按这段里最后一条变动的时间，新的在上">更新时间</button>
+            </div>
+          </div>
+          <p>所看范围（一天 / 一周 / 一个月 / 自选起止）内等级或经验有变化的刀剑，同一振合并成一行：等级看 <b>起始 → 现在</b>，后面跟这段里净升降了几级；普刀看的是<b>极化等级</b>（经验涨够就升级），普刀自己的等级写在小字里。名字旁边标了这把现在是<b>普</b>还是<b>极</b>。行尾的<b>查看</b>按时间先后列出这一振在这段里的每一条变动。右上角可切<b>排序</b>：涨幅 / 经验 / 更新时间（按更新时间排时，名字下面会写这条最后变动的时刻）。</p>
         </div>
         <div class="res-table-wrap">
           <table class="res-table day-table day-table-lv">
@@ -1654,7 +1677,10 @@
 
       <div class="panel">
         <div class="panel-head">
-          <h2>🌾 乱舞</h2>
+          <div class="ph-head">
+            <h2>🌾 乱舞</h2>
+            <span class="day-sort-note">按获得振数排序</span>
+          </div>
           <p>所看范围里喂过刀的刀剑，按 <b>获得几振</b> 算：跨等级也是把每一级补满的刀数加起来，不会少算；一周 / 一月里多次喂刀会累加，批量把乱舞往下改的算负数。行尾的<b>查看</b>同样能按时间看到每次喂刀。</p>
         </div>
         <div class="res-table-wrap">
@@ -2458,7 +2484,7 @@ const RES_MAX = 999999999;
    ========================================================= */
 const KEY = 'honmaru_keeper_v3';
 let S = null;
-const ui = {tab:'catalog', q:'', type:'', own:'', kiwame:'', ranbu:'', level:'', sort:'no', edit:{}, logQ:'', logKind:'', logDate:'', logPage:1, day:'', dayMode:'day', dayFrom:'', dayTo:'', dayPageLv:1, dayPageRb:1};
+const ui = {tab:'catalog', q:'', type:'', own:'', kiwame:'', ranbu:'', level:'', sort:'no', edit:{}, logQ:'', logKind:'', logDate:'', logPage:1, day:'', dayMode:'day', dayFrom:'', dayTo:'', dayLvSort:'lv', dayPageLv:1, dayPageRb:1};
 
 function uid(){ return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 function seedTw(){
@@ -5118,7 +5144,7 @@ function dailyAgg(d, from, to){
     let rec = map[no];
     if(!rec){
       rec = map[no] = {
-        no:no, name:l.name || ('No.' + no), cnt:0,
+        no:no, name:l.name || ('No.' + no), cnt:0, last:0,
         lvFrom:null, lvTo:null, lvGain:0, hasLv:false,
         plvFrom:null, plvTo:null, plvGain:0, hasPlv:false,
         expGain:0, hasExp:false,
@@ -5127,6 +5153,8 @@ function dailyAgg(d, from, to){
       };
     }
     rec.cnt++;
+    /* 这段里最后一次变动的时间：换「更新时间」排序用，名字下面也拿它标时刻 */
+    if(!rec.last || l.ts > rec.last) rec.last = l.ts;
     if(l.name) rec.name = l.name;
 
     if(lvA !== null){
@@ -5176,6 +5204,10 @@ function signedNum(n, unit){
   return (n > 0 ? '+' : '-') + fmtNum(Math.abs(n)) + (unit || '');
 }
 /* ---------- 统计范围：日 / 周 / 月 / 自定义 ---------- */
+/* 等级 · 经验那张表的排法：涨幅（默认）/ 经验 / 更新时间。乱舞固定按获得振数，不跟这个走 */
+function dayLvSortOf(){
+  return ['lv','exp','time'].indexOf(ui.dayLvSort) >= 0 ? ui.dayLvSort : 'lv';
+}
 function dayModeOf(){
   return ['day','week','month','range'].indexOf(ui.dayMode) >= 0 ? ui.dayMode : 'day';
 }
@@ -5275,10 +5307,11 @@ function openDayLogs(no){
     actions: [{text:'关闭', cls:'btn', onClick:closeModal}]
   });
 }
-function dayNameCell(rec){
+function dayNameCell(rec, extra){
   const row = rowOf(rec.no);
   const meta = ['No.' + String(rec.no).padStart(3, '0')];
   if(row && row.type) meta.push(row.type);
+  if(extra) meta.push(extra);
   /* 标明这把现在是普刀还是极刀：两边「等级」的含义不一样，普刀看的是极化等级 */
   const isK = row && Number(row.k) === 1;
   return '<div class="day-name"><b>' + esc(rec.name) +
@@ -5388,6 +5421,8 @@ function renderDaily(){
   if(rt) rt.textContent = mode === 'range' ? ('共 ' + span + ' 天')
     : (mode === 'day' ? '' : rTxt + ' · ' + span + ' 天');
   $$('#dayModes .day-mode').forEach(function(b){ b.classList.toggle('on', b.dataset.dm === mode); });
+  const lvSort = dayLvSortOf();
+  $$('#dayLvSort .day-sort-b').forEach(function(b){ b.classList.toggle('on', b.dataset.ds === lvSort); });
 
   const lvBody = $('#dayLvBody'), rbBody = $('#dayRbBody');
   const lvPager = $('#dayLvPager'), rbPager = $('#dayRbPager');
@@ -5429,10 +5464,17 @@ function renderDaily(){
   const lvAll = st.rows.filter(function(r){
     return (r.hasLv && r.lvGain !== 0) || r.polar || r.hasExp || r.hasPlv;
   });
+  /* 三种排法：涨幅（默认，涨的级数多的在上） / 经验（经验增长多的在上） / 更新时间（最近变动的在上）。
+     同分时退到其余两种口径，保证顺序稳定，不会每次刷新跳来跳去 */
+  const lvGainOf = function(r){ return Math.abs(r.lvGain + (r.hasPlv ? r.plvGain : 0)); };
   lvAll.sort(function(a, b){
-    const ga = Math.abs(a.lvGain + (a.hasPlv ? a.plvGain : 0));
-    const gb = Math.abs(b.lvGain + (b.hasPlv ? b.plvGain : 0));
-    return (gb - ga) || (b.expGain - a.expGain) || (a.no - b.no);
+    if(lvSort === 'exp'){
+      return (b.expGain - a.expGain) || (lvGainOf(b) - lvGainOf(a)) || (a.no - b.no);
+    }
+    if(lvSort === 'time'){
+      return ((b.last || 0) - (a.last || 0)) || (a.no - b.no);
+    }
+    return (lvGainOf(b) - lvGainOf(a)) || (b.expGain - a.expGain) || (a.no - b.no);
   });
 
   if(!lvAll.length){
@@ -5454,7 +5496,11 @@ function renderDaily(){
         expTxt = '<span class="day-delta ' + (r.expGain > 0 ? 'up' : (r.expGain < 0 ? 'down' : 'flat')) + '" title="' +
           esc(expUnit(r.no)) + '">' + signedNum(r.expGain) + '</span>';
       }
-      return '<tr><td>' + dayNameCell(r) + '</td>' +
+      /* 按更新时间排时，把这条最后变动的时刻写在名字下面，不然看不出为什么是这个顺序 */
+      const lastTxt = (lvSort === 'time' && r.last)
+        ? ('最后 ' + fmtTime(r.last).slice(5, 16).replace('-', '/'))
+        : '';
+      return '<tr><td>' + dayNameCell(r, lastTxt) + '</td>' +
         '<td data-l="等级"><div class="day-cell day-cell-l">' + dayLvHTML(r) + '</div></td>' +
         '<td data-l="经验增长"><div class="day-cell">' + expTxt + '</div></td>' +
         dayLogCell(r) + '</tr>';
@@ -7733,6 +7779,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.64 每日统计可以挑排序了',
+     '<p>「等级 · 经验」标题右边多了 <b>排序</b>，三档随手切：<b>涨幅</b>（涨的级数多的在上，原来的排法）、' +
+     '<b>经验</b>（这段里经验涨得多的在上）、<b>更新时间</b>（最近变过的在上，名字下面会写「最后 11/15 22:03」，一眼看出为什么排这儿）。</p>' +
+     '<p>「乱舞」不跟这个走，固定按 <b>获得振数</b> 从多到少（下修的负数排在后面）。换排序会回到第一页。</p>',
+     '2026.11'],
     ['V2.63 每日统计每振都能查这一段的变动时间',
      '<p>「等级 · 经验」和「乱舞」两张表最右都多了一列 <b>记录</b>，每振后面一个「查看」：点开就是这一振在当前范围里的' +
      '<b>每一条变动</b>，按时间先后排好——看一天只写时分秒，看一周 / 一月 / 自选会带上月日，后面跟这条改了什么（等级、经验、乱舞、极化）。</p>' +
@@ -8293,6 +8344,16 @@ function initEvents(){
         ui.dayTo = to;
       }
       ui.dayPageLv = 1; ui.dayPageRb = 1;
+      renderDaily();
+    };
+  });
+  /* 等级 · 经验排序：换排法回第一页，免得停在一个新顺序里不存在的页码 */
+  $$('#dayLvSort .day-sort-b').forEach(function(b){
+    b.onclick = function(){
+      const s = b.dataset.ds || 'lv';
+      if(dayLvSortOf() === s) return;
+      ui.dayLvSort = s;
+      ui.dayPageLv = 1;
       renderDaily();
     };
   });
