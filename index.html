@@ -769,6 +769,11 @@
   .ob-st{flex:0 0 auto;font-size:9.5px;padding:1px 6px;border-radius:8px;}
   .ob-st.on{background:var(--tint-a);color:var(--accent-deep);}
   .ob-st.off{background:rgba(140,120,125,.10);color:var(--muted);}
+  .ob-set{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+  .ob-set .fld{display:flex;align-items:center;gap:7px;margin:0;font-size:11.5px;color:var(--sub);}
+  .ob-set .fld select{width:auto;min-width:110px;padding:4px 8px;font-size:11.5px;}
+  .ob-chk{display:flex;align-items:center;gap:6px;margin:0;font-size:11.5px;color:var(--sub);cursor:pointer;}
+  .ob-chk input{margin:0;accent-color:var(--accent);}
   .res-empty{padding:26px;text-align:center;color:var(--sub);font-size:12px;}
   .res-tabs{display:flex;gap:6px;margin:0 0 10px;}
   .res-tab{
@@ -995,6 +1000,8 @@
   .chg b{font-weight:700;color:var(--accent-deep);}
   .chg-rb{background:rgba(79,123,98,.14);border-color:rgba(79,123,98,.28);color:#4f7b62;}
   .chg-rb em{font-style:normal;font-weight:700;margin-right:5px;}
+  .chg-rb.down{background:rgba(120,110,105,.12);border-color:rgba(120,110,105,.25);color:#8a7a6d;}
+  .chg-rb.down b{color:#7a6a5d;}
   .chg-del{background:rgba(120,110,105,.12);border-color:rgba(120,110,105,.25);color:#8a7a6d;}
   .chg-del em{font-style:normal;font-weight:700;margin-right:5px;color:#7a6a5d;}
   .chg-new{background:rgba(90,111,158,.14);border-color:rgba(90,111,158,.3);color:#5a6f9e;}
@@ -1350,7 +1357,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.58</div>
+        <div class="brand-sub">HONMARU KEEPER V2.59</div>
       </div>
     </div>
 
@@ -1485,6 +1492,7 @@
           <button class="chip" data-kw="0">普</button>
           <button class="chip" data-kw="na">未开放</button>
           <button class="chip" data-kw="open">待极化</button>
+          <button class="chip ghost" id="btnKBatch">☑ 批量设置</button>
           <button class="chip ghost" id="btnOpenPool">⚙ 极化开放</button>
           <button class="chip ghost" id="btnResetFilters">清除筛选</button>
           <button class="chip ghost" id="btnResetData">↺ 恢复初始值</button>
@@ -1497,6 +1505,7 @@
           <button class="chip active" data-r="">全部</button>
           <button class="chip" data-r="10">乱舞 MAX</button>
           <button class="chip" data-r="under">未满乱舞</button>
+          <button class="chip ghost" id="btnRBatch">☑ 批量设置</button>
         </div>
       </div>
 
@@ -3603,38 +3612,78 @@ function commitEdit(no){
   }
 }
 
-/* 批量设置拥有状态：按当前筛选列出，勾好一次改完，不用一振一振点「修改」 */
-function openOwnBatch(){
+/* 批量设置：拥有状态 / 极化 / 乱舞。按当前筛选列出，勾好一次改完，不用一振一振点「修改」 */
+const BATCH_MODES = {
+  own: {
+    title: '批量设置拥有状态',
+    get: function(x){ return Number(x.own) === 0 ? 0 : 1; },
+    txt: function(v){ return v ? '已拥有' : '未拥有'; },
+    opts: [{v:0, text:'设为未拥有'}, {v:1, text:'设为已拥有', primary:true}],
+    sub: '只会改状态不同的那些，每振留一条日志。'
+  },
+  k: {
+    title: '批量设置极化状态',
+    get: function(x){ return Number(x.k) === 1 ? 1 : 0; },
+    txt: function(v){ return v ? '极' : '普'; },
+    opts: [{v:0, text:'设为普'}, {v:1, text:'设为极', primary:true}],
+    sub: '设为「极」按普刀累计 − 门槛换算极化等级；没开放极化的刀会跳过。'
+  },
+  r: {
+    title: '批量设置乱舞',
+    get: function(x){ return clampNum(x.r, 1, 10, 1); },
+    txt: function(v){ return '乱舞 ' + v; },
+    opts: null,
+    sub: '选好等级再点「应用」，只改等级 / 进度不同的那些。'
+  }
+};
+function openBatch(mode){
   const d = curData();
-  if(!d) return;
+  const cfg = BATCH_MODES[mode];
+  if(!d || !cfg) return;
   if(!d.tw.length){ toast('这个账号还没有刀剑，先用「＋ 新增刀剑」', true); return; }
   const rows = sortedRows(filteredRows());
   if(!rows.length){ toast('当前筛选下没有刀剑，先放宽筛选', true); return; }
-  const scopeTxt = ui.own === '1' ? '已拥有' : (ui.own === '0' ? '未拥有' : '全部');
   const items = rows.map(function(x){
-    const own = Number(x.own) !== 0;
+    const dim = mode === 'own' && Number(x.own) === 0;
     return '<label class="ob-item">' +
       '<input type="checkbox" class="ob-cb" value="' + x.no + '" checked>' +
       '<span class="ob-no">' + String(x.no).padStart(3, '0') + '</span>' +
       '<span class="ob-name">' + esc(x.name) + (Number(x.k) === 1 ? '<i class="ob-k">极</i>' : '') + '</span>' +
-      '<span class="ob-st ' + (own ? 'on' : 'off') + '">' + (own ? '已拥有' : '未拥有') + '</span>' +
+      '<span class="ob-st ' + (dim ? 'off' : 'on') + '">' + esc(cfg.txt(cfg.get(x))) + '</span>' +
     '</label>';
   }).join('');
+  const setRow = mode === 'r'
+    ? '<div class="ob-set">' +
+        '<label class="fld"><span>乱舞等级</span><select id="obR">' +
+          [10,9,8,7,6,5,4,3,2,1].map(function(n){
+            return '<option value="' + n + '">乱舞 ' + n + (n === 10 ? ' · MAX' : '') + '</option>';
+          }).join('') +
+        '</select></label>' +
+        '<label class="ob-chk"><input type="checkbox" id="obRp" checked> 进度清零</label>' +
+      '</div>'
+    : '';
+  const acts = [{text:'取消', cls:'btn', onClick:closeModal}].concat(
+    cfg.opts
+      ? cfg.opts.map(function(o){
+          return {text:o.text, cls:'btn' + (o.primary ? ' primary' : ''),
+                  onClick:function(){ applyBatch(mode, o.v); }};
+        })
+      : [{text:'应用', cls:'btn primary', onClick:function(){
+          const sel = $('#obR');
+          applyBatch(mode, clampNum(sel && sel.value, 1, 10, 10));
+        }}]
+  );
   openModal({
-    title: '批量设置拥有状态',
-    sub: '列表是当前筛选结果（' + scopeTxt + ' · ' + rows.length + ' 振），默认全选；勾好再点下面的按钮，只会改状态不同的那些。',
+    title: cfg.title,
+    sub: '列表是当前筛选结果（' + rows.length + ' 振），默认全选；' + cfg.sub,
     body: '<div class="ob-tools" id="obTools">' +
         '<button class="btn" data-ob="all">全选</button>' +
         '<button class="btn" data-ob="none">全不选</button>' +
         '<button class="btn" data-ob="inv">反选</button>' +
         '<span class="ob-cnt" id="obCnt"></span>' +
-      '</div>' +
+      '</div>' + setRow +
       '<div class="ob-list" id="obList">' + items + '</div>',
-    actions: [
-      {text:'取消', cls:'btn', onClick:closeModal},
-      {text:'设为未拥有', cls:'btn', onClick:function(){ applyOwnBatch(0); }},
-      {text:'设为已拥有', cls:'btn primary', onClick:function(){ applyOwnBatch(1); }}
-    ]
+    actions: acts
   });
   const list = $('#obList');
   const cnt = $('#obCnt');
@@ -3648,10 +3697,10 @@ function openOwnBatch(){
   $$('#obTools button[data-ob]').forEach(function(b){
     b.onclick = function(){
       const boxes = list.querySelectorAll('.ob-cb');
-      const mode = b.dataset.ob;
+      const how = b.dataset.ob;
       Array.prototype.forEach.call(boxes, function(el){
-        if(mode === 'all') el.checked = true;
-        else if(mode === 'none') el.checked = false;
+        if(how === 'all') el.checked = true;
+        else if(how === 'none') el.checked = false;
         else el.checked = !el.checked;
       });
       syncCnt();
@@ -3660,35 +3709,78 @@ function openOwnBatch(){
   list.addEventListener('change', syncCnt);
   syncCnt();
 }
-function applyOwnBatch(val){
+/* 切极 / 普时经验和等级怎么跟着变，和卡片上点「极 / 普」完全一套口径 */
+function kiwameConvert(row, k){
+  const m = expProfile(row.type, row.fl);
+  const ded = m ? m.ded : 0;
+  if(k === 1){
+    const pu = expIsSet(row.exp) ? Math.max(0, Number(row.exp) || 0)
+                                 : puCum(clampNum(row.lv, 1, 99, 1));
+    const exp = Math.max(0, pu - ded);
+    return {exp: exp, lv: clampNum(lvFromRawExp(row.type, exp, row.fl), 1, 199, 1)};
+  }
+  const exp = expIsSet(row.exp) ? Math.max(0, Number(row.exp) || 0) + ded
+                                : puCum(clampNum(row.lv, 1, 99, 1));
+  return {exp: exp, lv: clampNum(puLvFromCum(exp), 1, 99, 1)};
+}
+function applyBatch(mode, val){
   const d = curData();
-  if(!d) return;
+  const cfg = BATCH_MODES[mode];
+  if(!d || !cfg) return;
   const nos = $$('#obList .ob-cb').filter(function(el){ return el.checked; })
     .map(function(el){ return Number(el.value); });
   if(!nos.length){ toast('先勾选要设置的刀剑', true); return; }
+  const clearRp = mode === 'r' && !!($('#obRp') && $('#obRp').checked);
   if(!Array.isArray(d.logs)) d.logs = [];
-  let changed = 0;
+  let changed = 0, skipped = 0;
   nos.forEach(function(no){
     const row = rowOf(no);
     if(!row) return;
-    const before = Number(row.own) === 0 ? 0 : 1;
-    if(before === val) return;
-    row.own = val;
+    let changes = null;
+    if(mode === 'own'){
+      const before = Number(row.own) === 0 ? 0 : 1;
+      if(before === val) return;
+      row.own = val;
+      changes = [{f:'own', from:before, to:val}];
+    }else if(mode === 'k'){
+      const before = Number(row.k) === 1 ? 1 : 0;
+      if(before === val) return;
+      if(val === 1 && !isOpen(no)){ skipped++; return; }
+      const conv = kiwameConvert(row, val);
+      const lvA = clampNum(row.lv, 1, 999, 1), expA = Number(row.exp) || 0;
+      changes = [{f:'k', from:before, to:val}];
+      if(lvA !== conv.lv) changes.push({f:'lv', from:lvA, to:conv.lv});
+      if(expA !== conv.exp) changes.push({f:'exp', from:expA, to:conv.exp});
+      row.k = val; row.lv = conv.lv; row.exp = conv.exp;
+    }else{
+      const rA = clampNum(row.r, 1, 10, 1), rpA = clampNum(row.rp, 0, 999, 0);
+      const rp = clearRp ? 0 : Math.min(rpA, ranbuNeed(row.fl, val) || 0);
+      if(rA === val && rpA === rp) return;
+      changes = [{f:'ranbu', r:rA, rp:rpA, r2:val, rp2:rp,
+                  n: ranbuNeed(row.fl, rA) || 0,
+                  n2: val >= 10 ? 0 : (ranbuNeed(row.fl, val) || 0),
+                  gain: ranbuGainBetween(row.fl, rA, rpA, val, rp)}];
+      row.r = val; row.rp = rp;
+    }
     changed++;
-    d.logs.unshift({id:uid(), no:no, name:row.name, kind:'sword',
-                    changes:[{f:'own', from:before, to:val}], ts:Date.now()});
+    d.logs.unshift({id:uid(), no:no, name:row.name,
+                    kind:(mode === 'r' ? 'ranbu' : 'sword'), changes:changes, ts:Date.now()});
   });
   if(d.logs.length > 2000) d.logs.length = 2000;
-  const label = val ? '已拥有' : '未拥有';
   if(!changed){
     closeModal();
-    toast('勾选的 ' + nos.length + ' 振本来就是「' + label + '」，没有改动');
+    toast(skipped
+      ? '勾选的 ' + nos.length + ' 振里没有可改的（' + skipped + ' 振还没开放极化）'
+      : '勾选的 ' + nos.length + ' 振本来就是这个状态，没有改动');
     return;
   }
   ui.logPage = 1;
   save(); closeModal();
   renderCatalog(); renderFilters(); renderStats(); renderLogs(); renderSidebar();
-  toast('已把 ' + changed + ' 振设为「' + label + '」' + (nos.length > changed ? ' · 另 ' + (nos.length - changed) + ' 振本来就是' : ''));
+  let msg = '已把 ' + changed + ' 振设为「' + (mode === 'r' ? '乱舞 ' + val : cfg.txt(val)) + '」';
+  if(nos.length > changed) msg += ' · 另 ' + (nos.length - changed) + ' 振本来就是';
+  if(skipped) msg += ' · ' + skipped + ' 振未开放极化没动';
+  toast(msg);
 }
 
 /* 删除一振（新增错了，或想清掉不想要的条目） */
@@ -4638,9 +4730,10 @@ function logFlat(l){
       const r = Number(c.r) || 1, r2 = Number(c.r2) || r;
       const rp = Number(c.rp) || 0, rp2 = Number(c.rp2) || 0;
       const nA = Number(c.n) || 0, nB = Number(c.n2) || nA;
-      return '乱舞 ' + r + (r2 === r ? '' : '→' + r2) + ' ' + rp + '/' + (nA || '?') +
+      const g = ranbuChangeGain(c);
+      return '乱舞 ' + r + (r2 === r ? '' : '→' + r2) + ' ' + (r >= 10 ? 'MAX' : rp + '/' + (nA || '?')) +
              '→' + (r2 >= 10 ? 'MAX' : rp2 + '/' + (nB || '?')) +
-             ' 获得 ' + fmtNum(ranbuChangeGain(c)) + ' 振';
+             ' ' + (g < 0 ? '变动 ' : '获得 ') + fmtNum(g) + ' 振';
     }
     if(c.f === 'res'){
       return resItemOf(c.key).name + ' ' + fmtNum(c.from) + '→' + fmtNum(c.to);
@@ -4660,10 +4753,13 @@ function logChangeHTML(c, kind){
     const r = Number(c.r) || 1, r2 = Number(c.r2) || r;
     const rp = Number(c.rp) || 0, rp2 = Number(c.rp2) || 0;
     const nA = Number(c.n) || 0, nB = Number(c.n2) || nA;
-    const head = r2 === r ? ('乱舞 ' + r) : ('乱舞 ' + r + '→' + r2);
+    /* 批量设置可以把乱舞往下改，往下的用灰底「10 → 5」，不跟升级混在一起 */
+    const down = r2 < r || (r2 === r && rp2 < rp);
+    const head = r2 === r ? ('乱舞 ' + r) : ('乱舞 ' + r + (down ? ' → ' : '→') + r2);
+    const from = r >= 10 ? 'MAX' : (rp + '/' + (nA || '?'));
     const to = r2 >= 10 ? 'MAX' : (rp2 + '/' + (nB || '?'));
-    return '<span class="chg chg-rb">' + (kind === 'ranbu' ? '' : '<em>喂刀</em> ') + head + ' · ' +
-           rp + '/' + (nA || '?') + ' → ' + to + (r2 > r ? ' 🎉' : '') + '</span>';
+    return '<span class="chg chg-rb' + (down ? ' down' : '') + '">' + (kind === 'ranbu' ? '' : '<em>喂刀</em> ') +
+           head + ' · ' + from + ' → ' + to + (!down && r2 > r ? ' 🎉' : '') + '</span>';
   }
   if(c.f === 'roster'){
     const isDel = kind === 'del';
@@ -5199,12 +5295,13 @@ function renderDaily(){
           const rr = Number(rv);
           return (rr ? (ranbuNeed(fl, rr) || '?') : '?');
         };
+        const fromTxt = (ar !== '?' && Number(ar) >= 10) ? 'MAX' : (rpA + '/' + needOf(ar, a.n));
         const sub = (br !== '?' && Number(br) >= 10) ? 'MAX'
-          : (rpA + '/' + needOf(ar, a.n) + ' → ' + rpB + '/' + needOf(br, b.n));
+          : (fromTxt + ' → ' + rpB + '/' + needOf(br, b.n));
         rbTxt = '<span class="day-rb">' + head + '<em>' + sub + '</em></span>';
       }
       const gainTxt = r.rbGain
-        ? '<span class="day-delta up">' + signedNum(r.rbGain, ' 振') + '</span>'
+        ? '<span class="day-delta ' + (r.rbGain > 0 ? 'up' : 'down') + '">' + signedNum(r.rbGain, ' 振') + '</span>'
         : '<span class="day-delta flat">—</span>';
       return '<tr><td>' + dayNameCell(r) + '</td>' +
         '<td data-l="乱舞变化" class="dt-rb"><div class="day-cell day-cell-l">' + rbTxt + '</div></td>' +
@@ -7437,6 +7534,13 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.59 极化 / 乱舞也能批量设置',
+     '<p>图鉴「极化」这行的 <b>☑ 批量设置</b>：勾好后点「设为极 / 设为普」，' +
+     '经验和等级按卡片上点「极 / 普」同一套口径换算（设为极 = 普刀累计 − 门槛，设为普 = 极化经验 + 门槛），' +
+     '没开放极化的刀会跳过并在提示里报数。</p>' +
+     '<p>「乱舞」这行同样有 <b>☑ 批量设置</b>：选好等级（1–10，含 MAX）再点「应用」，' +
+     '可勾「进度清零」（不勾就保留原有进度）；往下的改动在日志里是灰色「乱舞 10 → 5」，和升级区分开。</p>',
+     '2026.11'],
     ['V2.58 资源编辑也记日志 · 图鉴可批量设置拥有状态',
      '<p>资源记录点「编辑」保存后会补一条新日志（标「编辑更新」），改过的数值和日期都写清从多少改成多少；' +
      '没改动就不写，不留空记录。</p>' +
@@ -7864,8 +7968,10 @@ function initEvents(){
   $$('#ownFilters .chip[data-own]').forEach(function(b){
     b.onclick = function(){ ui.own = b.dataset.own; renderCatalog(); };
   });
-  const ownBatchBtn = $('#btnOwnBatch');
-  if(ownBatchBtn) ownBatchBtn.onclick = openOwnBatch;
+  [['btnOwnBatch','own'], ['btnKBatch','k'], ['btnRBatch','r']].forEach(function(pair){
+    const b = $('#' + pair[0]);
+    if(b) b.onclick = function(){ openBatch(pair[1]); };
+  });
   $$('#kiwameFilters .chip[data-kw]').forEach(function(b){
     b.onclick = function(){ ui.kiwame = b.dataset.kw; renderCatalog(); };
   });
