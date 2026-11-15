@@ -1372,7 +1372,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.60</div>
+        <div class="brand-sub">HONMARU KEEPER V2.61</div>
       </div>
     </div>
 
@@ -3450,6 +3450,24 @@ function repaintCard(no){
   el.parentNode.replaceChild(tmp.firstChild, el);
 }
 
+/* 保存后卡片从编辑态收回去，页面高度一变，人就被甩到卡片外面了 ——
+   把这一振整张摆回视口里：已经看得见就不动，免得平白跳一下 */
+function focusCard(no){
+  const card = document.querySelector('#grid .card[data-no="' + no + '"]');
+  if(!card) return;
+  const r = card.getBoundingClientRect();
+  const vh = window.innerHeight || document.documentElement.clientHeight;
+  const pad = 16;
+  if(r.top >= pad && r.bottom <= vh - pad) return;         // 整张都在视口里
+  let top;
+  if(r.height >= vh - pad * 2 || r.top < pad){
+    top = window.pageYOffset + r.top - pad;                 // 比屏幕还高，或上沿被切：顶端对齐
+  }else{
+    top = window.pageYOffset + r.bottom - vh + pad;         // 下沿被切：底端对齐
+  }
+  window.scrollTo({top: Math.max(0, Math.round(top)), behavior:'smooth'});
+}
+
 /* 把一个控件当前的值校验后写进 draft */
 function readField(o, el){
   const f = el.dataset.f;
@@ -3628,6 +3646,7 @@ function commitEdit(no){
   }else{
     repaintCard(no);
   }
+  focusCard(no);                        // 卡片收回原尺寸后把这一振整张留在眼前
   renderStats();
   renderFilters();
   renderLogs();
@@ -7647,6 +7666,12 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.61 卡片保存后自动回到这一振',
+     '<p>以前在卡片里改完点「保存」，卡片从编辑态收回原尺寸、页面一下变短，人就被甩到卡片外面，' +
+     '得再往回滑才找得到刚才那振。现在保存后会把<b>这一振整张摆回视口里</b>（上沿或下沿被切就贴着边对齐），' +
+     '本来整张都看得见的时候不动，不会平白跳一下。</p>' +
+     '<p>顺手一起改的：只改了经验、等级没动这类没有变动记录的保存，同样会定位到这一振。</p>',
+     '2026.11'],
     ['V2.60 每日统计可以按周 / 按月 / 自选范围看',
      '<p>顶部「统计范围」加了 <b>按日 / 按周 / 按月 / 自定义</b> 四个切换：按周从周一起算，按月按自然月，' +
      '自定义直接填起止日期（填反了会自动换过来）。右边的 ‹ › 跟着当前范围翻（前一天 / 上一周 / 上一月），「今天」一键回到当下。</p>' +
