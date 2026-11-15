@@ -1122,6 +1122,14 @@
   .dv-i{flex:0 0 18px;text-align:right;font-family:ui-monospace,Menlo,monospace;font-size:9.5px;color:var(--muted-2);}
   .dv-t{flex:0 0 auto;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--accent-deep);white-space:nowrap;}
   .dv-c{flex:1 1 auto;min-width:0;font-size:11px;color:var(--sub);line-height:1.65;word-break:break-word;}
+  .dv-pager{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);}
+  .dv-pg{
+    border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:3px 10px;
+    font-size:10.5px;color:var(--sub);letter-spacing:.02em;transition:.15s;white-space:nowrap;
+  }
+  .dv-pg:hover:not(:disabled){border-color:var(--line-strong);color:var(--accent-deep);}
+  .dv-pg:disabled{opacity:.35;cursor:not-allowed;}
+  .dv-pgn{font-size:10px;color:var(--muted);font-family:ui-monospace,Menlo,monospace;margin:0 1px;white-space:nowrap;}
   .day-table td{padding:9px 10px;font-size:11px;line-height:1.55;white-space:normal;vertical-align:middle;}
   .day-table th:nth-child(2),.day-table td:nth-child(2),
   .day-table th:nth-child(3),.day-table td:nth-child(3){text-align:right;}
@@ -1405,7 +1413,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.64</div>
+        <div class="brand-sub">HONMARU KEEPER V2.65</div>
       </div>
     </div>
 
@@ -5288,24 +5296,64 @@ function openDayLogs(no){
   const from = rg[0], to = rg[1];
   const same = from === to;
   const list = dayLogList(no, from, to);
-  const body = list.length
-    ? '<div class="dv-list">' + list.map(function(l, i){
-        const full = fmtTime(l.ts);
-        /* 看一天就只写时分秒；看一段带上月 / 日，免得分不清是哪天 */
-        const t = same ? full.slice(11) : (full.slice(5, 10).replace('-', '/') + ' ' + full.slice(11, 16));
-        return '<div class="dv-row">' +
-          '<span class="dv-i">' + (i + 1) + '</span>' +
-          '<span class="dv-t">' + t + '</span>' +
-          '<span class="dv-c">' + esc(logFlat(l)) + '</span>' +
-        '</div>';
-      }).join('') + '</div>'
-    : '<p class="muted" style="margin:0;font-size:12px;">这段里没有找到这振的变动记录。</p>';
+  if(!list.length){
+    openModal({
+      title: '「' + row.name + '」的变动时间',
+      sub: (same ? from : (from + ' 至 ' + to)) + ' · 0 条记录',
+      body: '<p class="muted" style="margin:0;font-size:12px;">这段里没有找到这振的变动记录。</p>',
+      actions: [{text:'关闭', cls:'btn', onClick:closeModal}]
+    });
+    return;
+  }
   openModal({
     title: '「' + row.name + '」的变动时间',
     sub: (same ? from : (from + ' 至 ' + to)) + ' · 共 ' + list.length + ' 条记录 · 按时间先后',
-    body: body,
+    body: '<div id="dvWrap"></div>',
     actions: [{text:'关闭', cls:'btn', onClick:closeModal}]
   });
+
+  /* 记录多的时候分页看，省得在一长条里滚；序号接着全局的排，翻页不会又从 1 开始 */
+  const per = (window.innerWidth <= 560 || window.innerHeight < 620) ? 5 : 6;
+  const pages = Math.max(1, Math.ceil(list.length / per));
+  let page = 1, fullH = 0;
+  function dvDraw(){
+    const start = (page - 1) * per;
+    const rows = list.slice(start, start + per).map(function(l, i){
+      const full = fmtTime(l.ts);
+      /* 看一天就只写时分秒；看一段带上月 / 日，免得分不清是哪天 */
+      const t = same ? full.slice(11) : (full.slice(5, 10).replace('-', '/') + ' ' + full.slice(11, 16));
+      return '<div class="dv-row">' +
+        '<span class="dv-i">' + (start + i + 1) + '</span>' +
+        '<span class="dv-t">' + t + '</span>' +
+        '<span class="dv-c">' + esc(logFlat(l)) + '</span>' +
+      '</div>';
+    }).join('');
+    const pager = pages > 1
+      ? '<div class="dv-pager">' +
+          '<button class="dv-pg" data-dv="' + (page - 1) + '"' + (page <= 1 ? ' disabled' : '') + '>‹ 上一页</button>' +
+          '<span class="dv-pgn">第 ' + page + ' / ' + pages + ' 页 · 每页 ' + per + ' 条</span>' +
+          '<button class="dv-pg" data-dv="' + (page + 1) + '"' + (page >= pages ? ' disabled' : '') + '>下一页 ›</button>' +
+        '</div>'
+      : '';
+    const wrap = $('#dvWrap');
+    if(!wrap) return;
+    wrap.innerHTML = '<div class="dv-list">' + rows + '</div>' + pager;
+    /* 最后一页条数少，撑住列表高度，翻页时弹窗不会跟着一缩一跳 */
+    const lst = wrap.querySelector('.dv-list');
+    if(lst && pages > 1){
+      if(!fullH) fullH = lst.offsetHeight;
+      else lst.style.minHeight = fullH + 'px';
+    }
+    Array.prototype.forEach.call(wrap.querySelectorAll('.dv-pg'), function(b){
+      b.onclick = function(){
+        const pg = Number(b.dataset.dv);
+        if(!pg || pg === page || pg < 1 || pg > pages) return;
+        page = pg;
+        dvDraw();
+      };
+    });
+  }
+  dvDraw();
 }
 function dayNameCell(rec, extra){
   const row = rowOf(rec.no);
@@ -7779,6 +7827,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.65 「查看」的记录可以翻页了',
+     '<p>一天里同一振改了很多次，或者看一周 / 一个月时记录攒到十几条，原来只能在一长条里往下滚。现在这些记录<b>分页</b>看：' +
+     '电脑每页 6 条、手机每页 5 条，列表下方就是 <b>‹ 上一页 / 第 x / y 页 / 下一页 ›</b>。</p>' +
+     '<p>左边序号按整段连续排（第 2 页从 7 开始），翻页不会重新从 1 数；每页高度固定，翻到最后一页弹窗也不会突然缩一下。</p>',
+     '2026.11'],
     ['V2.64 每日统计可以挑排序了',
      '<p>「等级 · 经验」标题右边多了 <b>排序</b>，三档随手切：<b>涨幅</b>（涨的级数多的在上，原来的排法）、' +
      '<b>经验</b>（这段里经验涨得多的在上）、<b>更新时间</b>（最近变过的在上，名字下面会写「最后 11/15 22:03」，一眼看出为什么排这儿）。</p>' +
