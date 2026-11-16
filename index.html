@@ -1599,7 +1599,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.77</div>
+        <div class="brand-sub">HONMARU KEEPER V2.78</div>
       </div>
     </div>
 
@@ -1708,8 +1708,6 @@
           <button class="btn" id="btnFillFlower" title="按内置刀帐把空着的花数补上">🌸 补全花数</button>
           <button class="btn" id="btnExport">📥 导出</button>
           <button class="btn" id="btnImport">📤 导入</button>
-          <button class="btn" id="btnSyncGen">🔗 同步码</button>
-          <button class="btn" id="btnSyncRead">📋 读码</button>
           <button class="btn" id="btnSyncCloud" title="多设备同步：手机和电脑打开同一页面、填同一个同步密钥">☁ 云同步</button>
           <input type="file" id="fileInput" accept=".json,application/json" hidden>
         </div>
@@ -3079,15 +3077,16 @@ let syncState = (function(){
     const o = JSON.parse(localStorage.getItem(SYNC_STATE_KEY) || 'null');
     if(o && typeof o === 'object') return {
       status:o.status || 'off', msg:o.msg || '', lastSyncAt:o.lastSyncAt || '',
-      dirty:!!o.dirty, remoteAt:o.remoteAt || ''
+      dirty:!!o.dirty, remoteAt:o.remoteAt || '', expiresAt:o.expiresAt || ''
     };
   }catch(e){}
-  return {status:'off', msg:'', lastSyncAt:'', dirty:false, remoteAt:''};
+  return {status:'off', msg:'', lastSyncAt:'', dirty:false, remoteAt:'', expiresAt:''};
 })();
 function saveSyncState(){
   try{ localStorage.setItem(SYNC_STATE_KEY, JSON.stringify(syncState)); }catch(e){}
 }
 let syncTimer = null, syncBooted = false, syncApplying = false, syncBusy = false, pendingCloud = null, pendingGuard = null;
+let syncFlavor = '';   /* '' 新接口（RPC）/ 'legacy' 旧表（没跑升级 SQL 时自动退回） */
 
 /* ---------- 本机数据快照：云端覆盖前留底，随时可恢复 ----------
    独立于主存档 KEY，不参与导出 / 同步码 / 上传，云端永远带不走。 */
@@ -3405,7 +3404,7 @@ function openStorageDiag(){
   }else if(blocked){
     tips.push('这个浏览器不让网页往本机写数据，所以每次改动都存不下来。常见原因：无痕 / 隐私窗口、关掉了「网站数据 / Cookie」、开着省流 / 极速模式，或者是从微信、QQ 等聊天里直接点开的应用内窗口。');
     if(appErr) tips.push('另外页面脚本也报了个错：' + appErr + '。');
-    tips.push('先把数据搬出去（哪步能成就行）：① 点「导出备份」——手机上会弹系统分享，直接发到微信「文件传输助手」或存进文件；② 数据不多时也可以点「生成同步码」，复制发给自己；③ 换手机自带浏览器打开同一个网址，再用「📁 导入」或「📋 读码」还原。');
+    tips.push('先把数据搬出去（哪步能成就行）：① 点「导出备份」——手机上会弹系统分享，直接发到微信「文件传输助手」或存进文件；② 换手机自带浏览器打开同一个网址，再用「📤 导入」还原；③ 也可以用「☁ 云同步」，两台设备填同一个密钥就会自动互通。');
     tips.push(saveDegraded === 'idb'
       ? '现在已退一步用浏览器数据库暂存：同一个浏览器关掉再开还在，换浏览器或清理数据会一起没了。'
       : '浏览器数据库也写不进去，改动只在这个页面里，关掉或刷新就没了——先搬数据。');
@@ -3414,12 +3413,11 @@ function openStorageDiag(){
     if(bd.total / STORAGE_REF_LIMIT >= 0.8) tips.push('快满了：建议先「导出备份」，再清一清很早的日志。');
     if(appErr) tips.push('页面脚本报过一次错：' + appErr + '。存档本身没受影响，把这份结果发给作者就能定位。');
   }
-  tips.push('数据只存在这个浏览器里，不会自己跨设备。换手机 / 换浏览器要带走，就用「🔗 同步码」或「📥 导出」→「📁 导入」，也可以配一次「☁ 云同步」。');
+  tips.push('数据只存在这个浏览器里，不会自己跨设备。换手机 / 换浏览器要带走，就用「📥 导出」→「📤 导入」，或者配一次「☁ 云同步」（两台设备填同一个密钥，改动自动互通）。');
   const acts = [];
   acts.push({text:'导出备份', cls:'btn', onClick:function(){ exportJson(); }});
   if(snapN) acts.push({text:'清理快照', cls:'btn', onClick:function(){ closeModal(); clearSnapsQuick(); }});
   if(detN) acts.push({text:'压缩每日明细', cls:'btn', onClick:function(){ closeModal(); compressDayDetail(); }});
-  acts.push({text:'生成同步码', cls:'btn', onClick:function(){ closeModal(); openSyncGen(); }});
   acts.push({text:'复制检测结果', cls:'btn', onClick:function(){ copyText(lines.join('\n') + '\n\n' + tips.join('\n'), this); }});
   acts.push({text:'关闭', cls:'btn primary', onClick:closeModal});
   openModal({
@@ -8395,19 +8393,139 @@ function bindCalc(){
    云同步：Supabase REST + 本机 AES-GCM 加密
    云端只存密文；空间 ID 由同步密钥派生，密钥本身不上传。
    ========================================================= */
-const SYNC_TABLE = 'honmaru_sync';
+const SYNC_TABLE = 'honmaru_sync';        /* 旧版表，只在没升级 SQL 时回退用 */
+const SPACE_TABLE = 'honmaru_spaces';     /* 新版：一个同步空间一行 */
 const SYNC_SQL = [
-  'create table if not exists public.honmaru_sync (',
+  '-- 刀剑乱舞管家 · 云同步（v2：共享库版）',
+  '-- 跑一次就够；以前用过旧版的，最后一段会把旧数据自动搬过来。',
+  '',
+  '-- 1) 存档表：一个「同步空间」一行。多设备用同一密钥 = 同一行；多个人各自一串密钥 = 各自一行。',
+  'create table if not exists public.honmaru_spaces (',
   '  space_id   text primary key,',
   '  data       text not null,',
+  '  proof      text not null default \'\',',
+  '  bytes      int  not null default 0,',
   '  updated_at timestamptz not null default now(),',
-  '  ver        int  not null default 1',
+  '  expires_at timestamptz not null,',
+  '  last_ip    text',
   ');',
-  'alter table public.honmaru_sync enable row level security;',
-  'drop policy if exists "honmaru anon rw" on public.honmaru_sync;',
-  'create policy "honmaru anon rw" on public.honmaru_sync',
-  '  for all to anon using (true) with check (true);',
-  'grant all on public.honmaru_sync to anon;'
+  'alter table public.honmaru_spaces enable row level security;',
+  '',
+  '-- 2) 写入流水，只用来限流，每次写入顺手清 90 天前的',
+  'create table if not exists public.honmaru_writes (',
+  '  id bigserial primary key,',
+  '  ip text, space_id text, at timestamptz not null default now()',
+  ');',
+  'alter table public.honmaru_writes enable row level security;',
+  'create index if not exists honmaru_writes_ip_at on public.honmaru_writes(ip, at);',
+  'create index if not exists honmaru_writes_at on public.honmaru_writes(at);',
+  '',
+  '-- 3) 读：必须同时给出 space_id 和写凭证，表本身谁也读不到',
+  'create or replace function public.honmaru_get(p_space text, p_proof text)',
+  'returns json language plpgsql security definer set search_path = public as $$',
+  'declare r public.honmaru_spaces%rowtype;',
+  'begin',
+  '  if p_space is null or length(p_space) <> 32 then',
+  '    return json_build_object(\'ok\', false, \'err\', \'bad_space\');',
+  '  end if;',
+  '  select * into r from public.honmaru_spaces where space_id = p_space;',
+  '  if r.space_id is null then return json_build_object(\'ok\', false, \'err\', \'empty\'); end if;',
+  '  if r.expires_at < now() then',
+  '    delete from public.honmaru_spaces where space_id = p_space;',
+  '    return json_build_object(\'ok\', false, \'err\', \'expired\');',
+  '  end if;',
+  '  if coalesce(r.proof, \'\') = \'\' then',
+  '    update public.honmaru_spaces set proof = coalesce(p_proof, \'\') where space_id = p_space;',
+  '  elsif r.proof <> coalesce(p_proof, \'\') then',
+  '    return json_build_object(\'ok\', false, \'err\', \'proof\');',
+  '  end if;',
+  '  return json_build_object(\'ok\', true, \'data\', r.data,',
+  '                           \'updated_at\', r.updated_at, \'expires_at\', r.expires_at);',
+  'end $$;',
+  '',
+  '-- 4) 写：新建要过全站日限额；已存在要校验写凭证，凭证不对写不进去',
+  'create or replace function public.honmaru_put(p_space text, p_data text, p_proof text)',
+  'returns json language plpgsql security definer set search_path = public as $$',
+  'declare',
+  '  v_ip text; v_n int; v_new int; v_have text; v_size int; v_exp timestamptz;',
+  'begin',
+  '  if p_space is null or length(p_space) <> 32 then',
+  '    return json_build_object(\'ok\', false, \'err\', \'bad_space\');',
+  '  end if;',
+  '  v_size := coalesce(length(p_data), 0);',
+  '  if v_size = 0 then return json_build_object(\'ok\', false, \'err\', \'empty_data\'); end if;',
+  '  if v_size > 786432 then return json_build_object(\'ok\', false, \'err\', \'too_large\'); end if;',
+  '',
+  '  v_ip := coalesce(',
+  '    nullif(split_part(coalesce(current_setting(\'request.headers\', true)::json ->> \'x-forwarded-for\', \'\'), \',\', 1), \'\'),',
+  '    nullif(current_setting(\'request.headers\', true)::json ->> \'cf-connecting-ip\', \'\'),',
+  '    nullif(current_setting(\'request.headers\', true)::json ->> \'x-real-ip\', \'\')',
+  '  );',
+  '  -- 万一取不到 IP（自建 PostgREST 常见），退成按空间限流，至少不会全站互相挤',
+  '  if v_ip is null then v_ip := \'space:\' || p_space; end if;',
+  '',
+  '  select count(*) into v_n from public.honmaru_writes',
+  '   where ip = v_ip and at > now() - interval \'1 minute\';',
+  '  if v_n >= 20 then return json_build_object(\'ok\', false, \'err\', \'rate\'); end if;',
+  '  select count(*) into v_n from public.honmaru_writes',
+  '   where ip = v_ip and at > now() - interval \'1 day\';',
+  '  if v_n >= 300 then return json_build_object(\'ok\', false, \'err\', \'daily\'); end if;',
+  '',
+  '  select proof into v_have from public.honmaru_spaces where space_id = p_space;',
+  '  if not found then',
+  '    select count(*) into v_new from public.honmaru_spaces',
+  '     where updated_at > now() - interval \'1 day\';',
+  '    if v_new >= 120 then return json_build_object(\'ok\', false, \'err\', \'full\'); end if;',
+  '    v_exp := now() + interval \'60 days\';',
+  '    insert into public.honmaru_spaces(space_id, data, proof, bytes, expires_at, last_ip)',
+  '    values (p_space, p_data, coalesce(p_proof, \'\'), v_size, v_exp, v_ip);',
+  '  else',
+  '    if coalesce(v_have, \'\') <> \'\' and v_have <> coalesce(p_proof, \'\') then',
+  '      return json_build_object(\'ok\', false, \'err\', \'proof\');',
+  '    end if;',
+  '    v_exp := now() + interval \'60 days\';',
+  '    update public.honmaru_spaces',
+  '       set data = p_data, bytes = v_size, updated_at = now(),',
+  '           expires_at = v_exp, last_ip = v_ip,',
+  '           proof = coalesce(nullif(proof, \'\'), coalesce(p_proof, \'\'))',
+  '     where space_id = p_space;',
+  '  end if;',
+  '',
+  '  insert into public.honmaru_writes(ip, space_id) values (v_ip, p_space);',
+  '  delete from public.honmaru_writes where at < now() - interval \'90 days\';',
+  '  delete from public.honmaru_spaces where expires_at < now() - interval \'7 days\';',
+  '  return json_build_object(\'ok\', true, \'expires_at\', v_exp);',
+  'end $$;',
+  '',
+  'revoke all on function public.honmaru_get(text, text) from public;',
+  'revoke all on function public.honmaru_put(text, text, text) from public;',
+  '',
+  '-- 表权限整个收回：外部只剩上面两个函数能调（自建 PG 没有 anon 角色就跳过）',
+  'do $perm$',
+  'begin',
+  '  if exists (select 1 from pg_roles where rolname = \'anon\') then',
+  '    execute \'revoke all on public.honmaru_spaces from anon\';',
+  '    execute \'revoke all on public.honmaru_writes from anon\';',
+  '    execute \'grant execute on function public.honmaru_get(text, text) to anon\';',
+  '    execute \'grant execute on function public.honmaru_put(text, text, text) to anon\';',
+  '  end if;',
+  '  if exists (select 1 from pg_roles where rolname = \'authenticated\') then',
+  '    execute \'revoke all on public.honmaru_spaces from authenticated\';',
+  '    execute \'revoke all on public.honmaru_writes from authenticated\';',
+  '  end if;',
+  'end $perm$;',
+  '',
+  '-- 5) 以前用过旧版（honmaru_sync）的：把已有存档搬过来，只搬一次',
+  'do $mig$',
+  'begin',
+  '  if exists (select 1 from information_schema.tables',
+  '              where table_schema = \'public\' and table_name = \'honmaru_sync\') then',
+  '    insert into public.honmaru_spaces(space_id, data, bytes, updated_at, expires_at)',
+  '    select space_id, data, length(data), updated_at, now() + interval \'60 days\'',
+  '      from public.honmaru_sync',
+  '    on conflict (space_id) do nothing;',
+  '  end if;',
+  'end $mig$;'
 ].join('\n');
 
 function cloudCfgValid(){
@@ -8419,6 +8537,47 @@ function cloudHeaders(extra){
              'Content-Type':'application/json'};
   if(extra) Object.keys(extra).forEach(function(k){ h[k] = extra[k]; });
   return h;
+}
+/* 写凭证：由同步密钥派生，只证明「我知道这串密钥」，本身不是密钥。
+   服务端只存它的哈希，不知道密钥原文也算不出它 —— 所以光看到 space_id 也写不进来。 */
+async function cloudProof(key){
+  const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('honmaru-write:' + key));
+  return Array.from(new Uint8Array(h)).map(function(x){ return x.toString(16).padStart(2,'0'); }).join('');
+}
+/* 调 Supabase 的 RPC（/rest/v1/rpc/函数名），返回函数里的 json */
+async function cloudRpc(fn, body){
+  let r;
+  try{
+    r = await fetch(cloudBase() + '/rest/v1/rpc/' + fn, {
+      method:'POST', headers:cloudHeaders(), body:JSON.stringify(body || {})
+    });
+  }catch(e){ throw new Error('Failed to fetch'); }
+  let txt = '';
+  try{ txt = await r.text(); }catch(e){}
+  if(!r.ok){
+    const err = new Error('HTTP ' + r.status + (txt ? ' · ' + txt.slice(0, 160) : ''));
+    err.status = r.status; err.body = txt;
+    throw err;
+  }
+  try{ return txt ? JSON.parse(txt) : null; }catch(e){ throw new Error('云端返回的不是 JSON'); }
+}
+/* 没跑新 SQL 时函数不存在：这种错要能识别出来，好退回旧表 */
+function isRpcMissing(e){
+  const m = String((e && (e.body || e.message)) || '');
+  return (e && e.status === 404) || m.indexOf('PGRST202') >= 0 ||
+         m.indexOf('Could not find the function') >= 0 ||
+         m.indexOf('does not exist') >= 0;
+}
+function putErrorText(err){
+  const m = String((err && err.message) || err);
+  if(m.indexOf('PUT:too_large') >= 0) return '存档太大（超过 768 KB），先在设置里压缩每日明细再传';
+  if(m.indexOf('PUT:rate') >= 0) return '传得太频繁（每分钟上限 20 次），停一会儿会自动补传';
+  if(m.indexOf('PUT:daily') >= 0) return '今天上传次数到上限了，明天再试；改动都在本机，不会丢';
+  if(m.indexOf('PUT:full') >= 0) return '共享库今天的配额用完了，明天再试；可以先导出 JSON 备份';
+  if(m.indexOf('PUT:proof') >= 0) return '这串密钥对不上云端那一份（写凭证不符），确认用的是同一串密钥';
+  if(m.indexOf('PUT:empty_data') >= 0) return '没有可上传的数据';
+  if(m.indexOf('PUT:bad_space') >= 0) return '空间 ID 不对，重新生成一次密钥';
+  return '';
 }
 function fmtClock(iso){
   const t = new Date(iso);
@@ -8526,17 +8685,40 @@ async function cloudPull(opts){
   setSyncStatus('syncing', '正在拉取云端…');
   try{
     const sid = await cloudSpaceId(syncCfg.key);
-    const rows = await cloudFetch('GET', '?space_id=eq.' + encodeURIComponent(sid) + '&select=data,updated_at');
-    if(!rows || !rows.length){
+    const proof = await cloudProof(syncCfg.key);
+    let enc = null, updatedAt = '';
+
+    /* 新接口：一次 RPC，只按 space_id + 写凭证精确取一行，拿不到别人任何东西 */
+    /* 旧接口：只在「没跑新 SQL」时兜底，两个版本都能读，不会因为没升级就断档 */
+    try{
+      const res = await cloudRpc('honmaru_get', {p_space:sid, p_proof:proof});
+      if(res && res.ok){
+        enc = res.data; updatedAt = res.updated_at || '';
+        syncState.expiresAt = res.expires_at || ''; syncFlavor = '';
+      }
+      else if(res && res.err === 'empty'){ enc = null; }
+      else if(res && res.err === 'expired')
+        throw new Error('EXPIRED:云端这份超过 60 天没更新，已经清掉了；本机数据还在，点「⬆ 上传本机」可以重新建');
+      else if(res && res.err === 'proof')
+        throw new Error('PROOF:这串密钥对不上云端那一份（写凭证不符）');
+      else throw new Error('云端返回异常：' + JSON.stringify(res || {}).slice(0, 80));
+    }catch(e){
+      if(!isRpcMissing(e)) throw e;
+      const rows = await cloudFetch('GET', '?space_id=eq.' + encodeURIComponent(sid) + '&select=data,updated_at');
+      if(rows && rows.length){ enc = rows[0].data; updatedAt = rows[0].updated_at || ''; }
+      syncFlavor = 'legacy'; syncState.expiresAt = '';
+    }
+
+    if(!enc){
       setSyncStatus('empty', '云端还没有这个同步空间');
       return true;
     }
-    const row = rows[0];
+
     let obj;
-    try{ obj = JSON.parse(await cloudDecrypt(syncCfg.key, row.data)); }
+    try{ obj = JSON.parse(await cloudDecrypt(syncCfg.key, enc)); }
     catch(e){ throw new Error('DECRYPT:同步密钥不对，解不开云端数据'); }
     if(obj.app !== 'honmaru-cloud' || !obj.data) throw new Error('云端数据格式不对');
-    syncState.remoteAt = row.updated_at || '';
+    syncState.remoteAt = updatedAt || '';
     /* ---- 数据保护：云端是空的 / 明显比本机少，绝不静默覆盖 ----
        「先在空设备启用同步」会把空数据传上云端，等全量设备来拉取时
        旧逻辑会一声不响把本机覆盖掉。这里拦下来让用户明确选择。 */
@@ -8544,22 +8726,22 @@ async function cloudPull(opts){
     const lTw = curData() ? (curData().tw || []).length : 0;
     const rTw = (obj.data.tw || []).length;
     if(!opts.force && lScale > 0 && (rTw === 0 || rScale < lScale * 0.3)){
-      pendingGuard = {obj:obj, ts:row.updated_at, lTw:lTw, rTw:rTw,
+      pendingGuard = {obj:obj, ts:updatedAt, lTw:lTw, rTw:rTw,
                        lScale:lScale, rScale:rScale};
       setSyncStatus('guard', '云端数据比本机少，等你确认');
       openCloudGuard();
       return true;
     }
     const newer = !syncState.lastSyncAt ||
-      new Date(row.updated_at).getTime() > new Date(syncState.lastSyncAt).getTime();
+      new Date(updatedAt).getTime() > new Date(syncState.lastSyncAt).getTime();
     if(opts.force || newer){
       if(!opts.force && syncState.dirty && syncState.lastSyncAt){
-        pendingCloud = {obj:obj, ts:row.updated_at};
+        pendingCloud = {obj:obj, ts:updatedAt};
         setSyncStatus('conflict', '云端和本机都有改动');
         openCloudConflict();
         return true;
       }
-      await cloudApply(obj, row.updated_at);
+      await cloudApply(obj, updatedAt);
       setSyncStatus('ok', '已从云端拉取最新数据');
       if(!opts.silent) toast('☁ 已从云端同步最新数据');
     }else{
@@ -8569,7 +8751,8 @@ async function cloudPull(opts){
     return true;
   }catch(e){
     const m = String((e && e.message) || e);
-    setSyncStatus('error', m.indexOf('DECRYPT:') === 0 ? m.slice(8) : friendlySyncError(e));
+    const cut = m.indexOf('DECRYPT:') === 0 || m.indexOf('EXPIRED:') === 0 || m.indexOf('PROOF:') === 0;
+    setSyncStatus('error', cut ? m.slice(m.indexOf(':') + 1) : friendlySyncError(e));
     return false;
   }finally{ syncBusy = false; }
 }
@@ -8591,20 +8774,33 @@ async function cloudPush(force){
   setSyncStatus('syncing', '正在上传…');
   try{
     const sid = await cloudSpaceId(syncCfg.key);
+    const proof = await cloudProof(syncCfg.key);
     const d = curData();
     if(!d) throw new Error('当前没有账号');
     const plain = JSON.stringify({app:'honmaru-cloud', v:1, data:d, ts:Date.now()});
     const enc = await cloudEncrypt(syncCfg.key, plain);
     const ts = new Date().toISOString();
-    await cloudFetch('POST', '', [{space_id:sid, data:enc, updated_at:ts, ver:1}],
-                     'resolution=merge-duplicates,return=minimal');
+    try{
+      const res = await cloudRpc('honmaru_put', {p_space:sid, p_data:enc, p_proof:proof});
+      if(!res || !res.ok) throw new Error('PUT:' + ((res && res.err) || 'unknown'));
+      if(res.expires_at) syncState.expiresAt = res.expires_at;
+      syncFlavor = '';
+    }catch(e){
+      if(!isRpcMissing(e)) throw e;
+      /* 没跑新 SQL：退回旧表写入 */
+      await cloudFetch('POST', '', [{space_id:sid, data:enc, updated_at:ts, ver:1}],
+                       'resolution=merge-duplicates,return=minimal');
+      syncFlavor = 'legacy'; syncState.expiresAt = '';
+    }
     syncState.lastSyncAt = ts; syncState.remoteAt = ts; syncState.dirty = false;
     pendingGuard = null;                 /* 用户已明确上传，差异视为处理完毕 */
     setSyncStatus('ok', '已同步 · ' + fmtClock(ts));
     if(force) toast('☁ 已上传到云端');
     return true;
   }catch(e){
-    setSyncStatus('error', friendlySyncError(e));
+    const own = putErrorText(e);
+    setSyncStatus('error', own || friendlySyncError(e));
+    if(force && own) toast(own, true);
     return false;
   }finally{ syncBusy = false; }
 }
@@ -8764,13 +8960,19 @@ async function openRescue(){
 }
 function openCloudSync(){
   const st = syncState;
+  let expTxt = '';
+  try{
+    const t = new Date(st.expiresAt || '');
+    if(!isNaN(t.getTime())) expTxt = ' · 云端保留到 ' + fmtDate(t);
+  }catch(e){}
   const statusTxt = !cloudCfgValid() ? '<b>未开启</b> · 数据目前只存在这台设备的浏览器里'
     : '<b>' + esc(st.msg || st.status) + '</b>' +
       (st.lastSyncAt ? ' · 本机上次同步 ' + esc(fmtClock(st.lastSyncAt)) : '') +
-      (st.remoteAt ? ' · 云端数据 ' + esc(fmtClock(st.remoteAt)) : '');
+      (st.remoteAt ? ' · 云端数据 ' + esc(fmtClock(st.remoteAt)) : '') + expTxt +
+      (syncFlavor === 'legacy' ? ' · <b class="clr-y">还在用旧表</b>（跑一次下面的 SQL 就切到新版）' : '');
   openModal({
     title:'☁ 云同步 · 多设备互通',
-    sub:'手机和电脑打开同一个页面，填相同的项目 URL / anon key / 同步密钥，数据就会自动互通。',
+    sub:'填同一个同步密钥就互通：一个人几台设备、或者几个人各自一串密钥，各存各的一份，互不影响。',
     body:
       '<div class="cloud-status" id="csStatus">' + statusTxt + '</div>' +
       '<div class="add-grid">' +
@@ -8792,10 +8994,11 @@ function openCloudSync(){
       '<div class="add-grid" style="margin-top:8px;">' +
         '<label class="fld full"><span>或：粘贴另一台设备的配置码（免手工填三项）</span><input type="text" id="csCode" placeholder="HMC1.…"></label>' +
       '</div>' +
-      '<p class="cloud-tip">① 在 Supabase 建免费项目，SQL Editor 里跑下面的建表 SQL；② 项目设置 → API，复制 <b>Project URL</b> 和 <b>anon public</b> 填到上面；③ <b>务必先在「刀帐最全」的那台设备</b>生成同步密钥并「保存并启用」，再点「📋 复制配置码」，其它设备粘贴进下面的框、点「读入配置码」即可，不用手打长串。</p>' +
+      '<p class="cloud-tip">① 在 Supabase 建免费项目，SQL Editor 里跑下面的 SQL（<b>跑一次就够</b>，以前用过旧版的会自动把数据搬过来）；② 项目设置 → API，复制 <b>Project URL</b> 和 <b>anon public</b> 填到上面；③ <b>务必先在「刀帐最全」的那台设备</b>生成同步密钥并「保存并启用」，再点「📋 复制配置码」，其它设备粘贴进下面的框、点「读入配置码」即可。</p>' +
       '<div class="snap-warn">⚠ <b>顺序别反</b>：空设备先启用会把空数据传上云端，等全量设备来拉取时会被覆盖。现在已加保护——云端数据比本机少时<b>不会静默覆盖</b>，会弹窗让你选；空设备也不会再上传空数据。覆盖前会自动留快照，可在「🛟 恢复本机数据」里找回。</div>' +
-      '<p class="cloud-tip">数据会先用同步密钥在<b>本机加密</b>再上传，云端只有密文；<b>密钥丢了没法找回</b>，建议复制存好。打开页面会自动拉取云端最新数据；关掉「改动后自动上传」后，本机改动要自己点「⬆ 上传本机」。免费项目闲置一周会自动暂停，届时去 Supabase 控制台恢复即可。</p>' +
-      '<details class="cloud-details"><summary>① 建表 SQL（点开，复制后粘到 Supabase SQL Editor）</summary>' +
+      '<p class="cloud-tip">数据会先用同步密钥在<b>本机加密</b>再上传，云端只有密文；<b>密钥丢了没法找回</b>，建议复制存好。打开页面会自动拉取云端最新数据；关掉「改动后自动上传」后，本机改动要自己点「⬆ 上传本机」。</p>' +
+      '<p class="cloud-tip">新版把表权限收了起来：外部只有两个函数能调，<b>一个密钥只碰得到自己那一行</b>，别人拿不到、也删不掉你的存档。每行最后一次上传后保留 <b>60 天</b>，过期自动清；每次上传都会续期。</p>' +
+      '<details class="cloud-details"><summary>② 建表 / 升级 SQL（点开，复制后粘到 Supabase SQL Editor）</summary>' +
         '<textarea class="cloud-sql" id="csSql" readonly>' + esc(SYNC_SQL) + '</textarea>' +
         '<div class="cloud-row"><button class="chip ghost" id="csCopySql">复制 SQL</button></div>' +
       '</details>',
@@ -9119,6 +9322,13 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.78 云同步换了新表：一人多设备、多人共用都稳了',
+     '<p>旧版那张表为了「填了就能用」，把读写权限整个开放了——<b>拿到 anon key 的人能把所有人的存档删掉</b>。自己一个人用没事，几个人共用一个项目就不行了。</p>' +
+     '<p>现在改成「一个同步空间一行」：表本身谁都不许碰，只留两个函数做读写，<b>一串密钥只碰得到自己那一行</b>；写入还要带一个由密钥算出来的凭证，光看到空间 ID 也写不进去。</p>' +
+     '<p>一个人几台设备填同一串密钥 = 同一份存档；几个人各自生成密钥 = 各存各的，互不影响。每行最后一次上传后保留 <b>60 天</b>，每次上传自动续期。</p>' +
+     '<p><b>要跑一次 SQL</b>：云同步窗口里点开「建表 / 升级 SQL」复制粘到 Supabase。以前用过旧版的，这段 SQL 会把已有存档自动搬过来，不用手动导。没跑也照旧能用（自动退回旧表），只是还没有新表的隔离。</p>' +
+     '<p>另外「同步码 / 读码」两个按钮先收起来了，功能还在，需要时能放回来。</p>',
+     '2026.11'],
     ['V2.77 图鉴页加了滚动控件',
      '<p>图鉴一屏放不下 130 振，滑到中间很容易找不到自己在哪。现在图鉴页有两样东西：</p>' +
      '<p><b>右侧一条能拖的粗滚动条</b>——滑块的位置就是看到的地方，按住能直接拖；上下两个圆形按钮，一下就到顶 / 到底。</p>' +
@@ -9824,8 +10034,10 @@ function initEvents(){
     };
     r.readAsText(f, 'utf-8');
   };
-  $('#btnSyncGen').onclick = openSyncGen;
-  $('#btnSyncRead').onclick = openSyncRead;
+  /* 同步码 / 读码入口暂时从页面收起（功能还在，需要时把按钮加回来即可） */
+  const sg = $('#btnSyncGen'), sr = $('#btnSyncRead');
+  if(sg) sg.onclick = openSyncGen;
+  if(sr) sr.onclick = openSyncRead;
 
   const logSearch = $('#logSearch');
   logSearch.addEventListener('input', function(){
