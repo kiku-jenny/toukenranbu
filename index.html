@@ -1412,6 +1412,19 @@
   }
   .toast.on{opacity:1;transform:translate(-50%,0);}
   .toast.err{background:rgba(160,60,70,.95);}
+  /* 离线缓存发现新版：底部一个小胶囊，不挡内容，几秒后自己退场 */
+  .upd-bar{
+    position:fixed;left:50%;bottom:26px;transform:translate(-50%,12px);z-index:107;
+    display:flex;align-items:center;gap:10px;padding:8px 10px 8px 14px;border-radius:24px;
+    background:rgba(69,54,57,.94);color:var(--on-accent);font-size:12px;
+    box-shadow:0 14px 30px -14px rgba(0,0,0,.6);opacity:0;transition:.24s;pointer-events:none;
+  }
+  .upd-bar.on{opacity:1;transform:translate(-50%,0);pointer-events:auto;}
+  .upd-bar button{
+    font-family:inherit;font-size:12px;padding:4px 12px;border-radius:999px;cursor:pointer;
+    border:1px solid rgba(255,255,255,.32);background:rgba(255,255,255,.14);color:var(--on-accent);
+  }
+  .upd-bar button:hover{background:rgba(255,255,255,.24);}
 
   .menu-btn{
     display:none;position:fixed;top:14px;left:14px;z-index:100;
@@ -1492,7 +1505,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.75</div>
+        <div class="brand-sub">HONMARU KEEPER V2.76</div>
       </div>
     </div>
 
@@ -8999,6 +9012,12 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.76 打开快了一大截',
+     '<p>之前每次打开都要把整页重新下载一遍（压缩后约 150 KB），手机网络下就是好几秒的白屏。</p>' +
+     '<p>现在第一次打开照常下载，之后改用浏览器自带的<b>离线缓存</b>：直接从本机读，基本是立刻出画面，' +
+     '同时后台再核对线上有没有新版。<b>没有网也能打开</b>，数据仍在本机。</p>' +
+     '<p>如果后台下到了新版本，页面底部会冒出一个小提示「新版本已经下好了」，点一下就换过去；不点也没关系，下次打开自动就是新版。</p>',
+     '2026.11'],
     ['V2.75 不是空间不够，是报错被当成了「写不进」',
      '<p>有人反馈：明明只用了 43 KB，写入测试也还能写进 4 MB，却一直提示「本机写不进、去清日志」。</p>' +
      '<p>原因是保存这一步写得太宽：<b>归档每日汇总、刷新提示、云同步</b>这些附带动作和真正落盘挤在同一个 try 里，' +
@@ -9762,6 +9781,39 @@ function initPetals(){
   restoreFromIDB();   /* 本机存储被拦时，看看浏览器数据库里有没有上次的存档 */
   cloudBoot();   /* 已启用云同步时：先拉云端，再允许自动上传 */
 })();
+
+/* ---------- 离线缓存 ----------
+   在线版每次打开都要重新下载整页（约 150 KB），手机网络下就是几秒白屏。
+   装一个 service worker：第一次正常下载，之后直接用本地那份，同时后台核对有没有新版。
+   本地双击打开（file://）或浏览器不支持时，整段自动跳过，不影响使用。 */
+(function offlineCache(){
+  const secure = location.protocol === 'https:' ||
+                 location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  if(!('serviceWorker' in navigator) || !secure) return;   /* 本地双击打开（file://）直接跳过 */
+  window.addEventListener('load', function(){
+    try{ navigator.serviceWorker.register('./sw.js').catch(function(){}); }catch(e){}
+  });
+  try{
+    navigator.serviceWorker.addEventListener('message', function(ev){
+      if(ev.data && ev.data.type === 'hk-update') showUpdateBar();
+    });
+  }catch(e){}
+})();
+let updateBarDone = false;
+function showUpdateBar(){
+  if(updateBarDone) return;
+  updateBarDone = true;
+  const bar = document.createElement('div');
+  bar.className = 'upd-bar';
+  bar.innerHTML = '<span>新版本已经下好了</span><button>重新载入</button>';
+  bar.querySelector('button').onclick = function(){ location.reload(); };
+  document.body.appendChild(bar);
+  requestAnimationFrame(function(){ bar.classList.add('on'); });
+  /* 不点也没关系：下次打开就是新版 */
+  setTimeout(function(){ bar.classList.remove('on'); }, 9000);
+  setTimeout(function(){ if(bar.parentNode) bar.parentNode.removeChild(bar); }, 9600);
+}
+
 </script>
 </body>
 </html>
