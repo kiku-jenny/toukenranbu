@@ -1075,6 +1075,13 @@
   .store-banner .sb-btn{flex:0 0 auto;font-size:11px;padding:4px 10px;border-radius:999px;cursor:pointer;
     border:1px solid rgba(194,81,81,.35);background:transparent;color:#a84848;font-family:inherit;}
   .store-banner .sb-btn:hover{background:rgba(194,81,81,.10);}
+  /* 已经自动兜底到浏览器数据库：不算出错，只是换了个地方存，别再红着告警 */
+  .store-banner.soft{background:rgba(150,128,86,.10);border-color:rgba(150,128,86,.22);}
+  .store-banner.soft .sb-txt{color:#8a7448;}
+  .store-banner.soft .sb-btn{border-color:rgba(150,128,86,.32);color:#8a7448;}
+  .store-banner.soft .sb-btn:hover{background:rgba(150,128,86,.10);}
+  [data-dark="1"] .store-banner.soft{background:rgba(190,166,116,.14);border-color:rgba(190,166,116,.30);}
+  [data-dark="1"] .store-banner.soft .sb-txt,[data-dark="1"] .store-banner.soft .sb-btn{color:#d2b98a;}
   [data-dark="1"] .store-banner{background:rgba(194,81,81,.16);border-color:rgba(194,81,81,.34);}
   [data-dark="1"] .store-banner .sb-txt,[data-dark="1"] .store-banner .sb-btn{color:#e8a5a5;}
   .stg-box{display:flex;flex-direction:column;gap:10px;}
@@ -1485,7 +1492,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.74</div>
+        <div class="brand-sub">HONMARU KEEPER V2.75</div>
       </div>
     </div>
 
@@ -2579,6 +2586,32 @@ const KEY = 'honmaru_keeper_v3';
 let S = null;
 let toastTimer = null;   /* toast 在启动时也可能被调用（存储写不进），先声明免得 TDZ */
 
+/* ---------- 页面脚本自己的异常 ----------
+   V2.74 之前 save() 是一个大 try：归档、刷新提示、云同步里任何一句出错，
+   都会被当成「本机写不进」，于是弹出「空间不够，去清日志」——方向全错。
+   这里把这类错误单独记下来，只进检测窗口，不再冒充存储问题。 */
+let appErr = '';
+function noteAppErr(where, e){
+  const nm = (e && e.name) || 'Error';
+  const msg = (e && e.message) || String(e || '');
+  let at = '';
+  try{
+    const st = String((e && e.stack) || '');
+    /* 优先报出文件里的行号：能直接定位是哪一句 */
+    const m = st.match(/([^\s()]*index\.html:\d+:\d+)/) || st.match(/\bat\s+(?:.*?)(\S+:\d+:\d+)/);
+    if(m) at = ' @ ' + m[1].replace(/^.*\//, '');
+  }catch(e2){}
+  appErr = where + '：' + nm + (msg ? ' - ' + msg.slice(0, 90) : '') + at;
+}
+window.addEventListener('error', function(ev){
+  if(!ev || !ev.error) return;
+  const nm = ev.error.name || '';
+  /* 只关心页面自己的脚本（扩展 / 浏览器注入的报错 filename 不一样） */
+  if(ev.filename && ev.filename.indexOf(location.origin) !== 0 && ev.filename.indexOf('/toukenranbu/') < 0 &&
+     ev.filename.indexOf(location.pathname) < 0) return;
+  if(nm === 'ReferenceError' || nm === 'TypeError' || nm === 'RangeError') noteAppErr('页面', ev.error);
+});
+
 
 /* ---------- 本机存储可用性 ----------
    有些浏览器（无痕、关了「网站数据」、应用内打开的窗口）会直接拒绝 localStorage，
@@ -3105,18 +3138,26 @@ function fmtBytes(n){
   return Math.max(1, Math.round(n / 1024)) + ' KB';
 }
 function renderStorageNote(silent){
+  try{ renderStorageNoteInner(silent); }catch(e){ noteAppErr('刷新存储提示', e); }
+}
+function renderStorageNoteInner(silent){
   const box = $('#storageNote'), txt = $('#storageText'), btn = $('#btnStorageBackup');
   if(!box || !txt) return;
   /* 页面顶部也提醒一句：手机上看不到侧栏，只有 toast 一闪就没了 */
   const banner = $('#storeBanner'), bTxt = $('#storeBannerText');
   const showBanner = lsDead || !!saveFailReason;
+  /* 已经自动改存到浏览器数据库：数据没丢，别再用红色告警吓人 */
+  const idbAlive = !!(idbPromise && !idbDead);
+  const soft = !lsDead && saveFailReason !== 'full' && (saveDegraded === 'idb' || (saveFailReason === 'size' && idbAlive));
   if(banner){
     banner.hidden = !showBanner;
+    banner.classList.toggle('soft', soft);
     if(showBanner && bTxt){
       bTxt.textContent =
         saveFailReason === 'full' ? '⚠ 本机存储已满，这次改动没写进去'
-        : saveFailReason === 'size' ? '⚠ 本机空间不够，这次改动没写进去'
-        : saveDegraded === 'idb' ? '⚠ 存不进本机，已暂存到浏览器数据库（换浏览器会丢）'
+        : saveDegraded === 'idb' ? '这次改动没写进本机，已自动改存浏览器数据库 · 不影响使用'
+        : soft ? '这次改动没写进本机 · 正在改存浏览器数据库'
+        : saveFailReason === 'size' ? '⚠ 本机写不进这份存档，改动没落盘'
         : saveDegraded === 'none' ? '⚠ 存不进本机，改动关掉就没了'
         : '⚠ 浏览器不让存数据，先点「处理办法」看怎么办';
     }
@@ -3134,6 +3175,13 @@ function renderStorageNote(silent){
   }
   const used = storageUsedBytes();
   const cap = fmtBytes(STORAGE_REF_LIMIT);
+  if(soft){
+    box.classList.add('warn');
+    txt.textContent = '改动已存进浏览器数据库 · 本机存档没更新';
+    box.title = '点一下看详情：为什么写不进本机';
+    if(btn) btn.hidden = false;
+    return;
+  }
   if(saveFailReason === 'full' || saveFailReason === 'size'){
     box.classList.add('warn');
     txt.textContent = saveFailReason === 'size' ? '⚠ 本机空间不够 · 这次改动没写入' : '⚠ 本机存储已满 · 这次改动没写入';
@@ -3168,6 +3216,7 @@ function storageDiagLines(cap){
   lines.push('写入测试：' + (cap.max ? '还能写进 ' + fmtBytes(cap.max) : '连 64 KB 都写不进') + (cap.err ? '（' + cap.err + '）' : ''));
   lines.push('浏览器数据库（IndexedDB）：' +
     (idbDead ? '不可用' : (idbPromise ? '已连接' : '未检测')));
+  if(appErr) lines.push('页面脚本：' + appErr);
   return lines;
 }
 function copyText(str, btn){
@@ -3209,8 +3258,13 @@ function openStorageDiag(){
       tips.push('本机存储满了（浏览器一般只给 5 MB 左右），最新这次改动没写进去。');
     }else if(cap.max && mainB && cap.max >= mainB){
       tips.push('小样本能写进 ' + fmtBytes(cap.max) + '，比整份存档（' + fmtBytes(mainB) +
-        '）还大，却写不进这一份——说明不是总空间不够，是这个浏览器对「单条存档」有限制，或对这份数据做了拦截。' +
-        '把存档缩一缩通常就能过，先「导出备份」再压缩明细 / 清日志。');
+        '）还大，却写不进这一份——说明不是总空间不够。');
+      if(appErr){
+        tips.push('检测到页面脚本本身报了个错（见上面「页面脚本」那行），保存流程被它中断了，才被记成「写不进」。' +
+          '这不是你清得不够干净，先「导出备份」把数据拿在手里，再把这份检测结果发给作者。');
+      }else{
+        tips.push('大概率是这个浏览器对「单条存档」有限制，或对这份数据做了拦截。把存档缩一缩通常就能过：先「导出备份」再压缩明细 / 清日志。');
+      }
     }else{
       tips.push('不是浏览器禁止写，是余量不够：小数据还能写（见上面的写入测试），整份存档 ' + fmtBytes(mainB) + ' 却塞不进去。');
     }
@@ -3223,6 +3277,7 @@ function openStorageDiag(){
       steps.map(function(t, i){ return '①②③④⑤'.charAt(i) + ' ' + t; }).join('；') + '。');
   }else if(blocked){
     tips.push('这个浏览器不让网页往本机写数据，所以每次改动都存不下来。常见原因：无痕 / 隐私窗口、关掉了「网站数据 / Cookie」、开着省流 / 极速模式，或者是从微信、QQ 等聊天里直接点开的应用内窗口。');
+    if(appErr) tips.push('另外页面脚本也报了个错：' + appErr + '。');
     tips.push('先把数据搬出去（哪步能成就行）：① 点「导出备份」——手机上会弹系统分享，直接发到微信「文件传输助手」或存进文件；② 数据不多时也可以点「生成同步码」，复制发给自己；③ 换手机自带浏览器打开同一个网址，再用「📁 导入」或「📋 读码」还原。');
     tips.push(saveDegraded === 'idb'
       ? '现在已退一步用浏览器数据库暂存：同一个浏览器关掉再开还在，换浏览器或清理数据会一起没了。'
@@ -3230,6 +3285,7 @@ function openStorageDiag(){
   }else{
     tips.push('读写正常，已用 ' + fmtBytes(bd.total) + ' / 约 ' + fmtBytes(STORAGE_REF_LIMIT) + '。');
     if(bd.total / STORAGE_REF_LIMIT >= 0.8) tips.push('快满了：建议先「导出备份」，再清一清很早的日志。');
+    if(appErr) tips.push('页面脚本报过一次错：' + appErr + '。存档本身没受影响，把这份结果发给作者就能定位。');
   }
   tips.push('数据只存在这个浏览器里，不会自己跨设备。换手机 / 换浏览器要带走，就用「🔗 同步码」或「📥 导出」→「📁 导入」，也可以配一次「☁ 云同步」。');
   const acts = [];
@@ -3241,7 +3297,7 @@ function openStorageDiag(){
   acts.push({text:'关闭', cls:'btn primary', onClick:closeModal});
   openModal({
     title: '本机存储检测',
-    sub: lsDead ? '读不到存档' : (space ? '空间不够' : (blocked ? '写不进本机' : '正常')),
+    sub: lsDead ? '读不到存档' : (space ? (appErr ? '脚本报错 · 不是空间' : '空间不够') : (blocked ? '写不进本机' : '正常')),
     body: '<div class="stg-box">' +
         '<div class="stg-lines">' + lines.map(function(l){
           return '<div class="stg-l">' + esc(l).replace(/^(\s+)/, '&nbsp;&nbsp;&nbsp;') + '</div>';
@@ -3327,55 +3383,72 @@ let lastSavedScale = 0;
 let skipShrinkSnap = false;   /* 主动清日志时不必再留一份「数据骤减」快照（清空前已手动留过） */
 function save(){
   let json = '';
+  let nowScale = 0;
+  /* ①② 先准备好要写的东西。这一段出岔子只影响每日汇总 / 快照，
+     不能让「这次的改动到底存没存下来」跟着一起失败。 */
   try{
     const cd = curData();
     if(cd) archiveDays(cd);                     /* 今天之前的变动，顺手存成每日汇总 */
+  }catch(e){ noteAppErr('归档每日汇总', e); }
+  try{
     if(S) S.savedAt = Date.now();               /* 给两份存档（本机 / 浏览器数据库）比新旧用 */
     json = JSON.stringify(S);
-    let raw = null;
-    try{ raw = localStorage.getItem(KEY); }catch(e0){}   /* 读都读不到时也别耽误下面的兜底 */
-    const nowScale = storeScale();
-    if(!syncApplying && !skipShrinkSnap && lastSavedScale > 0 && nowScale < lastSavedScale * 0.5){
+  }catch(e){ noteAppErr('打包存档', e); }
+  if(!json) return false;                       /* 连存档都拼不出来，别往下写 */
+
+  let raw = null;
+  try{ raw = localStorage.getItem(KEY); }catch(e0){}   /* 读都读不到时也别耽误下面的兜底 */
+  try{ nowScale = storeScale(); }catch(e){}
+  try{
+    if(!syncApplying && !skipShrinkSnap && lastSavedScale > 0 && nowScale && nowScale < lastSavedScale * 0.5){
       syncSnapFromRaw(raw, '数据骤减前');        /* 云端覆盖 / 误导入空文件都能留底 */
     }
-    localStorage.setItem(KEY, json);
-    lastSavedScale = nowScale;
+  }catch(e){ noteAppErr('留快照', e); }
+
+  /* ③ 真正落盘。只有这一句失败，才算「本机写不进」。 */
+  let werr = null;
+  try{ localStorage.setItem(KEY, json); }catch(e){ werr = e; }
+  if(!werr){
+    if(nowScale) lastSavedScale = nowScale;
     saveWarned = '';
     saveDegraded = '';
     saveFailReason = '';
-    renderStorageNote();
-    scheduleCloudSync();
-    return true;
-  }catch(e){
-    const quota = !!e && (e.name === 'QuotaExceededError' ||
-                          e.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
-                          e.code === 22 || e.code === 1014);
-    const why = quota ? 'quota' : 'denied';
-    lsErrName = (e && (e.name || '')) || lsErrName;
-    /* 有些安卓浏览器「写不下这么大的存档」也报 SecurityError。
-       小数据还能写 → 不是不让写，是空间 / 单条容量不够，别冤枉成隐私模式 */
-    const smallOk = !quota && !lsDead && (function(){
-      try{
-        localStorage.setItem('__hk_cap__', 'x'.repeat(65536));
-        localStorage.removeItem('__hk_cap__');
-        return true;
-      }catch(e2){ return false; }
-    })();
-    /* 失败原因单独记：配额满 / 单次写不下 / 根本不让写。兜底情况另记 */
-    saveFailReason = quota ? 'full' : (smallOk ? 'size' : 'denied');
-    /* 已经稳在「浏览器数据库」上就别来回改状态，免得每次都重弹一遍提示 */
-    if(saveFailReason === 'denied' && saveDegraded !== 'idb') saveDegraded = 'local';
-    renderStorageNote(true);
-    /* 写不进本机：退一步存进浏览器数据库，至少同一个浏览器关掉再开还在 */
-    if(json && !quota) mirrorToIDB(json);
-    if(saveWarned !== why){
-      saveWarned = why;
-      toast(quota ? '存不进本机：空间满了 · 先导出备份再清理'
-        : smallOk ? '存不进本机：空间放不下这次改动 · 先备份再清理'
-        : '存不进本机：已临时留着，看页面顶部的提示', true);
-    }
-    return false;
+    lsErrName = '';
+    try{ renderStorageNote(); }catch(e){ noteAppErr('刷新存储提示', e); }
+    try{ scheduleCloudSync(); }catch(e){ noteAppErr('云同步', e); }
+    return true;                                /* 存进去了：哪怕提示没刷新出来，也算成功 */
   }
+
+  /* ④ 真的没写进去，才按存储问题处理 */
+  const e = werr;
+  const quota = !!e && (e.name === 'QuotaExceededError' ||
+                        e.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+                        e.code === 22 || e.code === 1014);
+  const why = quota ? 'quota' : 'denied';
+  lsErrName = (e && (e.name || '')) || lsErrName;
+  /* 有些安卓浏览器「写不下这么大的存档」也报 SecurityError。
+     小数据还能写 → 不是不让写，是空间 / 单条容量不够，别冤枉成隐私模式 */
+  const smallOk = !quota && !lsDead && (function(){
+    try{
+      localStorage.setItem('__hk_cap__', 'x'.repeat(65536));
+      localStorage.removeItem('__hk_cap__');
+      return true;
+    }catch(e2){ return false; }
+  })();
+  /* 失败原因单独记：配额满 / 单次写不下 / 根本不让写。兜底情况另记 */
+  saveFailReason = quota ? 'full' : (smallOk ? 'size' : 'denied');
+  /* 已经稳在「浏览器数据库」上就别来回改状态，免得每次都重弹一遍提示 */
+  if(saveFailReason === 'denied' && saveDegraded !== 'idb') saveDegraded = 'local';
+  try{ renderStorageNote(true); }catch(e2){ noteAppErr('刷新存储提示', e2); }
+  /* 写不进本机：退一步存进浏览器数据库，至少同一个浏览器关掉再开还在 */
+  if(json && !quota) mirrorToIDB(json);
+  if(saveWarned !== why){
+    saveWarned = why;
+    toast(quota ? '存不进本机：空间满了 · 先导出备份再清理'
+      : smallOk ? '存不进本机：空间放不下这次改动 · 先备份再清理'
+      : '存不进本机：已临时留着，看页面顶部的提示', true);
+  }
+  return false;
 }
 /* localStorage 被拦时，从浏览器数据库里把上次的存档捞回来 */
 let idbBootDone = false, pendingIDBJson = '';
@@ -8919,6 +8992,14 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.75 不是空间不够，是报错被当成了「写不进」',
+     '<p>有人反馈：明明只用了 43 KB，写入测试也还能写进 4 MB，却一直提示「本机写不进、去清日志」。</p>' +
+     '<p>原因是保存这一步写得太宽：<b>归档每日汇总、刷新提示、云同步</b>这些附带动作和真正落盘挤在同一个 try 里，' +
+     '任何一句抛出异常（比如手机浏览器的内核报了个 <code>ReferenceError</code>），都会被记成「本机写不进」，' +
+     '于是给出「空间不够」的建议——方向完全错了。</p>' +
+     '<p>现在只有<b>真正写存档那一步</b>失败才算写不进；其余动作各自兜住，出错只记在检测窗里（新增一行「页面脚本」，带错误内容和行号），' +
+     '不再影响这次改动落盘。既然是脚本报错、数据没丢，提示也不再是红色告警：改成一句浅色的「这次改动没写进本机，已自动改存浏览器数据库」，不挡内容。</p>',
+     '2026.11'],
     ['V2.74 存不进，先分清是空间还是权限',
      '<p>有些浏览器（比如手机自带的那几个）并不是「不让写」，而是<b>小数据能写、整份存档写不下</b>——存档长到一定程度就开始失败，报的还偏偏是「不让写」那个错误码。' +
      '之前一律当成隐私模式，越看越糊涂。</p>' +

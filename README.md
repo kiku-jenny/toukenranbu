@@ -3,7 +3,7 @@
 单文件离线工具：**双击 `index.html` 就能用**，不依赖服务器和数据库。
 
 - 在线版：https://kiku-jenny.github.io/toukenranbu/
-- 当前版本：**V2.74**
+- 当前版本：**V2.75**
 - 数据保存在浏览器 localStorage，不上传任何地方；需要多设备互通时，可在「☁ 云同步」里填自己的 Supabase 密钥（数据先在本机加密再上传）。
 
 ## 更新方式
@@ -18,6 +18,7 @@ git push origin main
 
 ## 更新记录
 
+- **V2.75** 修「明明才用了 43 KB、写入测试还能写 4 MB，却一直提示本机写不进」：`save()` 原先是一个大 try，归档每日汇总 / 刷新提示 / 云同步这些附带动作任何一句抛异常（手机内核报 `ReferenceError` 等），都会被记成「本机写不进」，再给出「空间不够，去清日志」的错误建议。现在只有 `localStorage.setItem(KEY)` 这一步失败才算写不进，附带动作各自兜住并记进新增的 `appErr`（`noteAppErr()` 保留错误名 / 消息 / 行号）；写不进时若已镜像到 IndexedDB，横幅改为浅色（`.store-banner.soft`）「已自动改存浏览器数据库 · 不影响使用」，不再红色告警；诊断窗新增「页面脚本」一行，检测结果里如实指向脚本异常而不是空间；`renderStorageNote()` 内部整体兜住，提示刷新失败不再影响存档落盘
 - **V2.74** 区分「不让写」与「写不下」：`saveFailReason`（full / size / denied）与 `saveDegraded`（idb / local / none）拆开记，失败时用 64 KB 试写判断是否只是单条/余量不足，不再一律归因为隐私模式；新增 `storageBreakdown()`（遍历 localStorage 按主存档 / 快照 / 设置分类计占用）与 `probeCapacity()`（64 KB→4 MB 逐级试写测余量），诊断窗显示占用明细与写入测试；空间不足时给出「导出备份 → 清理快照 → 压缩每日明细（`compressDayDetail`）→ 清日志」的分步方案，并提供 `clearSnapsQuick()` 一键清快照；修复诊断只统计主存档、忽略快照导致占用低估
 - **V2.73** 修「读得到、写不进」时顶部横幅不出现的问题（`saveDegraded` 增加 `local / none` 状态，横幅条件改为 `lsDead || saveDegraded`）；失败提示压缩为一行，`toast` 不再遮挡半个屏幕；诊断弹窗按「能读不能写」显示准确状态并给出搬数据的三步（导出走系统分享 / 生成同步码 / 换浏览器导入）；`exportJson` 在手机且支持 `navigator.canShare({files})` 时改走 Web Share（应用内窗口下载常无反应），失败回退下载；横幅整条可点
 - **V2.72** 本机存储被浏览器拒绝（SecurityError，非隐私模式也会）时不再只弹一句「隐私模式？」：启动探测 `probeLS()`，顶部常驻提示条 + 「本机存储检测」弹窗（错误名、IndexedDB 可用性、存档大小、分步处理建议，结果可复制）；localStorage 写失败时自动镜像到 IndexedDB（`restoreFromIDB` 启动恢复，`idbBootDone/pendingIDBJson` 防止空账号覆盖库），同一浏览器重开仍在；配额满（QuotaExceededError）与「不让写」分开提示与降级（`saveDegraded = full / idb / none`）；修复启动阶段 `save()` 失败时 `toast` 访问 `toastTimer` 的 TDZ 崩溃；toast 层级降到弹窗之下，复制反馈改到按钮上
