@@ -1485,7 +1485,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.73</div>
+        <div class="brand-sub">HONMARU KEEPER V2.74</div>
       </div>
     </div>
 
@@ -3051,14 +3051,54 @@ function scheduleCloudSync(){
 
 /* ---------- 本地存储：写入失败要出声，用量要看得见 ---------- */
 let saveWarned = '';        /* 记录上次提示过的失败原因，避免同一原因反复刷屏 */
-let saveDegraded = '';      /* '' 正常 / 'idb' 已退到浏览器数据库 / 'none' 连兜底都不行 */
+let saveDegraded = '';      /* '' 没出问题 / 'idb' 已暂存到浏览器数据库 / 'none' 连兜底都不行 */
+let saveFailReason = '';    /* '' / 'full' 配额满 / 'size' 单次写不下 / 'denied' 不让写 */
 let storageWarned = false;
 let STORAGE_REF_LIMIT = 5 * 1024 * 1024;   /* 浏览器 localStorage 常见上限，仅作参考 */
-function storageUsedBytes(){
+/* 本机存储到底是谁在占：主存档、自动快照、其它设置分开算 */
+function storageBreakdown(){
+  const items = [];
+  let total = 0;
   try{
-    const raw = localStorage.getItem(KEY) || '';
-    return new Blob([raw]).size;
-  }catch(e){ return 0; }
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(k == null) continue;
+      const v = localStorage.getItem(k) || '';
+      const b = new Blob([k + v]).size;
+      total += b;
+      items.push({k:k, bytes:b});
+    }
+  }catch(e){}
+  const label = function(k){
+    if(k === KEY) return '主存档（图鉴 / 日志 / 每日汇总）';
+    if(k === SNAP_KEY) return '自动快照';
+    if(k === 'honmaru_theme_v1') return '外观设置';
+    if(k === SYNC_CFG_KEY) return '云同步密钥';
+    if(k === SYNC_STATE_KEY) return '云同步状态';
+    return k;
+  };
+  items.sort(function(a, b){ return b.bytes - a.bytes; });
+  return {total:total, items:items.map(function(x){ return {k:x.k, label:label(x.k), bytes:x.bytes}; })};
+}
+function storageUsedBytes(){
+  return storageBreakdown().total;
+}
+/* 这个浏览器到底还能吞下多少：从小往大写临时数据试 */
+function probeCapacity(){
+  const sizes = [64 * 1024, 256 * 1024, 1024 * 1024, 2 * 1024 * 1024, 4 * 1024 * 1024];
+  let max = 0, err = '';
+  for(let i = 0; i < sizes.length; i++){
+    try{
+      localStorage.setItem('__hk_cap__', 'x'.repeat(sizes[i]));
+      localStorage.removeItem('__hk_cap__');
+      max = sizes[i];
+    }catch(e){
+      err = (e && (e.name || e.message)) || 'Error';
+      try{ localStorage.removeItem('__hk_cap__'); }catch(e2){}
+      break;
+    }
+  }
+  return {max:max, err:err};
 }
 function fmtBytes(n){
   if(n >= 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + ' MB';
@@ -3069,15 +3109,15 @@ function renderStorageNote(silent){
   if(!box || !txt) return;
   /* 页面顶部也提醒一句：手机上看不到侧栏，只有 toast 一闪就没了 */
   const banner = $('#storeBanner'), bTxt = $('#storeBannerText');
-  const showBanner = lsDead || !!saveDegraded;
+  const showBanner = lsDead || !!saveFailReason;
   if(banner){
     banner.hidden = !showBanner;
     if(showBanner && bTxt){
       bTxt.textContent =
-        saveDegraded === 'idb' ? '⚠ 存不进本机，已暂存到浏览器数据库（换浏览器会丢）'
-        : saveDegraded === 'full' ? '⚠ 本机存储已满，这次改动没写进去'
+        saveFailReason === 'full' ? '⚠ 本机存储已满，这次改动没写进去'
+        : saveFailReason === 'size' ? '⚠ 本机空间不够，这次改动没写进去'
+        : saveDegraded === 'idb' ? '⚠ 存不进本机，已暂存到浏览器数据库（换浏览器会丢）'
         : saveDegraded === 'none' ? '⚠ 存不进本机，改动关掉就没了'
-        : saveDegraded === 'local' ? '⚠ 存不进本机，先备份再换个浏览器'
         : '⚠ 浏览器不让存数据，先点「处理办法」看怎么办';
     }
   }
@@ -3094,10 +3134,10 @@ function renderStorageNote(silent){
   }
   const used = storageUsedBytes();
   const cap = fmtBytes(STORAGE_REF_LIMIT);
-  if(saveDegraded === 'full'){
+  if(saveFailReason === 'full' || saveFailReason === 'size'){
     box.classList.add('warn');
-    txt.textContent = '⚠ 本机存储已满 · 这次改动没写入';
-    box.title = '点一下看详情：可以导出备份，或清掉很早的日志';
+    txt.textContent = saveFailReason === 'size' ? '⚠ 本机空间不够 · 这次改动没写入' : '⚠ 本机存储已满 · 这次改动没写入';
+    box.title = '点一下看详情：空间被谁占了、怎么腾出来';
     if(btn) btn.hidden = false;
     return;
   }
@@ -3114,21 +3154,20 @@ function renderStorageNote(silent){
   if(!near) storageWarned = false;
 }
 /* ---------- 本机存储检测：出了问题至少能看到卡在哪一步 ---------- */
-function storageDiagLines(){
+function storageDiagLines(cap){
   const lines = [];
+  const bd = storageBreakdown();
   lines.push('网址：' + location.href.replace(/[?#].*$/, ''));
   lines.push('浏览器：' + (navigator.userAgent || '未知'));
-  const writeBlocked = !!saveDegraded && saveDegraded !== 'full';
-  lines.push('本机存储（localStorage）：' +
-    (lsDead ? '不可用' : (writeBlocked ? '读得到，但写不进' : '可用')));
-  if(lsDead) lines.push('  错误：' + (lsErrName || '未知（写入后读不回来）'));
-  else if(writeBlocked) lines.push('  写入错误：' + (lsErrName || '未知'));
+  const writeBlocked = !!saveFailReason;
+  lines.push('本机存储：' + (lsDead ? '读不到（被浏览器挡了）' : (writeBlocked ? '读得到，但写不进' : '读写正常')));
+  if(lsErrName) lines.push('  错误：' + lsErrName);
+  lines.push('已用 ' + fmtBytes(bd.total) + ' / 约 ' + fmtBytes(STORAGE_REF_LIMIT));
+  bd.items.slice(0, 4).forEach(function(x){ lines.push('　　' + x.label + '：' + fmtBytes(x.bytes)); });
+  cap = cap || probeCapacity();
+  lines.push('写入测试：' + (cap.max ? '还能写进 ' + fmtBytes(cap.max) : '连 64 KB 都写不进') + (cap.err ? '（' + cap.err + '）' : ''));
   lines.push('浏览器数据库（IndexedDB）：' +
     (idbDead ? '不可用' : (idbPromise ? '已连接' : '未检测')));
-  let raw = '';
-  try{ raw = localStorage.getItem(KEY) || ''; }catch(e){}
-  lines.push('当前存档：' + (raw ? fmtBytes(new Blob([raw]).size) + ' / ' + Math.round(raw.length / 1024) + 'K 字符' : '读不到'));
-  lines.push('快照：' + (function(){ try{ return loadSnaps().length + ' 份'; }catch(e){ return '读不到'; } })());
   return lines;
 }
 function copyText(str, btn){
@@ -3155,40 +3194,132 @@ function fallbackCopy(str){
   return ok;
 }
 function openStorageDiag(){
-  const lines = storageDiagLines();
+  const cap = probeCapacity();
+  const lines = storageDiagLines(cap);
   const tips = [];
-  /* 写不进本机：读也读不到（lsDead），或者读得到但写失败（saveDegraded 非空且不是「满」） */
-  const blocked = lsDead || (!!saveDegraded && saveDegraded !== 'full');
-  if(blocked){
+  const bd = storageBreakdown();
+  const snapN = (function(){ try{ return loadSnaps().length; }catch(e){ return 0; } })();
+  const mainIt = bd.items.filter(function(x){ return x.k === KEY; })[0];
+  const mainB = mainIt ? mainIt.bytes : 0;
+  const detN = dayDetailCount();
+  const space = saveFailReason === 'size' || saveFailReason === 'full';
+  const blocked = lsDead || saveFailReason === 'denied';
+  if(space){
+    if(saveFailReason === 'full'){
+      tips.push('本机存储满了（浏览器一般只给 5 MB 左右），最新这次改动没写进去。');
+    }else if(cap.max && mainB && cap.max >= mainB){
+      tips.push('小样本能写进 ' + fmtBytes(cap.max) + '，比整份存档（' + fmtBytes(mainB) +
+        '）还大，却写不进这一份——说明不是总空间不够，是这个浏览器对「单条存档」有限制，或对这份数据做了拦截。' +
+        '把存档缩一缩通常就能过，先「导出备份」再压缩明细 / 清日志。');
+    }else{
+      tips.push('不是浏览器禁止写，是余量不够：小数据还能写（见上面的写入测试），整份存档 ' + fmtBytes(mainB) + ' 却塞不进去。');
+    }
+    tips.push('空间主要被这些占着：' + bd.items.slice(0, 3).map(function(x){ return x.label + ' ' + fmtBytes(x.bytes); }).join('、') + '。');
+    const steps = ['先「导出备份」'];
+    if(snapN) steps.push('清掉 ' + snapN + ' 份自动快照');
+    if(detN) steps.push('压缩每日明细（' + fmtNum(detN) + ' 条，只留每天的涨跌）');
+    steps.push('去「日志」页清一清很早的日志——清空后每日统计照样有数');
+    tips.push('腾空间按这个顺序（每步做完都可以回来再存一次）：' +
+      steps.map(function(t, i){ return '①②③④⑤'.charAt(i) + ' ' + t; }).join('；') + '。');
+  }else if(blocked){
     tips.push('这个浏览器不让网页往本机写数据，所以每次改动都存不下来。常见原因：无痕 / 隐私窗口、关掉了「网站数据 / Cookie」、开着省流 / 极速模式，或者是从微信、QQ 等聊天里直接点开的应用内窗口。');
-    tips.push('先把数据搬出去（哪步能成就行）：① 点「导出备份」——手机上会弹系统分享，直接发到微信「文件传输助手」或存进文件；② 数据不多时也可以点「生成同步码」，复制发给自己；③ 换手机自带浏览器（Chrome / 华为 / 小米 / Safari）打开同一个网址，再用「📁 导入」或「📋 读码」还原。');
+    tips.push('先把数据搬出去（哪步能成就行）：① 点「导出备份」——手机上会弹系统分享，直接发到微信「文件传输助手」或存进文件；② 数据不多时也可以点「生成同步码」，复制发给自己；③ 换手机自带浏览器打开同一个网址，再用「📁 导入」或「📋 读码」还原。');
     tips.push(saveDegraded === 'idb'
       ? '现在已退一步用浏览器数据库暂存：同一个浏览器关掉再开还在，换浏览器或清理数据会一起没了。'
       : '浏览器数据库也写不进去，改动只在这个页面里，关掉或刷新就没了——先搬数据。');
   }else{
-    const used = storageUsedBytes();
-    if(saveDegraded === 'full'){
-      tips.push('本机存储已经满了（浏览器一般只给 5 MB 左右），最新的改动没写进去。先点「导出备份」，再清一清很早的日志——清空日志后每日统计的涨跌和明细都还在，能腾出不少空间。');
-    }else{
-      tips.push('本机存储可以用。已用 ' + fmtBytes(used) + '（浏览器一般给 5 MB 左右）。');
-    }
-    if(used / STORAGE_REF_LIMIT >= 0.8) tips.push('快满了：建议先「导出备份」，再清一清很早的日志。');
+    tips.push('读写正常，已用 ' + fmtBytes(bd.total) + ' / 约 ' + fmtBytes(STORAGE_REF_LIMIT) + '。');
+    if(bd.total / STORAGE_REF_LIMIT >= 0.8) tips.push('快满了：建议先「导出备份」，再清一清很早的日志。');
   }
   tips.push('数据只存在这个浏览器里，不会自己跨设备。换手机 / 换浏览器要带走，就用「🔗 同步码」或「📥 导出」→「📁 导入」，也可以配一次「☁ 云同步」。');
+  const acts = [];
+  acts.push({text:'导出备份', cls:'btn', onClick:function(){ exportJson(); }});
+  if(snapN) acts.push({text:'清理快照', cls:'btn', onClick:function(){ closeModal(); clearSnapsQuick(); }});
+  if(detN) acts.push({text:'压缩每日明细', cls:'btn', onClick:function(){ closeModal(); compressDayDetail(); }});
+  acts.push({text:'生成同步码', cls:'btn', onClick:function(){ closeModal(); openSyncGen(); }});
+  acts.push({text:'复制检测结果', cls:'btn', onClick:function(){ copyText(lines.join('\n') + '\n\n' + tips.join('\n'), this); }});
+  acts.push({text:'关闭', cls:'btn primary', onClick:closeModal});
   openModal({
     title: '本机存储检测',
-    sub: blocked ? '现在存不进本机' : (saveDegraded === 'full' ? '空间已满' : '正常'),
+    sub: lsDead ? '读不到存档' : (space ? '空间不够' : (blocked ? '写不进本机' : '正常')),
     body: '<div class="stg-box">' +
         '<div class="stg-lines">' + lines.map(function(l){
           return '<div class="stg-l">' + esc(l).replace(/^(\s+)/, '&nbsp;&nbsp;&nbsp;') + '</div>';
         }).join('') + '</div>' +
         '<div class="stg-tips">' + tips.map(function(t){ return '<p>' + esc(t) + '</p>'; }).join('') + '</div>' +
       '</div>',
+    actions: acts
+  });
+}
+/* 每日明细（「查看」里的逐条时间）有多少条 */
+function dayDetailCount(){
+  const d = curData();
+  if(!d || !d.dayAgg) return 0;
+  let n = 0;
+  Object.keys(d.dayAgg).forEach(function(k){
+    const a = d.dayAgg[k];
+    if(a && Array.isArray(a.l)) n += a.l.length;
+  });
+  return n;
+}
+/* 极限瘦身：删掉每日明细，只留每天的涨跌合计 */
+function compressDayDetail(){
+  const n = dayDetailCount();
+  if(!n){ toast('没有可压缩的明细'); return; }
+  const before = storageBreakdown().total;
+  openModal({
+    title: '压缩每日明细',
+    sub: n + ' 条 · 只留每天的涨跌',
+    body: '<p class="muted" style="margin:0;font-size:12px;line-height:1.9;">' +
+      '每日统计里点「查看」看到的逐条时间会被清掉，<b>每天的涨跌合计、条数、起止值全都还在</b>。' +
+      '日志页不受影响；之前已经归档的日子才动，最近的日志还在。<br>建议先「导出备份」再压缩。</p>',
     actions: [
+      {text:'取消', cls:'btn', onClick:closeModal},
       {text:'导出备份', cls:'btn', onClick:function(){ exportJson(); }},
-      {text:'生成同步码', cls:'btn', onClick:function(){ closeModal(); openSyncGen(); }},
-      {text:'复制检测结果', cls:'btn', onClick:function(){ copyText(lines.join('\n') + '\n\n' + tips.join('\n'), this); }},
-      {text:'关闭', cls:'btn primary', onClick:closeModal}
+      {text:'压缩', cls:'btn primary', onClick:function(){
+        const d = curData();
+        let done = 0;
+        if(d && d.dayAgg){
+          Object.keys(d.dayAgg).forEach(function(k){
+            const a = d.dayAgg[k];
+            if(a && Array.isArray(a.l)){ done += a.l.length; delete a.l; }
+          });
+        }
+        closeModal();
+        const ok = save();
+        const freed = Math.max(0, before - storageBreakdown().total);
+        const said = '已压缩 ' + fmtNum(done) + ' 条明细，腾出约 ' + fmtBytes(freed);
+        renderAll();
+        /* 保存失败时会先弹一句「存不进」，等它过去再说压缩结果，免得互相盖掉 */
+        if(ok) toast(said);
+        else setTimeout(function(){ toast(said + '，但还是没写进去——再清一清日志', true); }, 2400);
+      }}
+    ]
+  });
+}
+/* 清掉自动快照腾空间（只是备份，不动当前图鉴 / 日志） */
+function clearSnapsQuick(){
+  const n = (function(){ try{ return loadSnaps().length; }catch(e){ return 0; } })();
+  if(!n){ toast('没有自动快照可清'); return; }
+  const bd = storageBreakdown();
+  const it = bd.items.filter(function(x){ return x.k === SNAP_KEY; })[0];
+  const size = it ? fmtBytes(it.bytes) : '';
+  openModal({
+    title: '清理自动快照',
+    sub: n + ' 份 · 约 ' + size,
+    body: '<p class="muted" style="margin:0;font-size:12px;line-height:1.9;">快照是「数据骤减 / 清空日志」前自动留的备份，用来反悔。' +
+      '删掉它们不会动现在的图鉴、日志、每日统计。<b>但如果之前误删过东西，就靠它们找回</b>——建议先「导出备份」再清。</p>',
+    actions: [
+      {text:'取消', cls:'btn', onClick:closeModal},
+      {text:'导出备份', cls:'btn', onClick:function(){ exportJson(); }},
+      {text:'清掉 ' + n + ' 份', cls:'btn primary', onClick:function(){
+        try{ localStorage.removeItem(SNAP_KEY); }catch(e){}
+        closeModal();
+        toast('已清掉 ' + n + ' 份快照，腾出约 ' + size);
+        const ok = save();          /* 再试一次写入 */
+        renderStorageNote();
+        if(ok) toast('空间腾出来了，已正常保存');
+      }}
     ]
   });
 }
@@ -3211,6 +3342,7 @@ function save(){
     lastSavedScale = nowScale;
     saveWarned = '';
     saveDegraded = '';
+    saveFailReason = '';
     renderStorageNote();
     scheduleCloudSync();
     return true;
@@ -3220,14 +3352,27 @@ function save(){
                           e.code === 22 || e.code === 1014);
     const why = quota ? 'quota' : 'denied';
     lsErrName = (e && (e.name || '')) || lsErrName;
-    /* 先按最坏情况记账，等浏览器数据库那边有结果再升级成「已暂存」 */
-    saveDegraded = quota ? 'full' : 'local';
+    /* 有些安卓浏览器「写不下这么大的存档」也报 SecurityError。
+       小数据还能写 → 不是不让写，是空间 / 单条容量不够，别冤枉成隐私模式 */
+    const smallOk = !quota && !lsDead && (function(){
+      try{
+        localStorage.setItem('__hk_cap__', 'x'.repeat(65536));
+        localStorage.removeItem('__hk_cap__');
+        return true;
+      }catch(e2){ return false; }
+    })();
+    /* 失败原因单独记：配额满 / 单次写不下 / 根本不让写。兜底情况另记 */
+    saveFailReason = quota ? 'full' : (smallOk ? 'size' : 'denied');
+    /* 已经稳在「浏览器数据库」上就别来回改状态，免得每次都重弹一遍提示 */
+    if(saveFailReason === 'denied' && saveDegraded !== 'idb') saveDegraded = 'local';
     renderStorageNote(true);
-    /* localStorage 写不进：退一步存进浏览器数据库，至少同一个浏览器关掉再开还在 */
+    /* 写不进本机：退一步存进浏览器数据库，至少同一个浏览器关掉再开还在 */
     if(json && !quota) mirrorToIDB(json);
     if(saveWarned !== why){
       saveWarned = why;
-      toast(quota ? '存不进本机：空间满了 · 先导出备份再清理' : '存不进本机：已临时留着，看页面顶部的提示', true);
+      toast(quota ? '存不进本机：空间满了 · 先导出备份再清理'
+        : smallOk ? '存不进本机：空间放不下这次改动 · 先备份再清理'
+        : '存不进本机：已临时留着，看页面顶部的提示', true);
     }
     return false;
   }
@@ -8774,6 +8919,13 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.74 存不进，先分清是空间还是权限',
+     '<p>有些浏览器（比如手机自带的那几个）并不是「不让写」，而是<b>小数据能写、整份存档写不下</b>——存档长到一定程度就开始失败，报的还偏偏是「不让写」那个错误码。' +
+     '之前一律当成隐私模式，越看越糊涂。</p>' +
+     '<p>现在检测窗口会把话说准：<b>谁在占地方</b>（主存档 / 自动快照各多少）、<b>还能写进多大</b>（64 KB 到 4 MB 逐级试），' +
+     '再给三条按顺序的腾空间办法——导出备份、清掉自动快照、压缩每日明细（只留每天的涨跌），最后才建议清日志。</p>' +
+     '<p>顺带把「暂存到浏览器数据库」的状态稳住：不会每次保存都重弹一遍提示；压缩完会告诉你腾出了多少、有没有真的写进去。</p>',
+     '2026.11'],
     ['V2.73 存不进本机时，先看到、再搬走',
      '<p>V2.72 的提示有个漏洞：只有<b>连读都读不到</b>才会在顶部出横幅。像「读得到、但写不进去」这种情况（关掉网站数据、应用内窗口常见），' +
      '页面顶部什么都不显示，只有角落里一句很长的提示，手机上还挡住半个屏幕。</p>' +

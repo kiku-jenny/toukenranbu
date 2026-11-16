@@ -3,7 +3,7 @@
 单文件离线工具：**双击 `index.html` 就能用**，不依赖服务器和数据库。
 
 - 在线版：https://kiku-jenny.github.io/toukenranbu/
-- 当前版本：**V2.73**
+- 当前版本：**V2.74**
 - 数据保存在浏览器 localStorage，不上传任何地方；需要多设备互通时，可在「☁ 云同步」里填自己的 Supabase 密钥（数据先在本机加密再上传）。
 
 ## 更新方式
@@ -18,6 +18,7 @@ git push origin main
 
 ## 更新记录
 
+- **V2.74** 区分「不让写」与「写不下」：`saveFailReason`（full / size / denied）与 `saveDegraded`（idb / local / none）拆开记，失败时用 64 KB 试写判断是否只是单条/余量不足，不再一律归因为隐私模式；新增 `storageBreakdown()`（遍历 localStorage 按主存档 / 快照 / 设置分类计占用）与 `probeCapacity()`（64 KB→4 MB 逐级试写测余量），诊断窗显示占用明细与写入测试；空间不足时给出「导出备份 → 清理快照 → 压缩每日明细（`compressDayDetail`）→ 清日志」的分步方案，并提供 `clearSnapsQuick()` 一键清快照；修复诊断只统计主存档、忽略快照导致占用低估
 - **V2.73** 修「读得到、写不进」时顶部横幅不出现的问题（`saveDegraded` 增加 `local / none` 状态，横幅条件改为 `lsDead || saveDegraded`）；失败提示压缩为一行，`toast` 不再遮挡半个屏幕；诊断弹窗按「能读不能写」显示准确状态并给出搬数据的三步（导出走系统分享 / 生成同步码 / 换浏览器导入）；`exportJson` 在手机且支持 `navigator.canShare({files})` 时改走 Web Share（应用内窗口下载常无反应），失败回退下载；横幅整条可点
 - **V2.72** 本机存储被浏览器拒绝（SecurityError，非隐私模式也会）时不再只弹一句「隐私模式？」：启动探测 `probeLS()`，顶部常驻提示条 + 「本机存储检测」弹窗（错误名、IndexedDB 可用性、存档大小、分步处理建议，结果可复制）；localStorage 写失败时自动镜像到 IndexedDB（`restoreFromIDB` 启动恢复，`idbBootDone/pendingIDBJson` 防止空账号覆盖库），同一浏览器重开仍在；配额满（QuotaExceededError）与「不让写」分开提示与降级（`saveDegraded = full / idb / none`）；修复启动阶段 `save()` 失败时 `toast` 访问 `toastTimer` 的 TDZ 崩溃；toast 层级降到弹窗之下，复制反馈改到按钮上
 - **V2.71** 每日统计的明细也留档：清空日志 / 被 2000 条上限挤出时，把当天「进统计」的每条变动（等级 / 经验 / 极化 / 乱舞）压进 `dayAgg[day].l`，「查看」弹窗合并日志与归档明细（按内容指纹去重、按时间排），清空后仍能逐条看时间与改动；明细单独一份字符预算（`LOG_ARC_MAX = 900K`），超出后从最旧的日子开始只保留汇总并标记 `lc`，汇总另有 600K / 730 天上限；日志上限改为「整天搬移」——越界时把那一天全部日志一起归档（汇总 + 明细，`f:1`），避免一天一半在日志、一半在归档导致统计口径错位；`f` 段已有内容时用 `mergeFrozenDay` 追加而非覆盖；「查看」标题标注「另有 N 条只留了汇总」，清空确认窗与日志页 / 每日统计空态文案同步更新；`dayAgg` 明细损坏自动丢弃
