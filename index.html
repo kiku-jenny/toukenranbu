@@ -1418,11 +1418,13 @@
     display:flex;align-items:center;gap:10px;padding:8px 10px 8px 14px;border-radius:24px;
     background:rgba(69,54,57,.94);color:var(--on-accent);font-size:12px;
     box-shadow:0 14px 30px -14px rgba(0,0,0,.6);opacity:0;transition:.24s;pointer-events:none;
+    white-space:nowrap;max-width:calc(100vw - 24px);
   }
   .upd-bar.on{opacity:1;transform:translate(-50%,0);pointer-events:auto;}
   .upd-bar button{
     font-family:inherit;font-size:12px;padding:4px 12px;border-radius:999px;cursor:pointer;
     border:1px solid rgba(255,255,255,.32);background:rgba(255,255,255,.14);color:var(--on-accent);
+    white-space:nowrap;
   }
   .upd-bar button:hover{background:rgba(255,255,255,.24);}
 
@@ -9805,7 +9807,7 @@ function showUpdateBar(){
   updateBarDone = true;
   const bar = document.createElement('div');
   bar.className = 'upd-bar';
-  bar.innerHTML = '<span>新版本已经下好了</span><button>重新载入</button>';
+  bar.innerHTML = '<span>有新版本</span><button>重新载入</button>';
   bar.querySelector('button').onclick = function(){ location.reload(); };
   document.body.appendChild(bar);
   requestAnimationFrame(function(){ bar.classList.add('on'); });
