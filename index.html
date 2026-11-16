@@ -2597,9 +2597,16 @@ function noteAppErr(where, e){
   let at = '';
   try{
     const st = String((e && e.stack) || '');
-    /* 优先报出文件里的行号：能直接定位是哪一句 */
-    const m = st.match(/([^\s()]*index\.html:\d+:\d+)/) || st.match(/\bat\s+(?:.*?)(\S+:\d+:\d+)/);
-    if(m) at = ' @ ' + m[1].replace(/^.*\//, '');
+    /* 优先报出页面文件里的行号：能直接定位是哪一句 */
+    let m = st.match(/(https?:\/\/[^\s)]+:\d+:\d+)/) || st.match(/([^\s()]*index\.html:\d+:\d+)/);
+    if(!m){
+      const rows = st.split('\n').slice(1);
+      for(let i = 0; i < rows.length; i++){
+        const t = rows[i].match(/\bat\s+([^\s(]+:\d+:\d+)/);
+        if(t){ m = t; break; }
+      }
+    }
+    if(m) at = ' @ ' + m[1].replace(/^https?:\/\/[^/]+\//, '').replace(/^file:\/\/.*\//, '');
   }catch(e2){}
   appErr = where + '：' + nm + (msg ? ' - ' + msg.slice(0, 90) : '') + at;
 }
