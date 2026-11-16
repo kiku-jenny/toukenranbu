@@ -3829,7 +3829,7 @@ function delAccount(){
   openModal({
     title:'删除账号',
     sub:'账号「' + a.name + '」的图鉴、资源与记录都会被一并删除，且无法恢复。',
-    body:'<p style="font-size:12px;color:var(--sub);margin:0;">如果只是想换一个名字，可以新建一个账号后重新导入同步码。</p>',
+    body:'<p style="font-size:12px;color:var(--sub);margin:0;">如果只是想换一个名字，可以新建一个账号后导入之前「📥 导出」的备份文件。</p>',
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
       {text:'确认删除', cls:'btn primary', onClick:function(){
