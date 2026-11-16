@@ -2,7 +2,8 @@
 
 单文件离线工具：**双击 `index.html` 就能用**，不依赖服务器和数据库。
 
-- 在线版：https://kiku-jenny.github.io/toukenranbu/
+- 在线版（GitHub Pages）：https://kiku-jenny.github.io/toukenranbu/
+- 在线版（Cloudflare Pages，更快）：https://honmaru-keeper.pages.dev/
 - 当前版本：**V2.76**
 - 数据保存在浏览器 localStorage，不上传任何地方；需要多设备互通时，可在「☁ 云同步」里填自己的 Supabase 密钥（数据先在本机加密再上传）。
 
@@ -17,6 +18,18 @@ git push origin main
 ```
 
 > `sw.js` 是离线缓存（V2.76 起）。发布新版后它会自动换缓存，不用手动改版本号；如果改了 `sw.js` 本身，注意它自己也会被缓存——调试时可强制刷新或在 DevTools 里 Unregister。
+
+## 双点发布
+
+Cloudflare Pages 的站点单独维护在 [kiku-jenny/honmaru-keeper](https://github.com/kiku-jenny/honmaru-keeper)（只放 `index.html` / `sw.js` / `_headers`，不含预览图）。发版后跑一次：
+
+```bash
+bash /workspace/.deploy/sync.sh
+```
+
+会把两个文件推过去，Cloudflare 自动重建，约 30 秒生效。两个网址内容必须一致（可用 md5 对比）。
+
+> Cloudflare Pages 项目设置：Framework preset = None，Build command **留空**，Build output directory = `/`。若填了构建命令或把输出目录改成 `public`，会部署出 404 / 空页面。
 
 ## 更新记录
 
