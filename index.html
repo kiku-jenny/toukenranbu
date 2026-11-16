@@ -1599,7 +1599,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.79</div>
+        <div class="brand-sub">HONMARU KEEPER V2.80</div>
       </div>
     </div>
 
@@ -3541,6 +3541,7 @@ function save(){
     lsErrName = '';
     try{ renderStorageNote(); }catch(e){ noteAppErr('刷新存储提示', e); }
     try{ scheduleCloudSync(); }catch(e){ noteAppErr('云同步', e); }
+    try{ scheduleGhBackup(); }catch(e){ noteAppErr('GitHub 冷备', e); }
     return true;                                /* 存进去了：哪怕提示没刷新出来，也算成功 */
   }
 
@@ -8962,6 +8963,207 @@ async function openRescue(){
     };
   });
 }
+/* =========================================================
+   GitHub 冷备：把存档提交到自己的私有仓库，一天一个文件
+   云端（Supabase）、本机、文件之外的第四份，也是最抗风险的一份：
+   仓库不会过期，每次提交都是一个历史版本，能回滚到任意一天。
+   ========================================================= */
+const GH_KEY = 'honmaru_gh_v1';
+const GH_ST_KEY = 'honmaru_gh_state_v1';
+var ghCfg = (function(){
+  try{
+    const o = JSON.parse(localStorage.getItem(GH_KEY) || '{}');
+    if(o && typeof o === 'object') return {
+      repo:o.repo || 'kiku-jenny/honmaru-backup', branch:o.branch || 'main',
+      token:o.token || '', auto:o.auto !== false
+    };
+  }catch(e){}
+  return {repo:'kiku-jenny/honmaru-backup', branch:'main', token:'', auto:true};
+})();
+var ghState = (function(){
+  try{
+    const o = JSON.parse(localStorage.getItem(GH_ST_KEY) || '{}');
+    if(o && typeof o === 'object') return {status:o.status||'off', msg:o.msg||'', lastAt:o.lastAt||'', path:o.path||''};
+  }catch(e){}
+  return {status:'off', msg:'', lastAt:'', path:''};
+})();
+var ghTimer = null, ghBusy = false;
+
+function saveGhCfg(){ try{ localStorage.setItem(GH_KEY, JSON.stringify(ghCfg)); }catch(e){} }
+function saveGhState(){ try{ localStorage.setItem(GH_ST_KEY, JSON.stringify(ghState)); }catch(e){} }
+function ghValid(){ return !!(ghCfg.repo && ghCfg.token); }
+function ghRepo(){ return String(ghCfg.repo || '').replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/i, '').replace(/\/+$/, ''); }
+function ghBranch(){ return ghCfg.branch || 'main'; }
+function ghToday(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function b64utf8(str){
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  const step = 0x8000;
+  for(let i = 0; i < bytes.length; i += step){
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + step));
+  }
+  return btoa(bin);
+}
+function ghErrTxt(e){
+  const m = String((e && e.message) || e);
+  if(m.indexOf('NET:') === 0) return '连不上 GitHub，检查网络';
+  if(m.indexOf('TOKEN:') === 0) return '令牌无效或已过期，重新建一个';
+  if(m.indexOf('PERM:') === 0) return '令牌没有这个仓库的 Contents 写权限';
+  if(m.indexOf('NOTFOUND:') === 0) return '找不到仓库，检查「用户名/仓库名」和令牌授权范围';
+  if(m.indexOf('CONFLICT:') === 0) return '云端仓库刚被别人改过，稍后重试';
+  if(m.indexOf('LARGE:') === 0) return '存档太大，GitHub 单文件写不下';
+  return '备份失败：' + m.slice(0, 80);
+}
+async function ghApi(path, opt){
+  opt = opt || {};
+  const headers = {
+    'Authorization':'Bearer ' + ghCfg.token,
+    'Accept':opt.accept || 'application/vnd.github+json',
+    'X-GitHub-Api-Version':'2022-11-28'
+  };
+  if(opt.body) headers['Content-Type'] = 'application/json';
+  let r;
+  try{
+    r = await fetch('https://api.github.com' + path, {
+      method:opt.method || 'GET', headers:headers,
+      body:opt.body ? JSON.stringify(opt.body) : undefined
+    });
+  }catch(e){ throw new Error('NET:fetch failed'); }
+  if(opt.accept === 'application/vnd.github.raw'){
+    if(r.ok) return await r.text();
+    if(r.status === 404) throw new Error('NOTFOUND:file');
+    if(r.status === 401) throw new Error('TOKEN:bad');
+    if(r.status === 403) throw new Error('PERM:forbidden');
+    throw new Error('HTTP:' + r.status);
+  }
+  let j = null;
+  try{ j = await r.json(); }catch(e){}
+  if(!r.ok){
+    const msg = (j && j.message) || ('HTTP ' + r.status);
+    if(r.status === 401) throw new Error('TOKEN:' + msg);
+    if(r.status === 403) throw new Error('PERM:' + msg);
+    if(r.status === 404) throw new Error('NOTFOUND:' + msg);
+    if(r.status === 409 || r.status === 422) throw new Error('CONFLICT:' + msg);
+    if(r.status === 413) throw new Error('LARGE:' + msg);
+    throw new Error('HTTP:' + msg);
+  }
+  return j;
+}
+function ghStatusTxt(){
+  if(!ghValid()) return '<b>未开启</b> · 填好仓库和令牌后点「保存冷备设置」';
+  if(!ghState.lastAt) return '<b>还没备份过</b> · 点一次「⬆ 立即备份」试试';
+  let when = '';
+  try{
+    const t = new Date(ghState.lastAt);
+    const d = Math.floor((Date.now() - t.getTime()) / 86400000);
+    when = (d <= 0 ? '今天 ' : d + ' 天前 ') + fmtClock(ghState.lastAt);
+  }catch(e){}
+  return '<b>' + (ghState.status === 'error' ? '上次失败' : '已备份') + '</b> · ' + esc(when) +
+    (ghState.path ? ' · ' + esc(ghState.path) : '') +
+    (ghState.status === 'error' && ghState.msg ? ' · ' + esc(ghState.msg) : '');
+}
+async function ghBackup(force){
+  if(!ghValid()){ if(force) toast('先把仓库和令牌填好并保存', true); return false; }
+  if(ghBusy) return false;
+  const d = curData();
+  if(!d){ if(force) toast('当前没有账号', true); return false; }
+  ghBusy = true;
+  const path = 'backups/' + ghToday() + '.json';
+  try{
+    const body = JSON.stringify({app:'honmaru-gh', v:1, ts:Date.now(), data:d});
+    let sha = null;
+    try{
+      const cur = await ghApi('/repos/' + ghRepo() + '/contents/' + path + '?ref=' + encodeURIComponent(ghBranch()));
+      if(cur && cur.sha) sha = cur.sha;
+    }catch(e){ if(String(e.message).indexOf('NOTFOUND') !== 0) throw e; }
+    const msg = {
+      message: '备份 ' + ghToday() + ' · ' + (d.tw || []).filter(function(x){ return x.own; }).length + ' 振',
+      content: b64utf8(body),
+      branch: ghBranch()
+    };
+    if(sha) msg.sha = sha;
+    try{
+      await ghApi('/repos/' + ghRepo() + '/contents/' + path, {method:'PUT', body:msg});
+    }catch(e){
+      /* 同一天第二次写、sha 变了：重取一次再写 */
+      if(String(e.message).indexOf('CONFLICT') !== 0) throw e;
+      const cur = await ghApi('/repos/' + ghRepo() + '/contents/' + path + '?ref=' + encodeURIComponent(ghBranch()));
+      if(cur && cur.sha) msg.sha = cur.sha;
+      await ghApi('/repos/' + ghRepo() + '/contents/' + path, {method:'PUT', body:msg});
+    }
+    ghState = {status:'ok', msg:'', lastAt:new Date().toISOString(), path:path};
+    saveGhState();
+    if(force) toast('已备份到 GitHub · ' + path);
+    return true;
+  }catch(e){
+    ghState = {status:'error', msg:ghErrTxt(e), lastAt:ghState.lastAt || '', path:ghState.path || ''};
+    saveGhState();
+    if(force) toast(ghErrTxt(e), true);
+    return false;
+  }finally{ ghBusy = false; }
+}
+function scheduleGhBackup(){
+  if(!ghCfg || !ghCfg.auto || !ghValid() || ghBusy) return;
+  clearTimeout(ghTimer);
+  ghTimer = setTimeout(function(){ ghBackup(false); }, 120000);   /* 停手两分钟再提交，避免一路点一路提交 */
+}
+async function openGhRestore(){
+  if(!ghValid()){ toast('先把仓库和令牌填好并保存', true); return; }
+  let files = [];
+  try{
+    const j = await ghApi('/repos/' + ghRepo() + '/contents/backups?ref=' + encodeURIComponent(ghBranch()));
+    files = (j || []).filter(function(x){ return x.type === 'file'; });
+  }catch(e){
+    if(String(e.message).indexOf('NOTFOUND') === 0){ toast('仓库里还没有备份文件', true); return; }
+    toast(ghErrTxt(e), true); return;
+  }
+  if(!files.length){ toast('仓库里还没有备份文件', true); return; }
+  files.sort(function(a,b){ return b.name.localeCompare(a.name); });
+  const rows = files.slice(0, 60).map(function(f, i){
+    const day = f.name.replace(/\.json$/,'');
+    return '<button class="snap-item" data-gh="' + i + '" style="width:100%;text-align:left;cursor:pointer;">' +
+      '<span class="snap-meta"><b>' + esc(day) + '</b><span>' + Math.max(1, Math.round((f.size||0)/1024)) + ' KB</span></span>' +
+      '<span class="snap-meta" style="flex:0 0 auto;color:var(--accent-deep);font-size:11.5px;">恢复</span></button>';
+  }).join('');
+  openModal({
+    title:'⬇ 从 GitHub 仓库恢复',
+    sub:'选一天，把那天的存档整份拉到本机。覆盖前会自动留一份本机快照，随时能退回。',
+    body:'<div class="snap-list">' + rows + '</div>',
+    actions:[{text:'关闭', cls:'btn', onClick:closeModal}]
+  });
+  const list = files.slice(0, 60);
+  document.querySelectorAll('[data-gh]').forEach(function(btn){
+    btn.onclick = async function(){
+      const f = list[Number(btn.getAttribute('data-gh'))];
+      if(!f) return;
+      btn.disabled = true;
+      try{
+        const txt = await ghApi('/repos/' + ghRepo() + '/contents/' + f.path + '?ref=' + encodeURIComponent(ghBranch()),
+                                {accept:'application/vnd.github.raw'});
+        const obj = JSON.parse(txt);
+        const data = obj && obj.app === 'honmaru-gh' ? obj.data : (obj && obj.tw ? obj : null);
+        if(!data) throw new Error('文件格式不对');
+        const id = S.current[S.server];
+        if(!id) throw new Error('当前没有账号');
+        try{ await saveSnapshot('GitHub 恢复前'); }catch(e){}
+        syncApplying = true;
+        try{
+          S.data[id] = normalize(data);
+          save();
+          renderAll();
+        }finally{ syncApplying = false; }
+        closeModal();
+        toast('已恢复 ' + f.name.replace(/\.json$/,'') + ' 的存档');
+      }catch(e){
+        btn.disabled = false;
+        toast('恢复失败：' + String((e && e.message) || e).slice(0, 60), true);
+      }
+    };
+  });
+}
 function openCloudSync(){
   const st = syncState;
   let expTxt = '';
@@ -9020,6 +9222,21 @@ function openCloudSync(){
       '<details class="cloud-details"><summary>② 建表 / 升级 SQL（点开，复制后粘到 Supabase SQL Editor）</summary>' +
         '<textarea class="cloud-sql" id="csSql" readonly>' + esc(SYNC_SQL) + '</textarea>' +
         '<div class="cloud-row"><button class="chip ghost" id="csCopySql">复制 SQL</button></div>' +
+      '</details>' +
+      '<details class="cloud-details"><summary>③ GitHub 冷备（可选）· 一天一个文件，仓库不会过期</summary>' +
+        '<p class="cloud-tip" style="margin:2px 0 8px;">把存档提交到自己的<b>私有仓库</b>，一天一个 <code>backups/日期.json</code>，每次提交都是一个历史版本。就算 Supabase 项目被删、手机也换了，登录 GitHub 就能把某一天整份拉回来。</p>' +
+        '<div class="add-grid">' +
+          '<label class="fld full"><span>仓库（用户名/仓库名）</span><input type="text" id="ghRepo" autocomplete="off" placeholder="kiku-jenny/honmaru-backup" value="' + esc(ghCfg.repo) + '"></label>' +
+          '<label class="fld full"><span>访问令牌（只给这一个仓库的 Contents 读写）</span><input type="text" id="ghToken" autocomplete="off" spellcheck="false" placeholder="github_pat_…" value="' + esc(ghCfg.token) + '"></label>' +
+        '</div>' +
+        '<div class="cloud-row">' +
+          '<button class="chip ghost" id="ghSave">保存冷备设置</button>' +
+          '<button class="chip ghost" id="ghNow">⬆ 立即备份</button>' +
+          '<button class="chip ghost" id="ghRestore">⬇ 从仓库恢复</button>' +
+          '<label class="cloud-check"><input type="checkbox" id="ghAuto"' + (ghCfg.auto ? ' checked' : '') + '> 改动后自动备份</label>' +
+        '</div>' +
+        '<div class="cloud-status" id="ghStatus" style="margin-top:8px;">' + ghStatusTxt() + '</div>' +
+        '<p class="cloud-tip">令牌在这里建：GitHub → Settings → Developer settings → Personal access tokens → <b>Fine-grained tokens</b> → 新建。Repository access 只勾这一个仓库；Permissions 里只把 <b>Contents</b> 设为 Read and write，其余全留 No access。令牌只存在这台设备的浏览器里，不会跟着导出文件或配置码走。</p>' +
       '</details>',
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
@@ -9082,6 +9299,40 @@ function openCloudSync(){
     closeModal(); renderSyncNote();
     toast('已断开云同步 · 本机数据保留');
   };
+  /* ---- GitHub 冷备：保存 / 立即备份 / 恢复 ---- */
+  const ghRead = function(){
+    ghCfg = {
+      repo: ($('#ghRepo').value || '').trim(),
+      branch: 'main',
+      token: ($('#ghToken').value || '').trim(),
+      auto: $('#ghAuto') ? $('#ghAuto').checked : true
+    };
+    saveGhCfg();
+    const el = $('#ghStatus'); if(el) el.innerHTML = ghStatusTxt();
+  };
+  const ghS = $('#ghSave');
+  if(ghS) ghS.onclick = function(){
+    ghRead();
+    if(!ghValid()){ toast('仓库和令牌都要填', true); return; }
+    toast('冷备设置已保存');
+  };
+  const ghN = $('#ghNow');
+  if(ghN) ghN.onclick = function(){
+    ghRead();
+    if(!ghValid()){ toast('仓库和令牌都要填', true); return; }
+    const el = $('#ghStatus'); if(el) el.innerHTML = '<b>正在备份…</b>';
+    ghBackup(true).then(function(){
+      const e2 = $('#ghStatus'); if(e2) e2.innerHTML = ghStatusTxt();
+    });
+  };
+  const ghR = $('#ghRestore');
+  if(ghR) ghR.onclick = function(){
+    ghRead();
+    if(!ghValid()){ toast('仓库和令牌都要填', true); return; }
+    openGhRestore();
+  };
+  const ghA = $('#ghAuto');
+  if(ghA) ghA.onchange = function(){ ghRead(); };
 }
 
 /* =========================================================
@@ -9358,6 +9609,12 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.80 多一份 GitHub 冷备：仓库不会过期',
+     '<p>上一版把云端改成了永久，但「永久」仍然依赖那个 Supabase 项目本身还在。再稳一点的办法是把存档放进一个不归任何应用管的地方——你自己的 GitHub 私有仓库。</p>' +
+     '<p>已经建好 <b>kiku-jenny/honmaru-backup</b>（私有）。页面里填一个只授权这一个仓库的令牌，之后每天会提交一个 <code>backups/日期.json</code>；同一天改多次会更新同一个文件，每次更新都留在提交历史里，能回滚到当天任意时刻。</p>' +
+     '<p>入口在「☁ 云同步」最下面展开「③ GitHub 冷备」。填好点「保存冷备设置」，「⬆ 立即备份」验证一次；要找回时点「⬇ 从仓库恢复」，选一天整份拉回来，覆盖前照样先留本机快照。</p>' +
+     '<p>令牌只存在这台设备的浏览器里，不跟着导出文件、配置码走；权限只勾 Contents 的 Read and write，随时能在 GitHub 里撤销。仓库里的文件是<b>明文 JSON</b>，所以那个仓库别改成公开。</p>',
+     '2026.11'],
     ['V2.79 数据永久保存：云端不再过期',
      '<p>上一版云端存档是「最后一次上传后保留 60 天」，每次上传才续期。忙起来几个月没打开，存档就会被服务端按到期时间删掉——这不该是记录本丸该有的样子。</p>' +
      '<p>现在 <b>expires_at 一律为空 = 永久</b>：服务端不再计算到期时间，也不再执行任何自动清理。已经存在云端的那几行，跑一次 SQL 会把旧的到期时间一起清空。</p>' +
