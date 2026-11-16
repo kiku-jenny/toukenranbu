@@ -1048,12 +1048,28 @@
   }
   .log-kinds button:hover{border-color:var(--line-strong);color:var(--accent-deep);background:var(--surface-2);}
   .log-kinds button.on{background:linear-gradient(120deg,var(--accent-3),var(--accent-2));border-color:transparent;color:var(--on-accent);font-weight:600;}
-  .log-table .lt-op{width:46px;text-align:center;}
-  .log-del{
+  .log-table .lt-op{width:70px;text-align:center;white-space:nowrap;}
+  .log-edit,.log-del{
     border:none;background:none;color:#cbb7bc;font-size:12px;line-height:1;padding:3px 5px;
     border-radius:6px;transition:.15s;
   }
+  .log-edit{font-size:12px;color:var(--muted-2);}
+  .log-edit:hover{color:var(--accent-deep);background:var(--tint-a);}
   .log-del:hover{color:#c25151;background:rgba(194,81,81,.08);}
+  /* 修改日志的表单 */
+  .le-form{display:flex;flex-direction:column;gap:8px;}
+  .le-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:34px;}
+  .le-k{flex:0 0 60px;font-size:11px;color:var(--muted);letter-spacing:.05em;}
+  .le-in{flex:0 0 128px;width:128px;padding:7px 9px;font-size:12px;}
+  .le-in2{display:flex;align-items:center;gap:4px;flex:0 0 auto;}
+  .le-in2>span{font-size:9.5px;color:var(--muted);letter-spacing:.06em;}
+  .le-in2 .input{width:72px;padding:7px 8px;font-size:12px;}
+  .le-old{flex:0 1 auto;font-size:10px;color:var(--muted-2);font-family:ui-monospace,Menlo,monospace;white-space:nowrap;}
+  @media (max-width:560px){
+    .le-old{flex-basis:100%;margin-left:68px;font-size:9.5px;}
+  }
+  .le-tip{font-size:11px;color:var(--sub);line-height:1.8;margin:12px 0 0;padding-top:10px;border-top:1px dashed var(--line);}
+  .le-tip b{color:var(--accent-deep);}
   .lg-badge{
     display:inline-block;margin-left:5px;padding:0 5px;border-radius:4px;font-size:9px;
     line-height:1.6;vertical-align:1px;letter-spacing:.04em;
@@ -1442,7 +1458,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.66</div>
+        <div class="brand-sub">HONMARU KEEPER V2.67</div>
       </div>
     </div>
 
@@ -5142,11 +5158,18 @@ function renderLogs(){
       '<td class="lt-val">' + logDeltaHTML(l) + '</td>' +
       actCell +
       '<td class="lt-time">' + timeParts(l.ts) + '</td>' +
-      '<td class="lt-op"><button class="log-del" data-logdel="' + esc(l.id) + '" title="删除这条日志">✕</button></td>' +
+      '<td class="lt-op">' +
+        (l.kind === 'new' || l.kind === 'del' ? '' :
+          '<button class="log-edit" data-logedit="' + esc(l.id) + '" title="修改这条日志（改完同步到图鉴 / 资源）">✏ 改</button>') +
+        '<button class="log-del" data-logdel="' + esc(l.id) + '" title="删除这条日志">✕</button>' +
+      '</td>' +
     '</tr>';
   }).join('');
   Array.prototype.forEach.call(body.querySelectorAll('.log-del'), function(b){
     b.onclick = function(){ deleteLog(b.dataset.logdel); };
+  });
+  Array.prototype.forEach.call(body.querySelectorAll('.log-edit'), function(b){
+    b.onclick = function(){ openLogEdit(b.dataset.logedit); };
   });
 
   /* 分页器 */
@@ -5690,6 +5713,253 @@ function renderDaily(){
     dayPages(rbPager, pages, ui.dayPageRb, function(pg){ ui.dayPageRb = pg; renderDaily(); }, per);
   }
 }
+/* =========================================================
+   修改一条日志
+   改的是「这条记录的结果值（to）」。如果该字段后面没有更新的记录，
+   说明它就是当前值的来源，保存时顺手写回图鉴 / 资源记录；
+   后面还有更新的记录时只改这一段历史，当前数据不动。
+   图鉴、每日统计、资源统计都按改后的数据 / 日志重算。
+   ========================================================= */
+function logIsLatestField(l, c){
+  const d = curData();
+  if(!d) return false;
+  return !(d.logs || []).some(function(x){
+    if(x.id === l.id || x.ts <= l.ts) return false;
+    if(l.kind === 'res'){
+      if(x.kind !== 'res') return false;
+      return (x.changes || []).some(function(y){ return y.f === 'res' && y.key === c.key; });
+    }
+    if(Number(x.no) !== Number(l.no)) return false;
+    return (x.changes || []).some(function(y){
+      if(y.f === c.f) return true;
+      /* 乱舞的两种写法（合成一条的 ranbu / 老日志的 r + rp）算同一个字段 */
+      if(c.f === 'ranbu' && (y.f === 'r' || y.f === 'rp')) return true;
+      if((c.f === 'r' || c.f === 'rp') && y.f === 'ranbu') return true;
+      return false;
+    });
+  });
+}
+function logEditMeta(c){
+  if(c.f === 'res') return {label: resItemOf(c.key).name, kind:'num', min:0, max:RES_MAX};
+  if(c.f === 'lv') return {label:'等级', kind:'num', min:1, max:199};
+  if(c.f === 'exp') return {label:'经验', kind:'num', min:0, max:RES_MAX};
+  if(c.f === 'r') return {label:'乱舞等级', kind:'num', min:1, max:10};
+  if(c.f === 'rp') return {label:'乱舞进度', kind:'num', min:0, max:999};
+  if(c.f === 'fl') return {label:'花数', kind:'num', min:0, max:6};
+  if(c.f === 'own') return {label:'拥有状态', kind:'select', opts:[{v:0,t:'未拥有'},{v:1,t:'已拥有'}]};
+  if(c.f === 'k') return {label:'极化', kind:'select', opts:[{v:0,t:'普'},{v:1,t:'极'}]};
+  if(c.f === 'type') return {label:'刀种', kind:'select', opts:TYPES.map(function(t){ return {v:t, t:t}; })};
+  if(c.f === 'name') return {label:'名称', kind:'text'};
+  if(c.f === 'src') return {label:'获取方式', kind:'text'};
+  return null;
+}
+function logEditForm(l){
+  const chs = l.changes || [];
+  const oldTxt = function(c){
+    if(c.f === 'ranbu'){
+      const r = Number(c.r) || 1, r2 = Number(c.r2) || r;
+      const rp = Number(c.rp) || 0, rp2 = Number(c.rp2) || 0;
+      return '原 乱舞 ' + r + ' ' + (r >= 10 ? 'MAX' : rp) + ' → ' + r2 + ' ' + (r2 >= 10 ? 'MAX' : rp2);
+    }
+    if(c.f === 'res') return '原 ' + fmtNum(c.from) + ' → ' + fmtNum(c.to);
+    return '原 ' + logVal(c.f, c.from) + ' → ' + logVal(c.f, c.to);
+  };
+  return chs.map(function(c, i){
+    if(c.f === 'roster'){
+      return '<div class="le-row"><span class="le-k">刀帐</span><span class="le-old">' +
+        c.from + ' → ' + c.to + ' · 随新增 / 删除变动，不能改</span></div>';
+    }
+    if(c.f === 'plv'){
+      return '<div class="le-row"><span class="le-k">极化等级</span><span class="le-old">Lv ' +
+        (Number(c.from) || 0) + ' → Lv ' + (Number(c.to) || 0) + ' · 由经验换算，改经验即可</span></div>';
+    }
+    if(c.f === 'ranbu'){
+      const r2 = Number(c.r2) || Number(c.r) || 1;
+      const rp2 = (c.rp2 === undefined || c.rp2 === null) ? 0 : Number(c.rp2);
+      return '<div class="le-row">' +
+        '<span class="le-k">乱舞</span>' +
+        '<label class="le-in2"><span>等级</span><input class="input" type="number" inputmode="numeric" min="1" max="10" id="le_' + i + '_r" value="' + r2 + '"></label>' +
+        '<label class="le-in2"><span>进度</span><input class="input" type="number" inputmode="numeric" min="0" max="999" id="le_' + i + '_rp" value="' + rp2 + '"></label>' +
+        '<span class="le-old">' + esc(oldTxt(c)) + '</span>' +
+      '</div>';
+    }
+    const meta = logEditMeta(c);
+    if(!meta) return '';
+    if(meta.kind === 'select'){
+      return '<div class="le-row">' +
+        '<span class="le-k">' + meta.label + '</span>' +
+        '<select class="input le-in" id="le_' + i + '">' +
+          meta.opts.map(function(o){
+            return '<option value="' + esc(o.v) + '"' + (String(o.v) === String(c.to) ? ' selected' : '') + '>' + esc(o.t) + '</option>';
+          }).join('') +
+        '</select>' +
+        '<span class="le-old">' + esc(oldTxt(c)) + '</span>' +
+      '</div>';
+    }
+    if(meta.kind === 'text'){
+      return '<div class="le-row">' +
+        '<span class="le-k">' + meta.label + '</span>' +
+        '<input class="input le-in" type="text" id="le_' + i + '" value="' + esc(String(c.to === undefined ? '' : c.to)) + '">' +
+        '<span class="le-old">' + esc(oldTxt(c)) + '</span>' +
+      '</div>';
+    }
+    return '<div class="le-row">' +
+      '<span class="le-k">' + meta.label + '</span>' +
+      '<input class="input le-in" type="number" inputmode="numeric" min="' + meta.min + '" max="' + meta.max + '" id="le_' + i + '" value="' + esc(String(c.to)) + '">' +
+      '<span class="le-old">' + esc(oldTxt(c)) + '</span>' +
+    '</div>';
+  }).join('');
+}
+function openLogEdit(id){
+  const d = curData();
+  const l = (d && d.logs || []).filter(function(x){ return x.id === id; })[0];
+  if(!d || !l){ toast('这条日志已经不在了', true); return; }
+  if(l.kind === 'new' || l.kind === 'del'){ toast('新增 / 删除记录没有可改的数值', true); return; }
+  if(l.kind !== 'res' && !rowOf(Number(l.no))){ toast('这一振已经不在图鉴里了', true); return; }
+  const chs = (l.changes || []).filter(function(c){ return c.f !== 'roster' && c.f !== 'plv'; });
+  /* 资源日志每天对应一条记录，改哪天就写哪天，一律算「会同步」 */
+  const syncN = l.kind === 'res' ? chs.length : chs.filter(function(c){ return logIsLatestField(l, c); }).length;
+  const sub = l.kind === 'res'
+    ? '资源记录 · ' + (l.date || fmtDate(new Date(l.ts)))
+    : '「' + (l.name || ('No.' + l.no)) + '」· ' + fmtTime(l.ts);
+  const tip = syncN
+    ? '<p class="le-tip">保存后：' +
+      (syncN === chs.length
+        ? '这是<b>该字段最新的一条记录</b>，图鉴 / 资源里的当前值会改成新值。'
+        : '其中 ' + syncN + ' 项是最新记录，图鉴 / 资源里的当前值会一起改；其余字段后面还有更新的记录，只改这一段。') +
+      '下一条同类记录的起点跟着接上，每日统计与各处合计按新值重算。</p>'
+    : '<p class="le-tip">后面还有更新的记录，保存后<b>只改这一段历史</b>，当前值不动；下一条同类记录的起点接到新值上，统计按新值重算。</p>';
+  openModal({
+    title: '修改这条日志',
+    sub: esc(sub),
+    body: '<div class="le-form">' + logEditForm(l) + '</div>' + tip,
+    actions: [
+      {text:'取消', cls:'btn', onClick:closeModal},
+      {text:'保存修改', cls:'btn primary', onClick:function(){ saveLogEdit(id); }}
+    ]
+  });
+}
+function applyLogFieldToRow(row, c){
+  if(!row) return;
+  if(c.f === 'lv') row.lv = clampNum(c.to, 1, 199, row.lv);
+  else if(c.f === 'exp') row.exp = clampFloat(c.to, 0, RES_MAX, row.exp);
+  else if(c.f === 'ranbu'){ row.r = clampNum(c.r2, 1, 10, row.r); row.rp = clampNum(c.rp2, 0, 999, row.rp || 0); }
+  else if(c.f === 'r') row.r = clampNum(c.to, 1, 10, row.r);
+  else if(c.f === 'rp') row.rp = clampNum(c.to, 0, 999, row.rp || 0);
+  else if(c.f === 'own') row.own = Number(c.to) === 0 ? 0 : 1;
+  else if(c.f === 'k') row.k = Number(c.to) === 1 ? 1 : 0;
+  else if(c.f === 'type') row.type = TYPES.indexOf(c.to) >= 0 ? c.to : row.type;
+  else if(c.f === 'name') row.name = String(c.to || '').slice(0, 20) || row.name;
+  else if(c.f === 'src') row.src = String(c.to || '').slice(0, 24);
+  else if(c.f === 'fl') row.fl = clampNum(c.to, 0, 6, row.fl || 0);
+}
+/* 改完一条的终点，紧随其后的下一条同字段记录起点要接上，
+   不然链条会断，统计里「起始 → 现在」会和涨跌合计数对不上 */
+function logRelinkNext(l, c){
+  const d = curData();
+  if(!d) return;
+  let nx = null;
+  (d.logs || []).forEach(function(x){
+    if(x.id === l.id || x.ts <= l.ts) return;
+    if(l.kind !== 'res' && Number(x.no) !== Number(l.no)) return;
+    let hit = false;
+    (x.changes || []).forEach(function(y){
+      if(l.kind === 'res'){ if(y.f === 'res' && y.key === c.key) hit = true; return; }
+      if(y.f === c.f) hit = true;
+      else if(c.f === 'ranbu' && (y.f === 'r' || y.f === 'rp')) hit = true;
+      else if((c.f === 'r' || c.f === 'rp') && y.f === 'ranbu') hit = true;
+    });
+    if(hit && (!nx || x.ts < nx.ts)) nx = x;
+  });
+  if(!nx) return;
+  if(l.kind === 'res'){
+    (nx.changes || []).forEach(function(y){
+      if(y.f === 'res' && y.key === c.key) y.from = c.to;
+    });
+    return;
+  }
+  const fl = clampNum((rowOf(Number(nx.no)) || {}).fl, 0, 6, 0);
+  (nx.changes || []).forEach(function(y){
+    if(c.f === 'ranbu'){
+      if(y.f === 'r'){ y.from = Number(c.r2) || Number(y.from) || 1; return; }
+      if(y.f === 'rp'){ y.from = Number(c.rp2) || 0; return; }
+      if(y.f === 'ranbu'){
+        const r = Number(c.r2) || Number(y.r) || 1;
+        let rp = (c.rp2 === undefined || c.rp2 === null) ? (Number(y.rp) || 0) : Number(c.rp2);
+        if(r >= 10) rp = 0;
+        y.r = r; y.rp = rp;
+        y.n = r >= 10 ? 0 : (ranbuNeed(fl, r) || 0);
+        y.gain = ranbuGainBetween(fl, r, rp, Number(y.r2) || r, Number(y.r2) >= 10 ? 0 : (Number(y.rp2) || 0));
+      }
+      return;
+    }
+    if(y.f === c.f) y.from = c.to;
+  });
+}
+function saveLogEdit(id){
+  const d = curData();
+  if(!d) return;
+  const l = (d.logs || []).filter(function(x){ return x.id === id; })[0];
+  if(!l){ closeModal(); toast('这条日志已经不在了', true); return; }
+  const row = l.kind === 'res' ? null : rowOf(Number(l.no));
+  const fl = row ? clampNum(row.fl, 0, 6, 0) : 0;
+  const next = (l.changes || []).map(function(c, i){
+    const o = Object.assign({}, c);
+    if(c.f === 'roster' || c.f === 'plv') return o;
+    if(c.f === 'ranbu'){
+      const er = $('#le_' + i + '_r'), ep = $('#le_' + i + '_rp');
+      const r2 = clampNum(er ? er.value : c.r2, 1, 10, Number(c.r2) || 1);
+      let rp2 = clampNum(ep ? ep.value : c.rp2, 0, 999, Number(c.rp2) || 0);
+      if(r2 >= 10) rp2 = 0;
+      o.r2 = r2;
+      o.rp2 = rp2;
+      o.n2 = r2 >= 10 ? 0 : (ranbuNeed(fl, r2) || 0);
+      o.gain = ranbuGainBetween(fl, clampNum(c.r, 1, 10, 1), clampNum(c.rp, 0, 999, 0), r2, rp2);
+      return o;
+    }
+    const el = $('#le_' + i);
+    if(!el) return o;
+    if(c.f === 'own') o.to = Number(el.value) === 0 ? 0 : 1;
+    else if(c.f === 'k') o.to = Number(el.value) === 1 ? 1 : 0;
+    else if(c.f === 'type') o.to = TYPES.indexOf(el.value) >= 0 ? el.value : c.to;
+    else if(c.f === 'name') o.to = String(el.value || '').trim().slice(0, 20) || c.to;
+    else if(c.f === 'src') o.to = String(el.value || '').trim().slice(0, 24);
+    else if(c.f === 'exp') o.to = clampFloat(el.value, 0, RES_MAX, Number(c.to) || 0);
+    else if(c.f === 'lv') o.to = clampNum(el.value, 1, 199, Number(c.to) || 1);
+    else if(c.f === 'r') o.to = clampNum(el.value, 1, 10, Number(c.to) || 1);
+    else if(c.f === 'rp') o.to = clampNum(el.value, 0, 999, Number(c.to) || 0);
+    else if(c.f === 'fl') o.to = clampNum(el.value, 0, 6, Number(c.to) || 0);
+    else if(c.f === 'res') o.to = clampNum(el.value, 0, RES_MAX, Number(c.to) || 0);
+    return o;
+  });
+
+  /* 只把「该字段最新一条」的结果写回数据，老日志回写会把当前值改退 */
+  let synced = 0, missing = 0;
+  next.forEach(function(c){
+    if(c.f === 'roster' || c.f === 'plv') return;
+    logRelinkNext(l, c);
+    /* 资源按日期对号入座：每天一条记录，改哪天的日志就改哪天那条（不是「最新一条」） */
+    if(l.kind === 'res'){
+      const day = l.date || fmtDate(new Date(l.ts));
+      const rec = (d.res || []).filter(function(x){ return x.date === day; })[0];
+      if(rec && rec.vals){ rec.vals[c.key] = clampNum(c.to, 0, RES_MAX, 0); synced++; }
+      else missing++;
+      return;
+    }
+    if(!logIsLatestField(l, c)) return;
+    if(!row) return;
+    applyLogFieldToRow(row, c);
+    synced++;
+  });
+
+  l.changes = next;
+  save(); closeModal();
+  renderLogs(); renderCatalog(); renderStats(); renderFilters(); renderDaily(); renderResources(); renderSidebar();
+  if(missing) toast('日志已改；有 ' + missing + ' 项没找到对应的资源记录，只改了日志', true);
+  else if(synced) toast('日志已改，数据已同步（' + synced + ' 项）');
+  else toast('日志已改（历史记录，当前数据不变）');
+}
+
 /* 单条日志删除：只删记录，不动图鉴 / 活动 / 资源数据 */
 function deleteLog(id){
   const d = curData();
@@ -7914,6 +8184,13 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.67 日志可以改了，改完同步回数据',
+     '<p>变动记录每条右侧多了 <b>✏ 改</b>：点开能把这条记录的结果值改掉——等级、经验、乱舞等级与进度、拥有 / 极化状态、名称、获取方式，资源日志就是那天的五项数值。' +
+     '新增 / 删除这类没有数值的记录不带这个按钮。</p>' +
+     '<p>保存后：<b>如果它是这个字段最新的一条</b>，图鉴 / 资源里存的当前值会一起改成新值；' +
+     '后面还有更新的记录时，只改这一段历史，当前值不动。紧随其后的下一条同类记录，起点会自动接到新值上，链条不会断。</p>' +
+     '<p>资源日志按日期对号入座——改哪天的日志就改那天那条记录。改完图鉴卡片、每日统计、资源周 / 月增长、进度条全部按新数据重算。</p>',
+     '2026.11'],
     ['V2.66 图鉴的筛选条件默认收起来了',
      '<p>刀种 / 拥有 / 极化 / 乱舞 / 等级这五组原来是常驻的，手机上一打开就占掉大半屏。现在收成工具行下面的一条：' +
      '<b>⚙ 筛选</b> 点一下展开，再点收起，列表直接往上看。</p>' +
