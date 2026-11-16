@@ -1599,7 +1599,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.78</div>
+        <div class="brand-sub">HONMARU KEEPER V2.79</div>
       </div>
     </div>
 
@@ -8396,8 +8396,9 @@ function bindCalc(){
 const SYNC_TABLE = 'honmaru_sync';        /* 旧版表，只在没升级 SQL 时回退用 */
 const SPACE_TABLE = 'honmaru_spaces';     /* 新版：一个同步空间一行 */
 const SYNC_SQL = [
-  '-- 刀剑乱舞管家 · 云同步（v2：共享库版）',
+  '-- 刀剑乱舞管家 · 云同步（v3：永久保存）',
   '-- 跑一次就够；以前用过旧版的，最后一段会把旧数据自动搬过来。',
+  '-- v3 起不再有过期时间：expires_at 为空 = 永久保存，服务端不会自动删任何一行。',
   '',
   '-- 1) 存档表：一个「同步空间」一行。多设备用同一密钥 = 同一行；多个人各自一串密钥 = 各自一行。',
   'create table if not exists public.honmaru_spaces (',
@@ -8406,9 +8407,12 @@ const SYNC_SQL = [
   '  proof      text not null default \'\',',
   '  bytes      int  not null default 0,',
   '  updated_at timestamptz not null default now(),',
-  '  expires_at timestamptz not null,',
+  '  expires_at timestamptz,',
   '  last_ip    text',
   ');',
+  '-- 老库升级：把 NOT NULL 去掉，并把已有的到期时间清空（等于全部改成永久）',
+  'alter table public.honmaru_spaces alter column expires_at drop not null;',
+  'update public.honmaru_spaces set expires_at = null where expires_at is not null;',
   'alter table public.honmaru_spaces enable row level security;',
   '',
   '-- 2) 写入流水，只用来限流，每次写入顺手清 90 天前的',
@@ -8430,7 +8434,7 @@ const SYNC_SQL = [
   '  end if;',
   '  select * into r from public.honmaru_spaces where space_id = p_space;',
   '  if r.space_id is null then return json_build_object(\'ok\', false, \'err\', \'empty\'); end if;',
-  '  if r.expires_at < now() then',
+  '  if r.expires_at is not null and r.expires_at < now() then',
   '    delete from public.honmaru_spaces where space_id = p_space;',
   '    return json_build_object(\'ok\', false, \'err\', \'expired\');',
   '  end if;',
@@ -8476,14 +8480,14 @@ const SYNC_SQL = [
   '    select count(*) into v_new from public.honmaru_spaces',
   '     where updated_at > now() - interval \'1 day\';',
   '    if v_new >= 120 then return json_build_object(\'ok\', false, \'err\', \'full\'); end if;',
-  '    v_exp := now() + interval \'60 days\';',
+  '    v_exp := null;                     -- 永久保存',
   '    insert into public.honmaru_spaces(space_id, data, proof, bytes, expires_at, last_ip)',
   '    values (p_space, p_data, coalesce(p_proof, \'\'), v_size, v_exp, v_ip);',
   '  else',
   '    if coalesce(v_have, \'\') <> \'\' and v_have <> coalesce(p_proof, \'\') then',
   '      return json_build_object(\'ok\', false, \'err\', \'proof\');',
   '    end if;',
-  '    v_exp := now() + interval \'60 days\';',
+  '    v_exp := null;                     -- 永久保存，不再续期',
   '    update public.honmaru_spaces',
   '       set data = p_data, bytes = v_size, updated_at = now(),',
   '           expires_at = v_exp, last_ip = v_ip,',
@@ -8493,7 +8497,7 @@ const SYNC_SQL = [
   '',
   '  insert into public.honmaru_writes(ip, space_id) values (v_ip, p_space);',
   '  delete from public.honmaru_writes where at < now() - interval \'90 days\';',
-  '  delete from public.honmaru_spaces where expires_at < now() - interval \'7 days\';',
+  '  -- 不再清理存档：存档要永久保留，只有你自己能删（在 Supabase 后台手动删）',
   '  return json_build_object(\'ok\', true, \'expires_at\', v_exp);',
   'end $$;',
   '',
@@ -8521,7 +8525,7 @@ const SYNC_SQL = [
   '  if exists (select 1 from information_schema.tables',
   '              where table_schema = \'public\' and table_name = \'honmaru_sync\') then',
   '    insert into public.honmaru_spaces(space_id, data, bytes, updated_at, expires_at)',
-  '    select space_id, data, length(data), updated_at, now() + interval \'60 days\'',
+  '    select space_id, data, length(data), updated_at, null',
   '      from public.honmaru_sync',
   '    on conflict (space_id) do nothing;',
   '  end if;',
@@ -8698,7 +8702,7 @@ async function cloudPull(opts){
       }
       else if(res && res.err === 'empty'){ enc = null; }
       else if(res && res.err === 'expired')
-        throw new Error('EXPIRED:云端这份超过 60 天没更新，已经清掉了；本机数据还在，点「⬆ 上传本机」可以重新建');
+        throw new Error('EXPIRED:云端这份被标了过期时间，已经清掉了；本机数据还在，点「⬆ 上传本机」可以重新建');
       else if(res && res.err === 'proof')
         throw new Error('PROOF:这串密钥对不上云端那一份（写凭证不符）');
       else throw new Error('云端返回异常：' + JSON.stringify(res || {}).slice(0, 80));
@@ -8961,10 +8965,14 @@ async function openRescue(){
 function openCloudSync(){
   const st = syncState;
   let expTxt = '';
-  try{
-    const t = new Date(st.expiresAt || '');
-    if(!isNaN(t.getTime())) expTxt = ' · 云端保留到 ' + fmtDate(t);
-  }catch(e){}
+  if(st.expiresAt){
+    try{
+      const t = new Date(st.expiresAt || '');
+      if(!isNaN(t.getTime())) expTxt = ' · 云端保留到 ' + fmtDate(t);
+    }catch(e){}
+  }else if(cloudCfgValid()){
+    expTxt = ' · 云端永久保存';
+  }
   const statusTxt = !cloudCfgValid() ? '<b>未开启</b> · 数据目前只存在这台设备的浏览器里'
     : '<b>' + esc(st.msg || st.status) + '</b>' +
       (st.lastSyncAt ? ' · 本机上次同步 ' + esc(fmtClock(st.lastSyncAt)) : '') +
@@ -8975,6 +8983,17 @@ function openCloudSync(){
     sub:'填同一个同步密钥就互通：一个人几台设备、或者几个人各自一串密钥，各存各的一份，互不影响。',
     body:
       '<div class="cloud-status" id="csStatus">' + statusTxt + '</div>' +
+      '<p class="cloud-tip">' +
+        (function(){
+          const ex = exportAgeTxt();
+          const exTxt = ex.warn
+            ? '<b style="color:var(--accent-deep)">' + esc(ex.txt) + '</b>，建议现在点一次「📥 导出」，把文件发到微信「文件传输助手」或网盘'
+            : esc(ex.txt);
+          if(!cloudCfgValid())
+            return '现在只有<b>本机</b>一份存档，换手机或清缓存就没了。文件备份：' + exTxt + '。开启下面的云同步后，云端会再存一份（<b>永久保存</b>）。';
+          return '你的数据有三份：<b>云端</b>永久保存、自动同步 · <b>本机</b>浏览器存档（另含 4 份自动快照）· <b>文件</b> ' + exTxt + '。';
+        })() +
+      '</p>' +
       '<div class="add-grid">' +
         '<label class="fld full"><span>Project URL</span><input type="text" id="csUrl" placeholder="https://xxxx.supabase.co" value="' + esc(syncCfg.url) + '"></label>' +
         '<label class="fld full"><span>anon public key</span><input type="text" id="csAnon" placeholder="eyJhbGci..." value="' + esc(syncCfg.anon) + '"></label>' +
@@ -8997,7 +9016,7 @@ function openCloudSync(){
       '<p class="cloud-tip">① 在 Supabase 建免费项目，SQL Editor 里跑下面的 SQL（<b>跑一次就够</b>，以前用过旧版的会自动把数据搬过来）；② 项目设置 → API，复制 <b>Project URL</b> 和 <b>anon public</b> 填到上面；③ <b>务必先在「刀帐最全」的那台设备</b>生成同步密钥并「保存并启用」，再点「📋 复制配置码」，其它设备粘贴进下面的框、点「读入配置码」即可。</p>' +
       '<div class="snap-warn">⚠ <b>顺序别反</b>：空设备先启用会把空数据传上云端，等全量设备来拉取时会被覆盖。现在已加保护——云端数据比本机少时<b>不会静默覆盖</b>，会弹窗让你选；空设备也不会再上传空数据。覆盖前会自动留快照，可在「🛟 恢复本机数据」里找回。</div>' +
       '<p class="cloud-tip">数据会先用同步密钥在<b>本机加密</b>再上传，云端只有密文；<b>密钥丢了没法找回</b>，建议复制存好。打开页面会自动拉取云端最新数据；关掉「改动后自动上传」后，本机改动要自己点「⬆ 上传本机」。</p>' +
-      '<p class="cloud-tip">新版把表权限收了起来：外部只有两个函数能调，<b>一个密钥只碰得到自己那一行</b>，别人拿不到、也删不掉你的存档。每行最后一次上传后保留 <b>60 天</b>，过期自动清；每次上传都会续期。</p>' +
+      '<p class="cloud-tip">新版把表权限收了起来：外部只有两个函数能调，<b>一个密钥只碰得到自己那一行</b>，别人拿不到、也删不掉你的存档。云端的存档<b>永久保存</b>，没有过期时间，服务端不会自动清理任何一行（旧版 SQL 的「60 天到期」规则已取消）。</p>' +
       '<details class="cloud-details"><summary>② 建表 / 升级 SQL（点开，复制后粘到 Supabase SQL Editor）</summary>' +
         '<textarea class="cloud-sql" id="csSql" readonly>' + esc(SYNC_SQL) + '</textarea>' +
         '<div class="cloud-row"><button class="chip ghost" id="csCopySql">复制 SQL</button></div>' +
@@ -9080,6 +9099,21 @@ function payload(){
           logs: d ? d.logs : [],
           expPolar: d ? (d.expPolar || 0) : 0};
 }
+/* ---------- 导出记录：只是用来提醒「别只信云端」，不参与存档 ---------- */
+const EXP_KEY = 'honmaru_last_export_v1';
+function markExported(){
+  try{ localStorage.setItem(EXP_KEY, String(Date.now())); }catch(e){}
+}
+function lastExportAt(){
+  try{ return Number(localStorage.getItem(EXP_KEY) || 0) || 0; }catch(e){ return 0; }
+}
+function exportAgeTxt(){
+  const t = lastExportAt();
+  if(!t) return {txt:'还没导出过文件', warn:true};
+  const d = Math.floor((Date.now() - t) / 86400000);
+  if(d <= 0) return {txt:'今天导出过', warn:false};
+  return {txt:'上次导出 ' + d + ' 天前', warn:d > 90};
+}
 function exportJson(){
   if(!curData()){ toast('请先新建账号', true); return; }
   const json = JSON.stringify(payload(), null, 2);
@@ -9091,6 +9125,7 @@ function exportJson(){
   const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
   if(file && mobile && navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
     navigator.share({files:[file], title: name}).then(function(){
+      markExported();
       toast('已交给系统分享');
     }, function(err){
       if(err && err.name === 'AbortError') return;   /* 用户自己取消 */
@@ -9106,6 +9141,7 @@ function saveFileBlob(blob, name){
   a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1500);
+  markExported();
   toast('已导出图鉴 JSON');
 }
 function applyPayload(obj){
@@ -9322,10 +9358,16 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.79 数据永久保存：云端不再过期',
+     '<p>上一版云端存档是「最后一次上传后保留 60 天」，每次上传才续期。忙起来几个月没打开，存档就会被服务端按到期时间删掉——这不该是记录本丸该有的样子。</p>' +
+     '<p>现在 <b>expires_at 一律为空 = 永久</b>：服务端不再计算到期时间，也不再执行任何自动清理。已经存在云端的那几行，跑一次 SQL 会把旧的到期时间一起清空。</p>' +
+     '<p><b>要重跑一次 SQL</b>：云同步窗口 →「建表 / 升级 SQL」→ 复制粘到 Supabase SQL Editor → Run。这段 SQL 是幂等的，重复跑不会动你的数据。</p>' +
+     '<p>顺带把「备份几份」摆到台面上：<b>云端一份</b>（永久，自动同步）、<b>本机一份</b>（浏览器里的存档 + 4 份自动快照）、<b>文件一份</b>（手动「📥 导出」）。云同步窗口里会显示上次导出是几天前，超过三个月会提醒一次。</p>',
+     '2026.11'],
     ['V2.78 云同步换了新表：一人多设备、多人共用都稳了',
      '<p>旧版那张表为了「填了就能用」，把读写权限整个开放了——<b>拿到 anon key 的人能把所有人的存档删掉</b>。自己一个人用没事，几个人共用一个项目就不行了。</p>' +
      '<p>现在改成「一个同步空间一行」：表本身谁都不许碰，只留两个函数做读写，<b>一串密钥只碰得到自己那一行</b>；写入还要带一个由密钥算出来的凭证，光看到空间 ID 也写不进去。</p>' +
-     '<p>一个人几台设备填同一串密钥 = 同一份存档；几个人各自生成密钥 = 各存各的，互不影响。每行最后一次上传后保留 <b>60 天</b>，每次上传自动续期。</p>' +
+     '<p>一个人几台设备填同一串密钥 = 同一份存档；几个人各自生成密钥 = 各存各的，互不影响。（这一版每行最后一次上传后保留 60 天，<b>V2.79 已改成永久保存</b>。）</p>' +
      '<p><b>要跑一次 SQL</b>：云同步窗口里点开「建表 / 升级 SQL」复制粘到 Supabase。以前用过旧版的，这段 SQL 会把已有存档自动搬过来，不用手动导。没跑也照旧能用（自动退回旧表），只是还没有新表的隔离。</p>' +
      '<p>另外「同步码 / 读码」两个按钮先收起来了，功能还在，需要时能放回来。</p>',
      '2026.11'],
