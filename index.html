@@ -1057,6 +1057,15 @@
   .log-table .lt-op .log-del{margin-left:2px;}
   .log-edit:hover{color:var(--accent-deep);background:var(--tint-a);}
   .log-del:hover{color:#c25151;background:rgba(194,81,81,.08);}
+  /* 清空日志的说明：保留 / 清掉 分色标出来 */
+  .clr-box{display:flex;flex-direction:column;gap:8px;}
+  .clr-box p{margin:0;font-size:12px;color:var(--sub);line-height:1.78;padding-left:9px;border-left:2px solid var(--line);}
+  .clr-box b{display:inline-block;margin-right:7px;padding:1px 7px;border-radius:4px;font-size:10.5px;letter-spacing:.06em;font-weight:600;}
+  .clr-y{background:rgba(94,158,110,.14);color:#4a8359;}
+  .clr-r{background:rgba(194,81,81,.11);color:#b45252;}
+  .clr-t{border-left-color:transparent;padding-left:0;color:var(--muted);font-size:11px;}
+  [data-dark="1"] .clr-y{color:#8fce9f;}
+  [data-dark="1"] .clr-r{color:#e69a9a;}
   /* 修改日志的表单 */
   .le-form{display:flex;flex-direction:column;gap:8px;}
   .le-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:34px;}
@@ -1460,7 +1469,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.68</div>
+        <div class="brand-sub">HONMARU KEEPER V2.69</div>
       </div>
     </div>
 
@@ -1645,7 +1654,7 @@
         <div class="panel-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
           <div style="flex:1;min-width:220px;">
             <h2>日志明细</h2>
-            <p style="margin-bottom:0;">图鉴保存、批量设置拥有状态、新增 / 删除刀剑、活动登记里的「乱舞 +1」、资源记录的新增与编辑、以及活动里补录的新刀都会留一条日志：改了哪一振 / 哪项资源、从多少变成多少。最新的排在最前面，单条可以删，也可以按日期筛。</p>
+            <p style="margin-bottom:0;">图鉴保存、批量设置拥有状态、新增 / 删除刀剑、活动登记里的「乱舞 +1」、资源记录的新增与编辑、以及活动里补录的新刀都会留一条日志：改了哪一振 / 哪项资源、从多少变成多少。最新的排在最前面，单条可以删，也可以按日期筛。<b>最多留最近 2000 条</b>，更早的会被自动挤出——只影响这里的明细和每日统计的历史，图鉴、资源数据不受影响。</p>
           </div>
           <button class="btn" id="btnClearLogs" style="margin-left:auto;">清空日志</button>
         </div>
@@ -2586,6 +2595,8 @@ function blankData(){
    kind = sword（图鉴字段） / ranbu（活动登记喂刀 +1） / res（资源快照变化） */
 const LOG_FIELDS = {name:'名称', type:'刀种', fl:'花数', k:'极化', r:'乱舞', rp:'乱舞进度', lv:'等级', plv:'极化等级', exp:'经验', src:'获取方式', own:'拥有状态', date:'日期'};
 const LOG_KINDS = {sword:'图鉴', ranbu:'乱舞 +1', res:'资源', new:'新刀', del:'删除'};
+/* 日志最多留这么多条，超出把最旧的挤掉。只影响明细与每日统计的历史，图鉴 / 资源数据不受影响 */
+const LOG_MAX = 2000;
 function resItemOf(key){
   const hit = RES_ITEMS.filter(function(it){ return it.key === key; })[0];
   return hit || {key:String(key || ''), name:String(key || '资源'), icon:'📦'};
@@ -2643,7 +2654,7 @@ function pushLog(entry){
   const l = Object.assign({id:uid(), ts:Date.now(), kind:'sword', no:0, name:'',
                            act:'', ses:'', src:'', date:''}, entry);
   d.logs.unshift(l);
-  if(d.logs.length > 2000) d.logs.length = 2000;
+  if(d.logs.length > LOG_MAX) d.logs.length = LOG_MAX;
   ui.logPage = 1;
   renderLogs();
   renderSidebar();
@@ -2978,11 +2989,12 @@ function renderStorageNote(silent){
   if(!near) storageWarned = false;
 }
 let lastSavedScale = 0;
+let skipShrinkSnap = false;   /* 主动清日志时不必再留一份「数据骤减」快照（清空前已手动留过） */
 function save(){
   try{
     const raw = localStorage.getItem(KEY);      /* 覆盖前的旧存档 */
     const nowScale = storeScale();
-    if(!syncApplying && lastSavedScale > 0 && nowScale < lastSavedScale * 0.5){
+    if(!syncApplying && !skipShrinkSnap && lastSavedScale > 0 && nowScale < lastSavedScale * 0.5){
       syncSnapFromRaw(raw, '数据骤减前');        /* 云端覆盖 / 误导入空文件都能留底 */
     }
     localStorage.setItem(KEY, JSON.stringify(S));
@@ -3796,7 +3808,7 @@ function commitEdit(no){
     if(!Array.isArray(d.logs)) d.logs = [];
     const onlyRb = changes.length === 1 && changes[0].f === 'ranbu';
     d.logs.unshift({id:uid(), no:no, name:row.name, kind:(onlyRb ? 'ranbu' : 'sword'), changes:changes, ts:Date.now()});
-    if(d.logs.length > 2000) d.logs.length = 2000;
+    if(d.logs.length > LOG_MAX) d.logs.length = LOG_MAX;
   }
   save();
   if(changes.length){
@@ -3970,7 +3982,7 @@ function applyBatch(mode, val){
     d.logs.unshift({id:uid(), no:no, name:row.name,
                     kind:(mode === 'r' ? 'ranbu' : 'sword'), changes:changes, ts:Date.now()});
   });
-  if(d.logs.length > 2000) d.logs.length = 2000;
+  if(d.logs.length > LOG_MAX) d.logs.length = LOG_MAX;
   if(!changed){
     closeModal();
     toast(skipped
@@ -5106,7 +5118,8 @@ function renderLogs(){
   const todayCount = (d.logs || []).filter(function(l){ return fmtDate(new Date(l.ts)) === today; }).length;
   const filtered = ui.logQ || ui.logKind || ui.logDate;
   $('#logStat').textContent = '共 ' + (d.logs || []).length + ' 条 · 今日 ' + todayCount + ' 条' +
-    (filtered ? ' · 当前 ' + total + ' 条' : '');
+    (filtered ? ' · 当前 ' + total + ' 条' : '') +
+    ((d.logs || []).length >= LOG_MAX ? ' · 已满 ' + LOG_MAX + ' 条，最旧的正在被挤出' : '');
   const mc = $('#menuLogCount');
   if(mc) mc.textContent = String((d.logs || []).length);
   renderLogKinds(d);
@@ -5610,7 +5623,9 @@ function renderDaily(){
   /* 「这一天 / 这一周 / 这个月 / 这段」——换个范围时提示别对不上 */
   const scope = mode === 'day' ? '这一天' : (mode === 'week' ? '这一周' : (mode === 'month' ? '这个月' : '这段时间'));
   const emptyBase = !(d.logs || []).length
-    ? '这个账号还没有变动记录：保存图鉴、喂刀、记资源后，会按天统计在这里。'
+    ? (Number(d.logsClearedAt) > 0
+        ? '变动记录在 ' + fmtDate(new Date(d.logsClearedAt)) + ' 清空过，这一段历史没法回溯了；图鉴与资源数据都还在，之后的新变动会照常按天记上来。'
+        : '这个账号还没有变动记录：保存图鉴、喂刀、记资源后，会按天统计在这里。')
     : (st.logs ? '' : scope + '没有变动记录，换个日期或范围看看。');
 
   if(dayCount){
@@ -5993,17 +6008,31 @@ function clearLogs(){
   if(!d) return;
   const n = (d.logs || []).length;
   if(!n){ toast('还没有日志可清空'); return; }
+  const canSnap = typeof saveSnapshot === 'function';
   openModal({
     title:'清空变动记录',
-    sub:'会删除当前账号下的全部 ' + n + ' 条日志（含乱舞 +1 与资源变动），图鉴、活动记录和资源数据都不受影响。',
-    body:'<p style="font-size:12px;color:var(--sub);margin:0;">此操作无法撤销。</p>',
+    sub:'当前账号下的 ' + n + ' 条日志会被全部删掉，不能撤销。',
+    body: '<div class="clr-box">' +
+        '<p><b class="clr-y">保留</b>图鉴里每振的等级 / 经验 / 拥有状态 / 极化 / 乱舞，以及资源记录、活动记录——这些是你填的数据，一条都不动。</p>' +
+        '<p><b class="clr-r">清掉</b>这 ' + n + ' 条变动明细；每日统计里「这段涨了几级 / 喂了几振」是按日志算出来的，历史会一并看不到。</p>' +
+        (canSnap ? '<p class="clr-t">清空前会在本机自动留一份快照（最多 4 份，只存这台设备）。反悔了，可在「云同步 → 恢复本机数据」里找回。</p>' : '') +
+      '</div>',
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
-      {text:'确认清空', cls:'btn primary', onClick:function(){
-        d.logs = [];
-        ui.logPage = 1;
-        save(); closeModal(); renderLogs(); renderSidebar();
-        toast('变动记录已清空');
+      {text:'清空 ' + n + ' 条', cls:'btn primary', onClick:function(){
+        const go = function(){
+          skipShrinkSnap = true;
+          d.logs = [];
+          d.logsClearedAt = Date.now();
+          ui.logPage = 1;
+          save();
+          skipShrinkSnap = false;
+          closeModal(); renderLogs(); renderSidebar();
+          toast('变动记录已清空，图鉴与资源数据都还在');
+        };
+        /* 先留底再清，留底失败也照常清空（只是少了后悔药） */
+        if(canSnap) Promise.resolve(saveSnapshot('清空日志前')).then(go, go);
+        else go();
       }}
     ]
   });
@@ -6605,7 +6634,7 @@ function syncSwordMeta(no, name, fl){
   const act = curAct();
   d.logs.unshift({id:uid(), no:no, name:row.name, act:(act && act.name) || '',
                   changes:changes, ts:Date.now()});
-  if(d.logs.length > 2000) d.logs.length = 2000;
+  if(d.logs.length > LOG_MAX) d.logs.length = LOG_MAX;
   save();
   renderCatalog(); renderStats(); renderFilters(); renderLogs(); renderSidebar(); renderCalc();
   toast('「' + row.name + '」已同步到图鉴' + (carry ? ' · 乱舞 ' + before.r + '→' + row.r + ' 🎉' : ''));
@@ -6863,7 +6892,7 @@ function addDrop(){
       if(!Array.isArray(d.logs)) d.logs = [];
       d.logs.unshift({id:uid(), no:no, name:row.name, act:(act && act.name) || '',
                       changes:[{f:'fl', from:0, to:flSeed}], ts:Date.now()});
-      if(d.logs.length > 2000) d.logs.length = 2000;
+      if(d.logs.length > LOG_MAX) d.logs.length = LOG_MAX;
       renderLogs();
     }
   }
@@ -8186,6 +8215,16 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.69 清空日志不会动你的数据',
+     '<p>「清空日志」的确认窗现在把话说清楚：<b>保留</b>图鉴里每振的等级 / 经验 / 拥有 / 极化 / 乱舞，以及资源记录、活动记录；' +
+     '<b>清掉</b>的只有变动明细，和每日统计里按日志算出来的那段历史。按钮上直接写会清多少条。</p>' +
+     '<p>点下去之前会先在本机自动存一份快照（最多 4 份、只存这台设备），反悔了可以在「云同步 → 恢复本机数据」里找回。' +
+     '清空后每日统计会注明哪天清过，之后的新变动照常记、照常统计。</p>',
+     '2026.11'],
+    ['V2.69 日志满了会告诉你',
+     '<p>变动记录最多留最近 <b>2000 条</b>，超过后最早的那条会被挤出去。到上限时日志页的统计行会写「已满 2000 条，最旧的正在被挤出」，顶部说明里也写明了。</p>' +
+     '<p>被挤掉的只是这里的明细和每日统计里那一段的历史；图鉴、资源、活动数据各存各的，不受影响。</p>',
+     '2026.11'],
     ['V2.68 手机上的「改」字不再被切掉',
      '<p>窄屏下日志每条右侧的操作列原来只留了 30px，两个按钮挤不下，<b>「✏ 改」的「改」</b>被卡片边缘裁掉一半。' +
      '现在这一列按内容自适应宽度，名称那列跟着收，320 宽的机器上也能完整看到 <b>✏ 改</b> 和 <b>✕</b>，两个按钮之间留了一点空。</p>',
