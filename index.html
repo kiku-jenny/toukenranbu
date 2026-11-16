@@ -1060,7 +1060,7 @@
   /* 清空日志的说明：保留 / 清掉 分色标出来 */
   .clr-box{display:flex;flex-direction:column;gap:8px;}
   .clr-box p{margin:0;font-size:12px;color:var(--sub);line-height:1.78;padding-left:9px;border-left:2px solid var(--line);}
-  .clr-box b{display:inline-block;margin-right:7px;padding:1px 7px;border-radius:4px;font-size:10.5px;letter-spacing:.06em;font-weight:600;}
+  .clr-box b.clr-y,.clr-box b.clr-r{display:inline-block;margin-right:7px;padding:1px 7px;border-radius:4px;font-size:10.5px;letter-spacing:.06em;font-weight:600;}
   .clr-y{background:rgba(94,158,110,.14);color:#4a8359;}
   .clr-r{background:rgba(194,81,81,.11);color:#b45252;}
   .clr-t{border-left-color:transparent;padding-left:0;color:var(--muted);font-size:11px;}
@@ -1469,7 +1469,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.69</div>
+        <div class="brand-sub">HONMARU KEEPER V2.70</div>
       </div>
     </div>
 
@@ -1736,7 +1736,7 @@
               <button class="day-sort-b" data-ds="time" title="按这段里最后一条变动的时间，新的在上">更新时间</button>
             </div>
           </div>
-          <p>所看范围（一天 / 一周 / 一个月 / 自选起止）内等级或经验有变化的刀剑，同一振合并成一行：等级看 <b>起始 → 现在</b>，后面跟这段里净升降了几级；普刀看的是<b>极化等级</b>（经验涨够就升级），普刀自己的等级写在小字里。名字旁边标了这把现在是<b>普</b>还是<b>极</b>。行尾的<b>查看</b>按时间先后列出这一振在这段里的每一条变动。右上角可切<b>排序</b>：涨幅 / 经验 / 更新时间（按更新时间排时，名字下面会写这条最后变动的时刻）。</p>
+          <p>所看范围（一天 / 一周 / 一个月 / 自选起止）内等级或经验有变化的刀剑，同一振合并成一行：等级看 <b>起始 → 现在</b>，后面跟这段里净升降了几级；普刀看的是<b>极化等级</b>（经验涨够就升级），普刀自己的等级写在小字里。名字旁边标了这把现在是<b>普</b>还是<b>极</b>。行尾的<b>查看</b>按时间先后列出这一振在这段里的每一条变动。右上角可切<b>排序</b>：涨幅 / 经验 / 更新时间（按更新时间排时，名字下面会写这条最后变动的时刻）。日志清空或被 2000 条上限挤出后，这里仍按<b>每天的汇总</b>保留涨跌，只是「查看」看不到逐条时间。</p>
         </div>
         <div class="res-table-wrap">
           <table class="res-table day-table day-table-lv">
@@ -2654,7 +2654,7 @@ function pushLog(entry){
   const l = Object.assign({id:uid(), ts:Date.now(), kind:'sword', no:0, name:'',
                            act:'', ses:'', src:'', date:''}, entry);
   d.logs.unshift(l);
-  if(d.logs.length > LOG_MAX) d.logs.length = LOG_MAX;
+  capLogs(d);
   ui.logPage = 1;
   renderLogs();
   renderSidebar();
@@ -2798,6 +2798,7 @@ function normalize(d){
     d.openFix = 1;
   }
   if(!Array.isArray(d.res)) d.res = seedRes();
+  if(!d.dayAgg || typeof d.dayAgg !== 'object' || Array.isArray(d.dayAgg)) d.dayAgg = {};
   if(!Array.isArray(d.records)) d.records = [];
   d.calc = normCalc(d.calc);
   d.logs = normLogs(d.logs);
@@ -2992,6 +2993,8 @@ let lastSavedScale = 0;
 let skipShrinkSnap = false;   /* 主动清日志时不必再留一份「数据骤减」快照（清空前已手动留过） */
 function save(){
   try{
+    const cd = curData();
+    if(cd) archiveDays(cd);                     /* 今天之前的变动，顺手存成每日汇总 */
     const raw = localStorage.getItem(KEY);      /* 覆盖前的旧存档 */
     const nowScale = storeScale();
     if(!syncApplying && !skipShrinkSnap && lastSavedScale > 0 && nowScale < lastSavedScale * 0.5){
@@ -3808,7 +3811,7 @@ function commitEdit(no){
     if(!Array.isArray(d.logs)) d.logs = [];
     const onlyRb = changes.length === 1 && changes[0].f === 'ranbu';
     d.logs.unshift({id:uid(), no:no, name:row.name, kind:(onlyRb ? 'ranbu' : 'sword'), changes:changes, ts:Date.now()});
-    if(d.logs.length > LOG_MAX) d.logs.length = LOG_MAX;
+    capLogs(d);
   }
   save();
   if(changes.length){
@@ -3982,7 +3985,7 @@ function applyBatch(mode, val){
     d.logs.unshift({id:uid(), no:no, name:row.name,
                     kind:(mode === 'r' ? 'ranbu' : 'sword'), changes:changes, ts:Date.now()});
   });
-  if(d.logs.length > LOG_MAX) d.logs.length = LOG_MAX;
+  capLogs(d);
   if(!changed){
     closeModal();
     toast(skipped
@@ -5216,6 +5219,145 @@ function renderLogs(){
    每日统计：把一个区间（一天 / 一周 / 一个月 / 自选范围）里
    同一振的等级 / 经验 / 乱舞变动合并成一行
    ========================================================= */
+/* ---------- 每日汇总存档 ----------
+   日志最多留 2000 条，也会被主动清空。为了让每日统计在这之后仍然有数，
+   每天第一次「变旧」时把当天结果压成一条汇总存进 d.dayAgg：
+   每振只留首末值 / 净涨跌 / 最后变动时间，键名压短，一天通常只有几振。
+   统计时优先用日志（有明细），日志不在了就退回这一天的汇总。 */
+const DAY_AGG_MAX = 600000;   /* 汇总表按字符数封顶，超了从最旧的一天删 */
+const DAY_AGG_KEEP = 730;     /* 最多留两年 */
+
+function packDayRec(r){
+  const o = {n:r.no, c:r.cnt, t:r.last || 0};
+  if(r.hasLv){ o.a = r.lvFrom; o.b = r.lvTo; o.g = r.lvGain; }
+  if(r.hasPlv){ o.pa = r.plvFrom; o.pb = r.plvTo; o.pg = r.plvGain; }
+  if(r.hasExp) o.e = r.expGain;
+  if(r.hasRb){ o.ra = r.rbFrom; o.rb = r.rbTo; o.rg = r.rbGain; }
+  if(r.polar){ o.p = 1; o.pf = r.polarFrom; o.pv = r.polarLv; }
+  return o;
+}
+function unpackDayRec(o){
+  const has = function(v){ return v !== null && v !== undefined; };
+  return {
+    no:Number(o.n) || 0, name:'', cnt:Number(o.c) || 0, last:Number(o.t) || 0,
+    lvFrom:has(o.a) ? o.a : null, lvTo:has(o.b) ? o.b : null,
+    lvGain:Number(o.g) || 0, hasLv:has(o.a) || has(o.b),
+    plvFrom:has(o.pa) ? o.pa : null, plvTo:has(o.pb) ? o.pb : null,
+    plvGain:Number(o.pg) || 0, hasPlv:has(o.pa) || has(o.pb),
+    expGain:Number(o.e) || 0, hasExp:has(o.e),
+    rbFrom:o.ra || null, rbTo:o.rb || null, rbGain:Number(o.rg) || 0, hasRb:!!o.ra || !!o.rb,
+    polar:!!o.p, polarFrom:has(o.pf) ? o.pf : null, polarLv:has(o.pv) ? o.pv : null
+  };
+}
+/* 把一条已经汇总好的振记录并进当天的 map（顺序按「新 → 旧」处理，与日志那条路一致） */
+function mergeDayRec(map, src){
+  let rec = map[src.no];
+  if(!rec){
+    rec = map[src.no] = {
+      no:src.no, name:src.name || ('No.' + src.no), cnt:0, last:0,
+      lvFrom:null, lvTo:null, lvGain:0, hasLv:false,
+      plvFrom:null, plvTo:null, plvGain:0, hasPlv:false,
+      expGain:0, hasExp:false,
+      rbFrom:null, rbTo:null, rbGain:0, hasRb:false,
+      polar:false, polarFrom:null, polarLv:null
+    };
+  }
+  rec.cnt += Number(src.cnt) || 0;
+  if(Number(src.last) > Number(rec.last)) rec.last = Number(src.last);
+  if(src.name) rec.name = src.name;
+  if(src.hasLv){
+    rec.hasLv = true;
+    if(rec.lvTo === null) rec.lvTo = src.lvTo;
+    if(src.lvFrom !== null) rec.lvFrom = src.lvFrom;
+    rec.lvGain += Number(src.lvGain) || 0;
+  }
+  if(src.hasPlv){
+    rec.hasPlv = true;
+    if(rec.plvTo === null) rec.plvTo = src.plvTo;
+    if(src.plvFrom !== null) rec.plvFrom = src.plvFrom;
+    rec.plvGain += Number(src.plvGain) || 0;
+  }
+  if(src.hasExp){ rec.hasExp = true; rec.expGain += Number(src.expGain) || 0; }
+  if(src.hasRb){
+    rec.hasRb = true;
+    if(rec.rbTo === null) rec.rbTo = src.rbTo;
+    if(src.rbFrom) rec.rbFrom = src.rbFrom;
+    rec.rbGain += Number(src.rbGain) || 0;
+  }
+  if(src.polar){
+    rec.polar = true;
+    if(rec.polarFrom === null) rec.polarFrom = src.polarFrom;
+    if(rec.polarLv === null) rec.polarLv = src.polarLv;
+  }
+  return rec;
+}
+/* frozen：清空日志前存下的「这一段日志已经没有了」。之后同一天新写的日志仍会实时叠加上去 */
+function buildDayAgg(d, day, logs, frozen){
+  const o = dailyAgg({logs:logs, dayAgg:null}, day, day);
+  const out = {c:o.logs, n:o.newCnt, d:o.delCnt, r:o.resCnt, x:o.rows.map(packDayRec)};
+  if(frozen) out.f = 1;
+  return out;
+}
+function trimDayAgg(d){
+  const agg = d.dayAgg || {};
+  const days = Object.keys(agg).sort();
+  while(days.length > DAY_AGG_KEEP) delete agg[days.shift()];
+  let txt = JSON.stringify(agg);
+  while(days.length > 60 && txt.length > DAY_AGG_MAX){
+    delete agg[days.shift()];
+    txt = JSON.stringify(agg);
+  }
+}
+/* 把「今天之前」还没归档的日子补上；includeToday 用于清空日志前把今天也存下来 */
+function archiveDays(d, opts){
+  if(!d) return false;
+  const today = fmtDate(new Date());
+  const withToday = !!(opts && opts.includeToday);
+  /* 同一天、日志条数没变就不用再扫一遍（保存很频繁，省掉这趟开销） */
+  const nLogs = (d.logs || []).length;
+  if(!withToday && d.aggMark === today + '/' + nLogs) return false;
+  if(!d.dayAgg || typeof d.dayAgg !== 'object') d.dayAgg = {};
+  const agg = d.dayAgg;
+  const byDay = {};
+  (d.logs || []).forEach(function(l){
+    const day = fmtDate(new Date(l.ts));
+    if(!withToday && day >= today) return;      /* 今天还在变，先用日志实时算 */
+    (byDay[day] = byDay[day] || []).push(l);
+  });
+  d.aggMark = today + '/' + nLogs;
+  const buckets = {};
+  Object.keys(byDay).forEach(function(day){
+    const list = byDay[day];
+    const have = agg[day];
+    if(have && have.f) return;                              /* 冻结段不再覆盖，新日志由统计时实时叠加 */
+    if(have && Number(have.c) >= list.length) return;        /* 日志没变多（被挤掉 / 删掉的另算） */
+    buckets[day] = list;
+  });
+  const days = Object.keys(buckets);
+  if(!days.length) return false;
+  days.forEach(function(day){
+    agg[day] = buildDayAgg(d, day, buckets[day], withToday && day === today);
+  });
+  trimDayAgg(d);
+  return true;
+}
+/* 某一天的日志被改 / 被删：摘要跟着重算（日志没了就把摘要也撤掉，除非是整表清空） */
+function refreshDayAgg(d, day){
+  if(!d || !d.dayAgg || !d.dayAgg[day]) return;
+  if(d.dayAgg[day].f) return;              /* 清空时留下的冻结段，不跟着单条日志改 */
+
+  const logs = (d.logs || []).filter(function(l){ return fmtDate(new Date(l.ts)) === day; });
+  if(!logs.length){ delete d.dayAgg[day]; return; }
+  d.dayAgg[day] = buildDayAgg(d, day, logs);
+}
+/* 日志到达上限：先把今天以前的日子留档，再挤掉最旧的 */
+function capLogs(d){
+  if(!d || !Array.isArray(d.logs)) return;
+  if(d.logs.length <= LOG_MAX) return;
+  archiveDays(d);
+  if(d.logs.length > LOG_MAX) d.logs.length = LOG_MAX;
+}
+
 function dailyAgg(d, from, to){
   const map = {};
   const lo = from, hi = to || from;
@@ -5318,6 +5460,22 @@ function dailyAgg(d, from, to){
       rec.rbGain += legacy ? (legacyLv > 0 ? legacyLv : Math.max(0, legacyRp)) : rbGain;
     }
   });
+
+  /* ② 归档：日志已经不在了（清空过 / 被上限挤出）的日子，用当天汇总补上 */
+  const aggAll = d.dayAgg || {};
+  const aggDays = Object.keys(aggAll).sort().reverse();
+  for(let ai = 0; ai < aggDays.length; ai++){
+    const day = aggDays[ai];
+    if(day < lo || day > hi) continue;
+    const a = aggAll[day] || {};
+    if(daySet[day] && !a.f) continue;      /* 日志还在：普通归档只是备份，别重复算；冻结段要叠上 */
+    daySet[day] = 1;
+    out.logs += Number(a.c) || 0;
+    out.newCnt += Number(a.n) || 0;
+    out.delCnt += Number(a.d) || 0;
+    out.resCnt += Number(a.r) || 0;
+    (a.x || []).forEach(function(po){ mergeDayRec(map, unpackDayRec(po)); });
+  }
 
   out.days = Object.keys(daySet).length;
   out.rows = Object.keys(map).map(function(k){ return map[k]; });
@@ -5422,10 +5580,19 @@ function openDayLogs(no){
   const same = from === to;
   const list = dayLogList(no, from, to);
   if(!list.length){
+    /* 明细被清空 / 被上限挤出后，这一振在这段里可能只剩每日汇总 */
+    const agg = d.dayAgg || {};
+    const archived = Object.keys(agg).some(function(day){
+      if(day < from || day > to) return false;
+      return (agg[day].x || []).some(function(p){ return Number(p.n) === no; });
+    });
     openModal({
       title: '「' + row.name + '」的变动时间',
-      sub: (same ? from : (from + ' 至 ' + to)) + ' · 0 条记录',
-      body: '<p class="muted" style="margin:0;font-size:12px;">这段里没有找到这振的变动记录。</p>',
+      sub: (same ? from : (from + ' 至 ' + to)) + ' · 0 条明细',
+      body: '<p class="muted" style="margin:0;font-size:12px;line-height:1.9;">' +
+        (archived
+          ? '这振在这段里的明细已经不在了（日志被清空，或超过 2000 条被挤出），只剩每天的汇总——每日统计里的等级 / 经验 / 乱舞涨跌仍然保留。'
+          : '这段里没有找到这振的变动记录。') + '</p>',
       actions: [{text:'关闭', cls:'btn', onClick:closeModal}]
     });
     return;
@@ -5970,6 +6137,7 @@ function saveLogEdit(id){
   });
 
   l.changes = next;
+  refreshDayAgg(d, fmtDate(new Date(l.ts)));   /* 那天的每日汇总按改后的日志重算 */
   save(); closeModal();
   renderLogs(); renderCatalog(); renderStats(); renderFilters(); renderDaily(); renderResources(); renderSidebar();
   if(missing) toast('日志已改；有 ' + missing + ' 项没找到对应的资源记录，只改了日志', true);
@@ -5995,7 +6163,9 @@ function deleteLog(id){
       {text:'取消', cls:'btn', onClick:closeModal},
       {text:'删除日志', cls:'btn primary', onClick:function(){
         const before = (d.logs || []).length;
+        const day = fmtDate(new Date(l.ts));
         d.logs = (d.logs || []).filter(function(x){ return x.id !== id; });
+        refreshDayAgg(d, day);          /* 那天的汇总跟着少这一条 */
         save(); closeModal(); renderLogs(); renderSidebar();
         toast(before > d.logs.length ? '日志已删除' : '这条日志已不存在');
       }}
@@ -6013,8 +6183,8 @@ function clearLogs(){
     title:'清空变动记录',
     sub:'当前账号下的 ' + n + ' 条日志会被全部删掉，不能撤销。',
     body: '<div class="clr-box">' +
-        '<p><b class="clr-y">保留</b>图鉴里每振的等级 / 经验 / 拥有状态 / 极化 / 乱舞，以及资源记录、活动记录——这些是你填的数据，一条都不动。</p>' +
-        '<p><b class="clr-r">清掉</b>这 ' + n + ' 条变动明细；每日统计里「这段涨了几级 / 喂了几振」是按日志算出来的，历史会一并看不到。</p>' +
+        '<p><b class="clr-y">保留</b>图鉴里每振的等级 / 经验 / 拥有状态 / 极化 / 乱舞，资源记录、活动记录，还有<b>每日统计的历史</b>——每天的结果会另外存一份汇总，清完照样能看。</p>' +
+        '<p><b class="clr-r">清掉</b>这 ' + n + ' 条明细本身；每日统计里点「查看」的逐条时间会没有，只剩每天汇总的涨跌。</p>' +
         (canSnap ? '<p class="clr-t">清空前会在本机自动留一份快照（最多 4 份，只存这台设备）。反悔了，可在「云同步 → 恢复本机数据」里找回。</p>' : '') +
       '</div>',
     actions:[
@@ -6022,6 +6192,7 @@ function clearLogs(){
       {text:'清空 ' + n + ' 条', cls:'btn primary', onClick:function(){
         const go = function(){
           skipShrinkSnap = true;
+          archiveDays(d, {includeToday:true});   /* 连今天的变动也存成汇总，清完统计仍有数 */
           d.logs = [];
           d.logsClearedAt = Date.now();
           ui.logPage = 1;
@@ -6634,7 +6805,7 @@ function syncSwordMeta(no, name, fl){
   const act = curAct();
   d.logs.unshift({id:uid(), no:no, name:row.name, act:(act && act.name) || '',
                   changes:changes, ts:Date.now()});
-  if(d.logs.length > LOG_MAX) d.logs.length = LOG_MAX;
+  capLogs(d);
   save();
   renderCatalog(); renderStats(); renderFilters(); renderLogs(); renderSidebar(); renderCalc();
   toast('「' + row.name + '」已同步到图鉴' + (carry ? ' · 乱舞 ' + before.r + '→' + row.r + ' 🎉' : ''));
@@ -6892,7 +7063,7 @@ function addDrop(){
       if(!Array.isArray(d.logs)) d.logs = [];
       d.logs.unshift({id:uid(), no:no, name:row.name, act:(act && act.name) || '',
                       changes:[{f:'fl', from:0, to:flSeed}], ts:Date.now()});
-      if(d.logs.length > LOG_MAX) d.logs.length = LOG_MAX;
+      capLogs(d);
       renderLogs();
     }
   }
@@ -8215,9 +8386,15 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.70 清空日志，每日统计也还在',
+     '<p>以前每日统计是拿日志现算的，日志一清空、或被 2000 条上限挤掉，那几天的涨跌就跟着没了。现在每天的结果会另存一份<b>汇总</b>（跟着账号存，和日志分开）：' +
+     '清空之后回来再看，「等级 · 经验」「乱舞」的涨跌和记录条数都还在，只是点<b>查看</b>看不到逐条时间了。</p>' +
+     '<p>汇总只记每振的首末值和净涨跌，一天通常就几振、几百字节；最多留两年，总量也有上限，不会把本机存储撑爆。' +
+     '清空之后当天继续记的变动会叠加上去，不会从头开始算。</p>',
+     '2026.11'],
     ['V2.69 清空日志不会动你的数据',
      '<p>「清空日志」的确认窗现在把话说清楚：<b>保留</b>图鉴里每振的等级 / 经验 / 拥有 / 极化 / 乱舞，以及资源记录、活动记录；' +
-     '<b>清掉</b>的只有变动明细，和每日统计里按日志算出来的那段历史。按钮上直接写会清多少条。</p>' +
+     '<b>清掉</b>的只有变动明细，和每日统计里按日志算出来的那段历史（V2.70 起统计已改成独立汇总，不再受这件事影响）。按钮上直接写会清多少条。</p>' +
      '<p>点下去之前会先在本机自动存一份快照（最多 4 份、只存这台设备），反悔了可以在「云同步 → 恢复本机数据」里找回。' +
      '清空后每日统计会注明哪天清过，之后的新变动照常记、照常统计。</p>',
      '2026.11'],
