@@ -294,40 +294,94 @@
 
   /* ---------- 图鉴页常驻滚动条（右侧悬浮，两端可一键到顶 / 到底） ---------- */
   html{scrollbar-gutter:stable;}   /* 桌面：滚动条常驻，切换页签时内容不再左右跳 */
+
+  /* 右侧：一根能拖的粗滚动条，两端圆钮一键到顶 / 到底 */
   .vscroll{
-    position:fixed;right:2px;top:50%;transform:translateY(-50%);
-    z-index:60;height:44vh;max-height:400px;min-height:170px;
-    display:flex;flex-direction:column;align-items:center;gap:2px;
-    padding:3px 2px;border-radius:999px;
-    background:rgba(255,250,251,.40);border:1px solid rgba(240,210,216,.5);
-    opacity:.74;transition:opacity .18s,background .18s;
+    position:fixed;right:4px;top:50%;transform:translateY(-50%);
+    z-index:60;height:46vh;max-height:420px;min-height:190px;
+    display:flex;flex-direction:column;align-items:center;gap:6px;
     touch-action:none;user-select:none;-webkit-user-select:none;
   }
-  .vscroll:hover,.vscroll.on{opacity:1;background:rgba(255,250,251,.88);}
+  .vscroll[hidden]{display:none;}
   .vs-btn{
-    position:relative;width:16px;height:16px;flex:0 0 16px;display:grid;place-items:center;
-    border:0;border-radius:50%;background:transparent;color:var(--sub);
-    font-family:inherit;font-size:8px;line-height:1;padding:0;cursor:pointer;
-    transition:background .15s,color .15s,transform .1s;
+    position:relative;width:34px;height:34px;flex:0 0 34px;
+    display:grid;place-items:center;padding:0;cursor:pointer;
+    border:1px solid var(--line);border-radius:50%;
+    background:var(--surface);color:var(--accent-deep);
+    box-shadow:0 5px 14px -8px rgba(120,60,75,.75);
+    transition:transform .12s, background .15s;
   }
-  .vs-btn::before{content:'';position:absolute;inset:-7px;}   /* 手指点得到的实际范围 */
-  .vs-btn:hover{background:var(--pink-soft);color:var(--accent-deep);}
+  .vs-btn::before{content:'';position:absolute;inset:-5px;}   /* 手指点得到的实际范围 */
+  .vs-btn::after{
+    content:'';width:0;height:0;
+    border-left:5px solid transparent;border-right:5px solid transparent;
+    border-bottom:7px solid currentColor;
+  }
+  .vs-btn[data-dir="down"]::after{border-bottom:0;border-top:7px solid currentColor;}
+  .vs-btn:hover{background:var(--pink-soft);}
   .vs-btn:active{transform:scale(.9);}
   .vs-track{
-    position:relative;flex:1 1 auto;width:5px;margin:1px 0;
-    border-radius:99px;background:rgba(228,182,193,.45);cursor:pointer;
+    position:relative;flex:1 1 auto;width:14px;margin:2px 0;
+    border-radius:7px;background:var(--line-soft);cursor:pointer;
+    box-shadow:inset 0 0 0 1px rgba(228,182,193,.5);
   }
-  .vs-track::before{content:'';position:absolute;left:-9px;right:-9px;top:0;bottom:0;}  /* 手机上加宽命中区 */
+  .vs-track::before{content:'';position:absolute;left:-10px;right:-10px;top:0;bottom:0;}  /* 加宽命中区 */
   .vs-thumb{
-    position:absolute;left:0;top:0;width:5px;min-height:26px;border-radius:99px;
-    background:linear-gradient(180deg,var(--accent-3),var(--accent-2));cursor:grab;
-    box-shadow:0 0 0 1px rgba(255,255,255,.6) inset;transition:filter .15s;
+    position:absolute;left:0;top:0;width:14px;min-height:34px;border-radius:7px;
+    background:linear-gradient(180deg,var(--accent-3),var(--accent));
+    box-shadow:0 4px 10px -4px rgba(180,90,110,.7);
+    cursor:grab;transition:filter .15s;
   }
-  .vs-thumb:hover,.vscroll.on .vs-thumb{filter:brightness(1.08);cursor:grabbing;}
-  @media (min-width:900px){ .vscroll{right:14px;} }
-  [data-dark="1"] .vscroll{background:rgba(0,0,0,.26);border-color:rgba(255,255,255,.10);}
-  [data-dark="1"] .vscroll:hover,[data-dark="1"] .vscroll.on{background:rgba(0,0,0,.52);}
-  [data-dark="1"] .vs-track{background:rgba(255,255,255,.14);}
+  .vs-thumb:hover,.vscroll.on .vs-thumb{filter:brightness(1.06);cursor:grabbing;}
+
+  /* 底部：一条胶囊，拇指最容易够到，中间显示进度 */
+  .vsbar{
+    position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));
+    transform:translate(-50%,10px);z-index:61;
+    display:flex;align-items:center;gap:2px;
+    padding:5px;border-radius:24px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    box-shadow:0 12px 28px -18px rgba(120,60,75,.85);
+    opacity:0;pointer-events:none;transition:opacity .22s, transform .22s;
+    -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  }
+  .vsbar.on{opacity:1;transform:translate(-50%,0);pointer-events:auto;}
+  .vsbar.on.idle{opacity:.58;}
+  .vsbar-btn{
+    flex:0 0 auto;white-space:nowrap;
+    display:flex;align-items:center;gap:6px;height:34px;padding:0 13px;
+    border:0;border-radius:19px;background:transparent;color:var(--ink-2);
+    font-family:inherit;font-size:12.5px;cursor:pointer;
+    transition:background .15s,color .15s;
+  }
+  .vsbar-btn:active{background:var(--pink-soft);color:var(--accent-deep);}
+  .vsbar-btn i{
+    width:0;height:0;
+    border-left:4.5px solid transparent;border-right:4.5px solid transparent;
+    border-bottom:6px solid currentColor;
+  }
+  .vsbar-btn[data-dir="down"] i{border-bottom:0;border-top:6px solid currentColor;}
+  .vsbar-pct{
+    min-width:46px;text-align:center;font-size:12.5px;font-weight:700;
+    color:var(--accent-deep);font-variant-numeric:tabular-nums;padding:0 4px;
+    border-left:1px solid var(--line-soft);border-right:1px solid var(--line-soft);
+    line-height:24px;
+  }
+  /* 图鉴页出现底部胶囊时，别把 toast / 新版提示压上去，底部留出空间给最后一张卡 */
+  body.vs-on .toast,body.vs-on .upd-bar{bottom:calc(76px + env(safe-area-inset-bottom,0px));}
+  body.vs-on #viewCatalog{padding-bottom:56px;}
+
+  [data-dark="1"] .vs-btn{background:var(--card);border-color:var(--line-strong);color:var(--accent-3);}
+  [data-dark="1"] .vs-track{background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);}
+  [data-dark="1"] .vsbar{background:rgba(34,27,30,.93);border-color:var(--line-strong);}
+  /* 桌面有滚轮和滚动条，底部胶囊就不摆了，免得挡住网格 */
+  @media (min-width:900px){
+    .vscroll{right:16px;}
+    .vsbar{display:none;}
+    body.vs-on .toast,body.vs-on .upd-bar{bottom:26px;}
+    body.vs-on #viewCatalog{padding-bottom:0;}
+  }
 
 
   /* ---------- 品牌 ---------- */
@@ -1972,11 +2026,16 @@
 <div id="modalRoot"></div>
 <div class="toast" id="toast"></div>
 
-<!-- 图鉴页常驻滚动条：可拖动，两端一键到顶 / 到底 -->
+<!-- 图鉴页滚动控件：右侧可拖的粗滚动条 + 底部胶囊（顶层 / 到底 / 进度） -->
 <div class="vscroll" id="vScroll" hidden>
-  <button class="vs-btn" id="vsTop" type="button" title="回到顶部" aria-label="回到顶部">▲</button>
+  <button class="vs-btn" id="vsTop" type="button" data-dir="up" title="回到顶部" aria-label="回到顶部"></button>
   <div class="vs-track" id="vsTrack"><div class="vs-thumb" id="vsThumb"></div></div>
-  <button class="vs-btn" id="vsBottom" type="button" title="滑到底部" aria-label="滑到底部">▼</button>
+  <button class="vs-btn" id="vsBottom" type="button" data-dir="down" title="滑到底部" aria-label="滑到底部"></button>
+</div>
+<div class="vsbar" id="vsbar">
+  <button class="vsbar-btn" id="vsbTop" type="button" data-dir="up"><i></i>顶部</button>
+  <span class="vsbar-pct" id="vsbPct">0%</span>
+  <button class="vsbar-btn" id="vsbBottom" type="button" data-dir="down">底部<i></i></button>
 </div>
 
 <script>
@@ -2645,7 +2704,7 @@ const RES_MAX = 999999999;
 const KEY = 'honmaru_keeper_v3';
 let S = null;
 let toastTimer = null;   /* toast 在启动时也可能被调用（存储写不进），先声明免得 TDZ */
-let vsDragging = null, vsRafId = 0;   /* 图鉴页滚动条：启动阶段 renderAll 就会用到，先声明 */
+let vsDragging = null, vsRafId = 0, vsIdleTimer = 0;   /* 图鉴页滚动控件：启动阶段 renderAll 就会用到，先声明 */
 
 /* ---------- 页面脚本自己的异常 ----------
    V2.74 之前 save() 是一个大 try：归档、刷新提示、云同步里任何一句出错，
@@ -9060,11 +9119,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
-    ['V2.77 图鉴页右侧常驻滚动条',
-     '<p>图鉴一屏放不下 130 振，滑到中间很容易找不到自己在哪。现在<b>图鉴页右侧常驻一条竖向滚动条</b>：' +
-     '滑块长度代表整页有多长、位置代表看到哪了，可以直接按住拖动。</p>' +
-     '<p>两端的 <b>▲ / ▼</b> 一下就到顶 / 到底；点轨道空白处也能跳过去。距离太远时直接跳，不让人干等平滑滚动。</p>' +
-     '<p>只在图鉴页出现，切到别的页自动收起来；手机上做得比较窄（20 px），压在卡片右侧的留白上，不挡字。</p>',
+    ['V2.77 图鉴页加了滚动控件',
+     '<p>图鉴一屏放不下 130 振，滑到中间很容易找不到自己在哪。现在图鉴页有两样东西：</p>' +
+     '<p><b>右侧一条能拖的粗滚动条</b>——滑块的位置就是看到的地方，按住能直接拖；上下两个圆形按钮，一下就到顶 / 到底。</p>' +
+     '<p><b>底部一条胶囊</b>——「▲ 顶部 · 45% · 底部 ▼」，拇指最容易够到，中间还能看到滚到百分之几。停手两秒会淡下去，不挡视线。</p>' +
+     '<p>两样都只在图鉴页出现，切到别的页自动收起；电脑上只留右侧滚动条（有滚轮就够了），手机上有两条。</p>',
      '2026.11'],
     ['V2.76 打开快了一大截',
      '<p>之前每次打开都要把整页重新下载一遍（压缩后约 150 KB），手机网络下就是好几秒的白屏。</p>' +
@@ -9566,19 +9625,28 @@ function vsRange(){
   return {total: total, view: view, max: Math.max(0, total - view)};
 }
 function vsUpdate(){
-  const box = $('#vScroll'), track = $('#vsTrack'), thumb = $('#vsThumb');
+  const box = $('#vScroll'), track = $('#vsTrack'), thumb = $('#vsThumb'), bar = $('#vsbar');
   if(!box || !track || !thumb) return;
   const r = vsRange();
   /* 只在图鉴页、且确实要滚动时才出现 */
-  if(ui.tab !== 'catalog' || r.max < 60){ box.hidden = true; return; }
-  const wasHidden = box.hidden;
-  box.hidden = false;
+  const show = ui.tab === 'catalog' && r.max >= 60;
+  box.hidden = !show;
+  if(bar) bar.classList.toggle('on', show);
+  document.body.classList.toggle('vs-on', show);
+  if(!show) return;
   const th = track.clientHeight || 1;
-  const h = Math.max(26, Math.min(th, Math.round(th * r.view / r.total)));
-  const top = Math.round((th - h) * Math.min(1, Math.max(0, (window.scrollY || 0) / r.max)));
+  const h = Math.min(th, Math.max(34, Math.round(th * r.view / r.total)));
+  const y = Math.round((th - h) * Math.min(1, Math.max(0, (window.scrollY || 0) / r.max)));
   thumb.style.height = h + 'px';
-  thumb.style.transform = 'translateY(' + top + 'px)';
-  if(wasHidden) box.classList.toggle('on', false);
+  thumb.style.transform = 'translateY(' + y + 'px)';
+  const pct = $('#vsbPct');
+  if(pct) pct.textContent = (r.max ? Math.round((window.scrollY || 0) / r.max * 100) : 0) + '%';
+  /* 停手两秒淡一点，免得一直挡着；一动就恢复 */
+  if(bar){
+    bar.classList.remove('idle');
+    clearTimeout(vsIdleTimer);
+    vsIdleTimer = setTimeout(function(){ bar.classList.add('idle'); }, 2200);
+  }
 }
 function vsJump(top){
   /* 距离太远（超过三屏）就直接跳，别让人等平滑滚动爬完 */
@@ -9591,6 +9659,9 @@ function vsBind(){
   if(!box || !track || !thumb) return;
   $('#vsTop').onclick = function(){ vsJump(0); };
   $('#vsBottom').onclick = function(){ vsJump(vsRange().max); };
+  const bTop = $('#vsbTop'), bBot = $('#vsbBottom');
+  if(bTop) bTop.onclick = function(){ vsJump(0); };
+  if(bBot) bBot.onclick = function(){ vsJump(vsRange().max); };
 
   track.addEventListener('pointerdown', function(e){
     const th = track.clientHeight || 1;
