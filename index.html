@@ -1066,6 +1066,22 @@
   .clr-t{border-left-color:transparent;padding-left:0;color:var(--muted);font-size:11px;}
   [data-dark="1"] .clr-y{color:#8fce9f;}
   [data-dark="1"] .clr-r{color:#e69a9a;}
+  /* 本机存储检测 */
+  .store-banner{display:flex;align-items:center;gap:8px;margin:0 0 12px;
+    padding:9px 12px;border-radius:10px;background:rgba(194,81,81,.10);
+    border:1px solid rgba(194,81,81,.22);}
+  .store-banner[hidden]{display:none;}
+  .store-banner .sb-txt{flex:1 1 auto;min-width:0;font-size:11.5px;line-height:1.6;color:#a84848;}
+  .store-banner .sb-btn{flex:0 0 auto;font-size:11px;padding:4px 10px;border-radius:999px;cursor:pointer;
+    border:1px solid rgba(194,81,81,.35);background:transparent;color:#a84848;font-family:inherit;}
+  .store-banner .sb-btn:hover{background:rgba(194,81,81,.10);}
+  [data-dark="1"] .store-banner{background:rgba(194,81,81,.16);border-color:rgba(194,81,81,.34);}
+  [data-dark="1"] .store-banner .sb-txt,[data-dark="1"] .store-banner .sb-btn{color:#e8a5a5;}
+  .stg-box{display:flex;flex-direction:column;gap:10px;}
+  .stg-lines{background:var(--tint-a);border-radius:6px;padding:8px 10px;display:flex;flex-direction:column;gap:3px;}
+  .stg-l{font-size:10.5px;line-height:1.6;color:var(--sub);word-break:break-all;font-family:ui-monospace,Menlo,Consolas,monospace;}
+  .stg-tips p{margin:0 0 6px;font-size:12px;color:var(--sub);line-height:1.78;}
+  .stg-tips p:last-child{margin-bottom:0;}
   /* 修改日志的表单 */
   .le-form{display:flex;flex-direction:column;gap:8px;}
   .le-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:34px;}
@@ -1382,7 +1398,7 @@
 
   /* ---------- Toast ---------- */
   .toast{
-    position:fixed;left:50%;bottom:28px;transform:translate(-50%,14px);z-index:120;
+    position:fixed;left:50%;bottom:28px;transform:translate(-50%,14px);z-index:108;
     background:rgba(69,54,57,.94);color:var(--on-accent);font-size:12.5px;letter-spacing:.05em;
     padding:10px 20px;border-radius:24px;opacity:0;pointer-events:none;transition:.24s;
     box-shadow:0 14px 30px -14px rgba(0,0,0,.6);
@@ -1469,7 +1485,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.71</div>
+        <div class="brand-sub">HONMARU KEEPER V2.72</div>
       </div>
     </div>
 
@@ -1525,6 +1541,10 @@
       </div>
       <div class="date-chip" id="todayChip"></div>
     </header>
+    <div class="store-banner" id="storeBanner" hidden>
+      <span class="sb-txt" id="storeBannerText"></span>
+      <button class="sb-btn" id="btnStoreBanner">处理办法</button>
+    </div>
 
     <!-- ========== 图鉴 ========== -->
     <section id="viewCatalog" class="view">
@@ -2557,6 +2577,70 @@ const RES_MAX = 999999999;
    ========================================================= */
 const KEY = 'honmaru_keeper_v3';
 let S = null;
+let toastTimer = null;   /* toast 在启动时也可能被调用（存储写不进），先声明免得 TDZ */
+
+
+/* ---------- 本机存储可用性 ----------
+   有些浏览器（无痕、关了「网站数据」、应用内打开的窗口）会直接拒绝 localStorage，
+   连读都读不到。这里先探一次，后面失败提示和兜底都按它来。 */
+let lsDead = false, lsErrName = '', lsProbeDone = false;
+function probeLS(){
+  if(lsProbeDone) return !lsDead;
+  lsProbeDone = true;
+  try{
+    const k = '__hk_probe__';
+    localStorage.setItem(k, '1');
+    lsDead = localStorage.getItem(k) !== '1';
+    try{ localStorage.removeItem(k); }catch(e){}
+  }catch(e){
+    lsDead = true;
+    lsErrName = (e && (e.name || e.message)) || 'Error';
+  }
+  return !lsDead;
+}
+probeLS();
+
+/* ---------- 浏览器数据库兜底（localStorage 被禁时用） ---------- */
+const IDB_NAME = 'honmaru_keeper_db', IDB_STORE = 'kv';
+let idbPromise = null, idbDead = false;
+function idbOpen(){
+  if(idbDead) return Promise.reject(new Error('idb off'));
+  if(idbPromise) return idbPromise;
+  idbPromise = new Promise(function(res, rej){
+    if(!window.indexedDB){ idbDead = true; return rej(new Error('no indexedDB')); }
+    let req;
+    try{ req = indexedDB.open(IDB_NAME, 1); }
+    catch(e){ idbDead = true; return rej(e); }
+    req.onupgradeneeded = function(){ try{ req.result.createObjectStore(IDB_STORE); }catch(e){} };
+    req.onsuccess = function(){ res(req.result); };
+    req.onerror = function(){ idbDead = true; rej(req.error || new Error('idb open failed')); };
+    req.onblocked = function(){ rej(new Error('idb blocked')); };
+  });
+  return idbPromise;
+}
+function idbSet(key, val){
+  return idbOpen().then(function(db){
+    return new Promise(function(res, rej){
+      let tx;
+      try{ tx = db.transaction(IDB_STORE, 'readwrite'); }catch(e){ return rej(e); }
+      tx.objectStore(IDB_STORE).put(val, key);
+      tx.oncomplete = function(){ res(true); };
+      tx.onerror = function(){ rej(tx.error); };
+      tx.onabort = function(){ rej(tx.error); };
+    });
+  });
+}
+function idbGet(key){
+  return idbOpen().then(function(db){
+    return new Promise(function(res, rej){
+      let tx;
+      try{ tx = db.transaction(IDB_STORE, 'readonly'); }catch(e){ return rej(e); }
+      const r = tx.objectStore(IDB_STORE).get(key);
+      r.onsuccess = function(){ res(r.result); };
+      r.onerror = function(){ rej(r.error); };
+    });
+  });
+}
 const ui = {tab:'catalog', q:'', type:'', own:'', kiwame:'', ranbu:'', level:'', filterOpen:false, sort:'no', edit:{}, logQ:'', logKind:'', logDate:'', logPage:1, day:'', dayMode:'day', dayFrom:'', dayTo:'', dayLvSort:'lv', dayPageLv:1, dayPageRb:1};
 
 function uid(){ return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
@@ -2967,6 +3051,7 @@ function scheduleCloudSync(){
 
 /* ---------- 本地存储：写入失败要出声，用量要看得见 ---------- */
 let saveWarned = '';        /* 记录上次提示过的失败原因，避免同一原因反复刷屏 */
+let saveDegraded = '';      /* '' 正常 / 'idb' 已退到浏览器数据库 / 'none' 连兜底都不行 */
 let storageWarned = false;
 let STORAGE_REF_LIMIT = 5 * 1024 * 1024;   /* 浏览器 localStorage 常见上限，仅作参考 */
 function storageUsedBytes(){
@@ -2982,10 +3067,42 @@ function fmtBytes(n){
 function renderStorageNote(silent){
   const box = $('#storageNote'), txt = $('#storageText'), btn = $('#btnStorageBackup');
   if(!box || !txt) return;
+  /* 页面顶部也提醒一句：手机上看不到侧栏，只有 toast 一闪就没了 */
+  const banner = $('#storeBanner'), bTxt = $('#storeBannerText');
+  const showBanner = lsDead || saveDegraded === 'full';
+  if(banner){
+    banner.hidden = !showBanner;
+    if(showBanner && bTxt){
+      bTxt.textContent = lsDead
+        ? (saveDegraded === 'idb'
+            ? '⚠ 浏览器不让存数据，已改用浏览器数据库暂存（换浏览器会丢）'
+            : '⚠ 浏览器不让存数据，改动刷新就没了')
+        : '⚠ 本机存储已满，这次改动没写进去';
+    }
+  }
+  if(lsDead){
+    box.classList.add('warn');
+    txt.textContent = saveDegraded === 'idb'
+      ? '⚠ 本机存储被拦 · 已改用浏览器数据库暂存'
+      : (saveDegraded === 'none'
+          ? '⚠ 本机存储不可用 · 数据只在当前页面'
+          : '⚠ 本机存储不可用 · 改动刷新就没了');
+    box.title = '点一下检测本机存储（含错误原因与建议）';
+    if(btn) btn.hidden = false;
+    return;
+  }
   const used = storageUsedBytes();
   const cap = fmtBytes(STORAGE_REF_LIMIT);
+  if(saveDegraded === 'full'){
+    box.classList.add('warn');
+    txt.textContent = '⚠ 本机存储已满 · 这次改动没写入';
+    box.title = '点一下看详情：可以导出备份，或清掉很早的日志';
+    if(btn) btn.hidden = false;
+    return;
+  }
   const near = used / STORAGE_REF_LIMIT >= 0.8;
   box.classList.toggle('warn', near);
+  box.title = '点一下检测本机存储用量';
   txt.textContent = (near ? '⚠ 本地存储快满了 · 已用 ' : '数据仅保存在本机浏览器 · 已用 ') +
                     fmtBytes(used) + ' / 约 ' + cap + (near ? '，建议导出备份' : '');
   if(btn) btn.hidden = !near;
@@ -2995,20 +3112,97 @@ function renderStorageNote(silent){
   }
   if(!near) storageWarned = false;
 }
+/* ---------- 本机存储检测：出了问题至少能看到卡在哪一步 ---------- */
+function storageDiagLines(){
+  const lines = [];
+  lines.push('网址：' + location.href.replace(/[?#].*$/, ''));
+  lines.push('浏览器：' + (navigator.userAgent || '未知'));
+  lines.push('本机存储（localStorage）：' + (lsDead ? '不可用' : '可用'));
+  if(lsDead) lines.push('  错误：' + (lsErrName || '未知（写入后读不回来）'));
+  lines.push('浏览器数据库（IndexedDB）：' +
+    (idbDead ? '不可用' : (idbPromise ? '已连接' : '未检测')));
+  let raw = '';
+  try{ raw = localStorage.getItem(KEY) || ''; }catch(e){}
+  lines.push('当前存档：' + (raw ? fmtBytes(new Blob([raw]).size) + ' / ' + Math.round(raw.length / 1024) + 'K 字符' : '读不到'));
+  lines.push('快照：' + (function(){ try{ return loadSnaps().length + ' 份'; }catch(e){ return '读不到'; } })());
+  return lines;
+}
+function copyText(str, btn){
+  /* 弹窗里的 toast 会被弹窗盖住，按钮上直接回一句更清楚 */
+  const done = function(ok){
+    if(btn){
+      const old = btn.textContent;
+      btn.textContent = ok ? '已复制' : '复制失败';
+      setTimeout(function(){ btn.textContent = old; }, 1500);
+    }else toast(ok ? '已复制，可以直接发给别人看' : '复制失败，可以手选文字', !ok);
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(str).then(function(){ done(true); }, function(){ done(fallbackCopy(str)); });
+  }else done(fallbackCopy(str));
+}
+function fallbackCopy(str){
+  const ta = document.createElement('textarea');
+  ta.value = str;
+  ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  let ok = false;
+  try{ ok = document.execCommand('copy'); }catch(e){ ok = false; }
+  document.body.removeChild(ta);
+  return ok;
+}
+function openStorageDiag(){
+  const lines = storageDiagLines();
+  const tips = [];
+  if(lsDead){
+    tips.push('这个浏览器现在不让网页往本机写数据，所以每次改动都存不下来。常见原因：① 无痕 / 隐私窗口（就算没手动开，有些浏览器「省流」「极速」模式也算）；② 设置里关掉了「网站数据 / Cookie」；③ 从微信、QQ 等聊天里直接点开，用的是应用内窗口。');
+    tips.push('能做的：先点「📥 导出」把当前数据存成文件（哪怕现在是空的，也留着做底）。然后复制上面的网址，粘到手机自带浏览器（Chrome / Safari / 系统浏览器）里重新打开，再「导入」这份文件。');
+    tips.push(saveDegraded === 'idb'
+      ? '页面已经退一步用了浏览器数据库暂存：同一个浏览器关掉再开还在，但换浏览器或清理数据会一起清掉。'
+      : '浏览器数据库也写不进去，现在改动只存在这个页面里，刷新就没了。');
+  }else{
+    const used = storageUsedBytes();
+    if(saveDegraded === 'full'){
+      tips.push('本机存储已经满了（浏览器一般只给 5 MB 左右），最新的改动没写进去。先点「📥 导出」备份，再清一清很早的日志——清空日志后每日统计的涨跌和明细都还在，能腾出不少空间。');
+    }else{
+      tips.push('本机存储可以用。已用 ' + fmtBytes(used) + '（浏览器一般给 5 MB 左右）。');
+    }
+    if(used / STORAGE_REF_LIMIT >= 0.8) tips.push('快满了：建议先「📥 导出」备份，再清一清很早的日志。');
+  }
+  tips.push('数据只存在这个浏览器里，不会自己跨设备。换手机 / 换浏览器要带走，就用「📥 导出」→「📁 导入」，或者配一次「☁ 云同步」。');
+  openModal({
+    title: '本机存储检测',
+    sub: lsDead ? '现在存不进本机' : '正常',
+    body: '<div class="stg-box">' +
+        '<div class="stg-lines">' + lines.map(function(l){
+          return '<div class="stg-l">' + esc(l).replace(/^(\s+)/, '&nbsp;&nbsp;&nbsp;') + '</div>';
+        }).join('') + '</div>' +
+        '<div class="stg-tips">' + tips.map(function(t){ return '<p>' + esc(t) + '</p>'; }).join('') + '</div>' +
+      '</div>',
+    actions: [
+      {text:'复制检测结果', cls:'btn', onClick:function(){ copyText(lines.join('\n') + '\n\n' + tips.join('\n'), this); }},
+      {text:'导出备份', cls:'btn', onClick:function(){ exportJson(); }},
+      {text:'关闭', cls:'btn primary', onClick:closeModal}
+    ]
+  });
+}
 let lastSavedScale = 0;
 let skipShrinkSnap = false;   /* 主动清日志时不必再留一份「数据骤减」快照（清空前已手动留过） */
 function save(){
+  let json = '';
   try{
     const cd = curData();
     if(cd) archiveDays(cd);                     /* 今天之前的变动，顺手存成每日汇总 */
-    const raw = localStorage.getItem(KEY);      /* 覆盖前的旧存档 */
+    json = JSON.stringify(S);
+    let raw = null;
+    try{ raw = localStorage.getItem(KEY); }catch(e0){}   /* 读都读不到时也别耽误下面的兜底 */
     const nowScale = storeScale();
     if(!syncApplying && !skipShrinkSnap && lastSavedScale > 0 && nowScale < lastSavedScale * 0.5){
       syncSnapFromRaw(raw, '数据骤减前');        /* 云端覆盖 / 误导入空文件都能留底 */
     }
-    localStorage.setItem(KEY, JSON.stringify(S));
+    localStorage.setItem(KEY, json);
     lastSavedScale = nowScale;
     saveWarned = '';
+    saveDegraded = '';
     renderStorageNote();
     scheduleCloudSync();
     return true;
@@ -3017,19 +3211,66 @@ function save(){
                           e.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
                           e.code === 22 || e.code === 1014);
     const why = quota ? 'quota' : 'denied';
+    lsErrName = (e && (e.name || '')) || lsErrName;
+    if(quota) saveDegraded = 'full';
     renderStorageNote(true);
+    /* localStorage 写不进：退一步存进浏览器数据库，至少同一个浏览器关掉再开还在 */
+    if(json && !quota) mirrorToIDB(json);
     if(saveWarned !== why){
       saveWarned = why;
       toast(quota
         ? '保存失败：本机存储空间已满，这次改动没写入。先点「📥 导出」备份，再清理旧记录'
-        : '保存失败：浏览器不让写本地存储（隐私模式？），刷新后会丢。换普通窗口打开，或先点「📥 导出」备份', true);
+        : '保存失败：这个浏览器不让网页写本机存储（不是隐私模式也会——常见于关掉了「网站数据」、或从聊天 / 应用里直接打开的窗口）。改动只在当前页面，关掉就没了：先点「📥 导出」备份，再换手机自带浏览器打开。', true);
     }
     return false;
   }
 }
+/* localStorage 被拦时，从浏览器数据库里把上次的存档捞回来 */
+let idbBootDone = false, pendingIDBJson = '';
+function idbReadyToMirror(){
+  idbBootDone = true;
+  if(pendingIDBJson){ const j = pendingIDBJson; pendingIDBJson = ''; mirrorToIDB(j); }
+}
+function restoreFromIDB(){
+  if(!lsBootEmpty || !lsDead){ idbReadyToMirror(); return; }
+  idbGet('raw').then(function(raw){
+    if(!raw){ idbReadyToMirror(); return; }
+    let p; try{ p = JSON.parse(raw); }catch(e){ idbReadyToMirror(); return; }
+    if(!p || !p.accounts || !p.data){ idbReadyToMirror(); return; }
+    const cd = curData();
+    /* 刚建的空账号才覆盖：用户已经动手记了东西就别冲掉 */
+    if(cd && ((cd.logs || []).length || Number(cd.logsClearedAt) > 0)){ idbReadyToMirror(); return; }
+    Object.keys(p.data).forEach(function(k){ p.data[k] = normalize(p.data[k]); });
+    S = p;
+    saveDegraded = 'idb';
+    idbBootDone = true;            /* 恢复的就是库里那份，不用再写回去 */
+    pendingIDBJson = '';
+    renderAll();
+    renderStorageNote();
+    toast('本机存储这次被浏览器拦了，已从浏览器数据库把上次的存档捞回来');
+  }, function(){ idbReadyToMirror(); });
+}
+/* localStorage 被拦时把存档镜像进 IndexedDB（同一浏览器有效，换浏览器/清数据照样没有） */
+function mirrorToIDB(json){
+  if(!idbBootDone){ pendingIDBJson = json; return; }   /* 还在启动恢复，别拿空账号把库覆盖了 */
+  idbSet('raw', json).then(function(){
+    if(saveDegraded !== 'idb'){
+      saveDegraded = 'idb';
+      renderStorageNote(true);
+      toast('本机存储被浏览器拦住了，已改用浏览器数据库暂存——同一个浏览器关掉再开还在，但换浏览器或清数据会丢，记得定期「📥 导出」', true);
+    }
+  }, function(){
+    if(saveDegraded !== 'none'){
+      saveDegraded = 'none';
+      renderStorageNote(true);
+    }
+  });
+}
+let lsBootEmpty = false;   /* 启动时 localStorage 里没有存档（新账号 / 读不到） */
 function load(){
   let raw = null;
   try{ raw = localStorage.getItem(KEY); }catch(e){}
+  lsBootEmpty = !raw;
   if(raw){
     try{
       const p = JSON.parse(raw);
@@ -3090,7 +3331,6 @@ function fmtDate(d){
 function cnDate(d){
   return d.getFullYear() + '年' + (d.getMonth()+1) + '月' + d.getDate() + '日 · ' + WEEK[(d.getDay()+6)%7];
 }
-let toastTimer = null;
 function toast(msg, isErr){
   const t = $('#toast');
   t.textContent = msg;
@@ -8503,6 +8743,14 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.72 存不进数据时，能看清卡在哪',
+     '<p>有些浏览器会把本机存储整个关掉——不是隐私模式也会：关掉了「网站数据 / Cookie」、从聊天里直接点开用的是应用内窗口、或者开着省流 / 极速模式。' +
+     '以前只弹一句「隐私模式？」，看着像工具坏了，也不知道该怎么办。</p>' +
+     '<p>现在页面顶部会常驻一条提示，点「处理办法」打开<b>本机存储检测</b>：写入被拦的具体错误名、浏览器数据库能不能用、当前存档多大，' +
+     '还有按顺序怎么把数据搬出来。检测结果可以一键复制。</p>' +
+     '<p>另外加了兜底：本机存储写不进去时，自动改用<b>浏览器数据库</b>暂存，同一个浏览器关掉再开还在' +
+     '（换浏览器或清数据会一起没，所以还是要定期「📥 导出」）。「空间满了」和「不让写」现在分开提示，不会再一律说成隐私模式。</p>',
+     '2026.11'],
     ['V2.71 清空日志，明细也留下来了',
      '<p>V2.70 之后清空日志、或被 2000 条上限挤掉，每日统计的涨跌还在，但点「查看」只剩汇总。现在<b>逐条明细也一起留档</b>：' +
      '清完再点表格最右的「查看」，那段时间里这振改过什么、几点改的，一条条都看得到，改完刷新页面也还在。</p>' +
@@ -9046,6 +9294,13 @@ function initEvents(){
   $('#btnExport').onclick = exportJson;
   const sBackup = $('#btnStorageBackup');
   if(sBackup) sBackup.onclick = exportJson;
+  const sNote = $('#storageNote');
+  if(sNote) sNote.onclick = function(e){
+    if(e.target && e.target.id === 'btnStorageBackup') return;   /* 按钮自己管导出 */
+    openStorageDiag();
+  };
+  const sBanner = $('#btnStoreBanner');
+  if(sBanner) sBanner.onclick = function(e){ e.stopPropagation(); openStorageDiag(); };
   const openSyncEntry = function(){
     if(syncState.status === 'guard' && pendingGuard){ openCloudGuard(); return; }
     if(syncState.status === 'conflict' && pendingCloud){ openCloudConflict(); return; }
@@ -9220,6 +9475,7 @@ function initPetals(){
   initEvents();
   applyTheme(themeState());   /* 把主题与 theme-color 再对一次，避免首屏 meta 还是默认色 */
   switchTab('catalog');
+  restoreFromIDB();   /* 本机存储被拦时，看看浏览器数据库里有没有上次的存档 */
   cloudBoot();   /* 已启用云同步时：先拉云端，再允许自动上传 */
 })();
 </script>
