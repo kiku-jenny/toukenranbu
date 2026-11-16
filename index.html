@@ -1469,7 +1469,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.70</div>
+        <div class="brand-sub">HONMARU KEEPER V2.71</div>
       </div>
     </div>
 
@@ -2799,6 +2799,12 @@ function normalize(d){
   }
   if(!Array.isArray(d.res)) d.res = seedRes();
   if(!d.dayAgg || typeof d.dayAgg !== 'object' || Array.isArray(d.dayAgg)) d.dayAgg = {};
+  /* 归档明细不是数组就当没有（手改 / 同步码截断过的数据别把渲染撑崩） */
+  Object.keys(d.dayAgg).forEach(function(k){
+    const a = d.dayAgg[k];
+    if(!a || typeof a !== 'object'){ delete d.dayAgg[k]; return; }
+    if(a.l !== undefined && !Array.isArray(a.l)) delete a.l;
+  });
   if(!Array.isArray(d.records)) d.records = [];
   d.calc = normCalc(d.calc);
   d.logs = normLogs(d.logs);
@@ -5135,7 +5141,10 @@ function renderLogs(){
     if(ui.logDate) cond.push(ui.logDate);
     empty.textContent = cond.length
       ? '没有匹配 ' + cond.join(' / ') + ' 的日志，换个条件试试。'
-      : '还没有日志：图鉴保存、增删刀剑、活动登记喂刀、资源记录变化都会自动记在这里。';
+      : (Number(d.logsClearedAt) > 0
+          ? '变动记录在 ' + fmtDate(new Date(d.logsClearedAt)) + ' 清空过，之后的变动会照常记在这里；' +
+            '清掉的那些明细没丢，在每日统计里点「查看」照样看得到。'
+          : '还没有日志：图鉴保存、增删刀剑、活动登记喂刀、资源记录变化都会自动记在这里。');
     wrap.hidden = true;
     body.innerHTML = '';
     pager.innerHTML = '';
@@ -5226,6 +5235,8 @@ function renderLogs(){
    统计时优先用日志（有明细），日志不在了就退回这一天的汇总。 */
 const DAY_AGG_MAX = 600000;   /* 汇总表按字符数封顶，超了从最旧的一天删 */
 const DAY_AGG_KEEP = 730;     /* 最多留两年 */
+const LOG_ARC_MAX = 900000;   /* 归档明细的字符预算：超了从最旧的一天开始丢明细，当天汇总照留 */
+const REL_F = {lv:1, exp:1, plv:1, k:1, ranbu:1, r:1, rp:1};   /* 进统计的变动字段 */
 
 function packDayRec(r){
   const o = {n:r.no, c:r.cnt, t:r.last || 0};
@@ -5291,21 +5302,77 @@ function mergeDayRec(map, src){
   }
   return rec;
 }
+/* ---------- 明细也跟着留一份 ----------
+   汇总只有涨跌，点「查看」就什么都看不到了。所以日志真要丢的时候（清空 / 被
+   2000 条上限挤出），把那段明细也压一份存进当天的 l。只存进统计的那类变动
+   （等级 / 经验 / 极化 / 乱舞），改名、资源这种本来就不在「查看」里。 */
+function logInStat(l){
+  if(!l || l.kind === 'new' || l.kind === 'del' || l.kind === 'res') return false;
+  return (l.changes || []).some(function(c){ return REL_F[c.f]; });
+}
+function packLogItem(l){
+  return {t:l.ts, n:Number(l.no) || 0, c:(l.changes || []).map(function(c){
+    const o = {};
+    Object.keys(c).forEach(function(k){ if(c[k] !== undefined) o[k] = c[k]; });
+    return o;
+  })};
+}
+function unpackLogItem(o, day){
+  return {id:'arc-' + o.t + '-' + o.n + '-' + (o.c && o.c[0] ? o.c[0].f : ''),
+          ts:Number(o.t) || 0, kind:'sword', no:Number(o.n) || 0, name:'',
+          act:'', ses:'', src:'', date:day || '', changes:o.c || [], arc:1};
+}
 /* frozen：清空日志前存下的「这一段日志已经没有了」。之后同一天新写的日志仍会实时叠加上去 */
 function buildDayAgg(d, day, logs, frozen){
   const o = dailyAgg({logs:logs, dayAgg:null}, day, day);
   const out = {c:o.logs, n:o.newCnt, d:o.delCnt, r:o.resCnt, x:o.rows.map(packDayRec)};
-  if(frozen) out.f = 1;
+  if(frozen){
+    out.f = 1;
+    const det = [];
+    (logs || []).forEach(function(l){ if(logInStat(l)) det.push(packLogItem(l)); });
+    if(det.length) out.l = det;
+  }
   return out;
+}
+/* 这天已经冻结过（被上限挤掉一段），日志里又攒了些新的：并进去，别覆盖掉已有的 */
+function mergeFrozenDay(d, day, have, list){
+  const fresh = dailyAgg({logs:list, dayAgg:null}, day, day);
+  const map = {};
+  fresh.rows.forEach(function(r){ mergeDayRec(map, r); });        /* 新的在前 */
+  (have.x || []).forEach(function(po){ mergeDayRec(map, unpackDayRec(po)); });
+  have.x = Object.keys(map).map(function(k){ return packDayRec(map[k]); });
+  have.c = (Number(have.c) || 0) + fresh.logs;
+  have.n = (Number(have.n) || 0) + fresh.newCnt;
+  have.d = (Number(have.d) || 0) + fresh.delCnt;
+  have.r = (Number(have.r) || 0) + fresh.resCnt;
+  const det = Array.isArray(have.l) ? have.l : [];
+  list.forEach(function(l){ if(logInStat(l)) det.push(packLogItem(l)); });
+  if(det.length) have.l = det; else delete have.l;
+  have.f = 1;
+}
+function aggSumLen(a){
+  return JSON.stringify({c:a.c, n:a.n, d:a.d, r:a.r, x:a.x}).length;
 }
 function trimDayAgg(d){
   const agg = d.dayAgg || {};
   const days = Object.keys(agg).sort();
-  while(days.length > DAY_AGG_KEEP) delete agg[days.shift()];
-  let txt = JSON.stringify(agg);
-  while(days.length > 60 && txt.length > DAY_AGG_MAX){
+  while(days.length > DAY_AGG_KEEP) delete agg[days.shift()];     /* 最多留两年 */
+  /* 汇总：超字符上限就从最旧删整天（至少留 60 天，够看一段趋势） */
+  let sumLen = 0;
+  days.forEach(function(k){ if(agg[k]) sumLen += aggSumLen(agg[k]); });
+  while(days.length > 60 && agg[days[0]] && sumLen > DAY_AGG_MAX){
+    sumLen -= aggSumLen(agg[days[0]]);
     delete agg[days.shift()];
-    txt = JSON.stringify(agg);
+  }
+  /* 明细：单独一份预算，超了只丢最旧那几天的明细（lc 标记，不再回填），汇总照留 */
+  let logLen = 0;
+  days.forEach(function(k){ if(agg[k] && agg[k].l) logLen += JSON.stringify(agg[k].l).length; });
+  while(logLen > LOG_ARC_MAX && days.length > 1){
+    const a = agg[days.shift()];
+    if(!a || !a.l) continue;
+    logLen -= JSON.stringify(a.l).length;
+    delete a.l;
+    a.lc = 1;
   }
 }
 /* 把「今天之前」还没归档的日子补上；includeToday 用于清空日志前把今天也存下来 */
@@ -5313,9 +5380,10 @@ function archiveDays(d, opts){
   if(!d) return false;
   const today = fmtDate(new Date());
   const withToday = !!(opts && opts.includeToday);
+  const force = !!(opts && opts.force);
   /* 同一天、日志条数没变就不用再扫一遍（保存很频繁，省掉这趟开销） */
   const nLogs = (d.logs || []).length;
-  if(!withToday && d.aggMark === today + '/' + nLogs) return false;
+  if(!withToday && !force && d.aggMark === today + '/' + nLogs) return false;
   if(!d.dayAgg || typeof d.dayAgg !== 'object') d.dayAgg = {};
   const agg = d.dayAgg;
   const byDay = {};
@@ -5325,18 +5393,24 @@ function archiveDays(d, opts){
     (byDay[day] = byDay[day] || []).push(l);
   });
   d.aggMark = today + '/' + nLogs;
-  const buckets = {};
+  const plan = {};
   Object.keys(byDay).forEach(function(day){
     const list = byDay[day];
     const have = agg[day];
-    if(have && have.f) return;                              /* 冻结段不再覆盖，新日志由统计时实时叠加 */
-    if(have && Number(have.c) >= list.length) return;        /* 日志没变多（被挤掉 / 删掉的另算） */
-    buckets[day] = list;
+    if(have && have.f){
+      /* 冻结段包含日志里已经没有的内容，不能覆盖；清空前把日志里剩下的并进去 */
+      if(force && list.length) plan[day] = 'merge';
+      return;
+    }
+    if(!force && have && Number(have.c) >= list.length) return;   /* 日志没变多（被挤掉 / 删掉的另算） */
+    plan[day] = 'build';
   });
-  const days = Object.keys(buckets);
+  const days = Object.keys(plan);
   if(!days.length) return false;
+  /* includeToday 是「马上要清空」，这些天的明细也跟着存一份 */
   days.forEach(function(day){
-    agg[day] = buildDayAgg(d, day, buckets[day], withToday && day === today);
+    if(plan[day] === 'merge') mergeFrozenDay(d, day, agg[day], byDay[day]);
+    else agg[day] = buildDayAgg(d, day, byDay[day], withToday);
   });
   trimDayAgg(d);
   return true;
@@ -5350,12 +5424,28 @@ function refreshDayAgg(d, day){
   if(!logs.length){ delete d.dayAgg[day]; return; }
   d.dayAgg[day] = buildDayAgg(d, day, logs);
 }
-/* 日志到达上限：先把今天以前的日子留档，再挤掉最旧的 */
+/* 日志到达上限：把最旧那几天整天地搬进归档（汇总 + 明细一起），再挤掉。
+   按「天」搬是为了别让一天一半在日志、一半在归档——统计时两边对不上。 */
 function capLogs(d){
   if(!d || !Array.isArray(d.logs)) return;
   if(d.logs.length <= LOG_MAX) return;
-  archiveDays(d);
-  if(d.logs.length > LOG_MAX) d.logs.length = LOG_MAX;
+  if(!d.dayAgg || typeof d.dayAgg !== 'object') d.dayAgg = {};
+  const edge = d.logs[LOG_MAX - 1];
+  const cutDay = fmtDate(new Date(edge ? edge.ts : Date.now()));
+  const keep = [], drop = {};
+  d.logs.forEach(function(l){
+    const day = fmtDate(new Date(l.ts));
+    if(day <= cutDay) (drop[day] = drop[day] || []).push(l);
+    else keep.push(l);
+  });
+  Object.keys(drop).sort().forEach(function(day){
+    const have = d.dayAgg[day];
+    if(have && have.f) mergeFrozenDay(d, day, have, drop[day]);
+    else d.dayAgg[day] = buildDayAgg(d, day, drop[day], true);
+  });
+  d.logs = keep;
+  d.aggMark = fmtDate(new Date()) + '/' + d.logs.length;
+  if(Object.keys(drop).length) trimDayAgg(d);   /* 真的搬了东西才重算预算，别每条日志都跑一趟 */
 }
 
 function dailyAgg(d, from, to){
@@ -5555,23 +5645,44 @@ function dayShift(n){
 /* 行尾「查看」：这段里这振有几条记录，点开按时间先后列出来 */
 function dayLogCell(rec){
   const n = Number(rec.cnt) || 0;
-  return '<td data-l="记录" class="dt-op"><button class="day-view" data-no="' + rec.no + '" title="按时间看这振在这段里的 ' +
+  return '<td data-l="记录" class="dt-op"><button class="day-view" data-no="' + rec.no + '" data-cnt="' + n + '" title="按时间看这振在这段里的 ' +
     n + ' 条记录">查看' + (n > 1 ? '<em>' + n + '</em>' : '') + '</button></td>';
 }
-/* 这振在 [from, to] 里真正进了统计的那些日志（改名 / 换获取方式这种不算） */
+/* 这振在 [from, to] 里真正进了统计的那些日志（改名 / 换获取方式这种不算）。
+   日志被清空 / 被挤掉之后，明细从当天的归档 l 里取，两边按内容去重后一起按时间排。 */
 function dayLogList(no, from, to){
   const d = curData();
   if(!d) return [];
-  const REL = {lv:1, exp:1, plv:1, k:1, ranbu:1, r:1, rp:1};
-  return (d.logs || []).filter(function(l){
-    if(l.kind === 'new' || l.kind === 'del' || l.kind === 'res') return false;
-    if(Number(l.no) !== Number(no)) return false;
+  const items = [], seen = {};
+  const fpOf = function(l){ return l.ts + '|' + l.no + '|' + JSON.stringify(l.changes || []); };
+  (d.logs || []).forEach(function(l){
+    if(!logInStat(l)) return;
+    if(Number(l.no) !== Number(no)) return;
     const day = fmtDate(new Date(l.ts));
-    if(day < from || day > to) return false;
-    return (l.changes || []).some(function(c){ return REL[c.f]; });
-  }).sort(function(a, b){ return a.ts - b.ts; });    // 按时间先后，老的在上
+    if(day < from || day > to) return;
+    const fp = fpOf(l);
+    if(seen[fp]) return;
+    seen[fp] = 1;
+    items.push({l:l, s:items.length});
+  });
+  const agg = d.dayAgg || {};
+  Object.keys(agg).forEach(function(day){
+    if(day < from || day > to) return;
+    const det = Array.isArray(agg[day].l) ? agg[day].l : [];
+    det.forEach(function(p){
+      const l = unpackLogItem(p, day);
+      if(Number(l.no) !== Number(no)) return;
+      const fp = fpOf(l);
+      if(seen[fp]) return;
+      seen[fp] = 1;
+      items.push({l:l, s:items.length});
+    });
+  });
+  /* 时间先后，老的在上；万一同一条日志落在同一毫秒，按写入的先后（数组里越靠前越新） */
+  return items.sort(function(a, b){ return (a.l.ts - b.l.ts) || (b.s - a.s); })
+              .map(function(x){ return x.l; });
 }
-function openDayLogs(no){
+function openDayLogs(no, cnt){
   const d = curData();
   const row = rowOf(no);
   if(!d || !row) return;
@@ -5591,15 +5702,19 @@ function openDayLogs(no){
       sub: (same ? from : (from + ' 至 ' + to)) + ' · 0 条明细',
       body: '<p class="muted" style="margin:0;font-size:12px;line-height:1.9;">' +
         (archived
-          ? '这振在这段里的明细已经不在了（日志被清空，或超过 2000 条被挤出），只剩每天的汇总——每日统计里的等级 / 经验 / 乱舞涨跌仍然保留。'
+          ? '这振在这段里的明细没留下来（清空的那些日子已经有了明细备份，更早的只存了汇总，或明细超出保留量被裁掉了）——' +
+            '每日统计里的等级 / 经验 / 乱舞涨跌仍然保留，只是看不到逐条时间。'
           : '这段里没有找到这振的变动记录。') + '</p>',
       actions: [{text:'关闭', cls:'btn', onClick:closeModal}]
     });
     return;
   }
+  /* 汇总里的记录条数比明细多，说明有几天只剩汇总了 */
+  const miss = Number(cnt) > list.length;
   openModal({
     title: '「' + row.name + '」的变动时间',
-    sub: (same ? from : (from + ' 至 ' + to)) + ' · 共 ' + list.length + ' 条记录 · 按时间先后',
+    sub: (same ? from : (from + ' 至 ' + to)) + ' · 共 ' + list.length + ' 条明细' +
+         (miss ? '（另有 ' + (Number(cnt) - list.length) + ' 条只留了汇总）' : '') + ' · 按时间先后',
     body: '<div id="dvWrap"></div>',
     actions: [{text:'关闭', cls:'btn', onClick:closeModal}]
   });
@@ -5791,7 +5906,8 @@ function renderDaily(){
   const scope = mode === 'day' ? '这一天' : (mode === 'week' ? '这一周' : (mode === 'month' ? '这个月' : '这段时间'));
   const emptyBase = !(d.logs || []).length
     ? (Number(d.logsClearedAt) > 0
-        ? '变动记录在 ' + fmtDate(new Date(d.logsClearedAt)) + ' 清空过，这一段历史没法回溯了；图鉴与资源数据都还在，之后的新变动会照常按天记上来。'
+        ? '变动记录在 ' + fmtDate(new Date(d.logsClearedAt)) + ' 清空过，页面上看不到之前的逐条日志了；图鉴与资源数据都还在，' +
+          '每日统计的汇总和明细另存了一份，之后的新变动会照常按天记上来。'
         : '这个账号还没有变动记录：保存图鉴、喂刀、记资源后，会按天统计在这里。')
     : (st.logs ? '' : scope + '没有变动记录，换个日期或范围看看。');
 
@@ -6183,8 +6299,9 @@ function clearLogs(){
     title:'清空变动记录',
     sub:'当前账号下的 ' + n + ' 条日志会被全部删掉，不能撤销。',
     body: '<div class="clr-box">' +
-        '<p><b class="clr-y">保留</b>图鉴里每振的等级 / 经验 / 拥有状态 / 极化 / 乱舞，资源记录、活动记录，还有<b>每日统计的历史</b>——每天的结果会另外存一份汇总，清完照样能看。</p>' +
-        '<p><b class="clr-r">清掉</b>这 ' + n + ' 条明细本身；每日统计里点「查看」的逐条时间会没有，只剩每天汇总的涨跌。</p>' +
+        '<p><b class="clr-y">保留</b>图鉴里每振的等级 / 经验 / 拥有状态 / 极化 / 乱舞，资源记录、活动记录；' +
+        '每日统计的历史也另存一份：<b>每天的汇总</b>，还有每振在这天<b>逐条改了什么</b>——清完点「查看」照样看得到明细时间。</p>' +
+        '<p><b class="clr-r">清掉</b>的只是变动记录页里这 ' + n + ' 条。明细会占一点本机存储，攒得太多时从最旧的日子开始只留汇总，涨跌一直保留。</p>' +
         (canSnap ? '<p class="clr-t">清空前会在本机自动留一份快照（最多 4 份，只存这台设备）。反悔了，可在「云同步 → 恢复本机数据」里找回。</p>' : '') +
       '</div>',
     actions:[
@@ -6192,7 +6309,7 @@ function clearLogs(){
       {text:'清空 ' + n + ' 条', cls:'btn primary', onClick:function(){
         const go = function(){
           skipShrinkSnap = true;
-          archiveDays(d, {includeToday:true});   /* 连今天的变动也存成汇总，清完统计仍有数 */
+          archiveDays(d, {includeToday:true, force:true});   /* 连今天的汇总和明细一起留档，清完统计和「查看」都还有 */
           d.logs = [];
           d.logsClearedAt = Date.now();
           ui.logPage = 1;
@@ -8386,9 +8503,18 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.71 清空日志，明细也留下来了',
+     '<p>V2.70 之后清空日志、或被 2000 条上限挤掉，每日统计的涨跌还在，但点「查看」只剩汇总。现在<b>逐条明细也一起留档</b>：' +
+     '清完再点表格最右的「查看」，那段时间里这振改过什么、几点改的，一条条都看得到，改完刷新页面也还在。</p>' +
+     '<p>明细跟着当天的记录存，只留进统计的那几类（等级 / 经验 / 极化 / 乱舞）——改名、资源本来就不在「查看」里。' +
+     '存得太多时从<b>最旧的日子</b>开始只留汇总：涨跌一直在，不会把本机存储撑爆。' +
+     '「查看」标题后面会写「另有 N 条只留了汇总」，少了多少一眼看得出来。</p>' +
+     '<p>顺手改的：2000 条上限现在按<b>天整段</b>搬进归档，不会出现一天一半在日志、一半在归档、统计对不上的情况；' +
+     '清空确认窗、日志页空态、每日统计的空状态说明也一起把话说清楚了。</p>',
+     '2026.11'],
     ['V2.70 清空日志，每日统计也还在',
      '<p>以前每日统计是拿日志现算的，日志一清空、或被 2000 条上限挤掉，那几天的涨跌就跟着没了。现在每天的结果会另存一份<b>汇总</b>（跟着账号存，和日志分开）：' +
-     '清空之后回来再看，「等级 · 经验」「乱舞」的涨跌和记录条数都还在，只是点<b>查看</b>看不到逐条时间了。</p>' +
+     '清空之后回来再看，「等级 · 经验」「乱舞」的涨跌和记录条数都还在（逐条明细在 V2.71 补上了）。</p>' +
      '<p>汇总只记每振的首末值和净涨跌，一天通常就几振、几百字节；最多留两年，总量也有上限，不会把本机存储撑爆。' +
      '清空之后当天继续记的变动会叠加上去，不会从头开始算。</p>',
      '2026.11'],
@@ -9028,7 +9154,7 @@ function initEvents(){
   if(viewDailyEl) viewDailyEl.addEventListener('click', function(e){
     const b = e.target.closest('.day-view');
     if(!b) return;
-    openDayLogs(Number(b.dataset.no));
+    openDayLogs(Number(b.dataset.no), Number(b.dataset.cnt));
   });
   const dayToday = $('#btnDayToday'); if(dayToday) dayToday.onclick = function(){
     ui.day = fmtDate(new Date()); ui.dayPageLv = 1; ui.dayPageRb = 1; renderDaily();
