@@ -292,6 +292,41 @@
     padding:22px 24px 26px;box-shadow:var(--shadow);min-height:calc(100vh - 40px);
   }
 
+  /* ---------- 图鉴页常驻滚动条（右侧悬浮，两端可一键到顶 / 到底） ---------- */
+  html{scrollbar-gutter:stable;}   /* 桌面：滚动条常驻，切换页签时内容不再左右跳 */
+  .vscroll{
+    position:fixed;right:2px;top:50%;transform:translateY(-50%);
+    z-index:60;height:44vh;max-height:400px;min-height:170px;
+    display:flex;flex-direction:column;align-items:center;gap:2px;
+    padding:3px 2px;border-radius:999px;
+    background:rgba(255,250,251,.40);border:1px solid rgba(240,210,216,.5);
+    opacity:.74;transition:opacity .18s,background .18s;
+    touch-action:none;user-select:none;-webkit-user-select:none;
+  }
+  .vscroll:hover,.vscroll.on{opacity:1;background:rgba(255,250,251,.88);}
+  .vs-btn{
+    position:relative;width:16px;height:16px;flex:0 0 16px;display:grid;place-items:center;
+    border:0;border-radius:50%;background:transparent;color:var(--sub);
+    font-family:inherit;font-size:8px;line-height:1;padding:0;cursor:pointer;
+    transition:background .15s,color .15s,transform .1s;
+  }
+  .vs-btn::before{content:'';position:absolute;inset:-7px;}   /* 手指点得到的实际范围 */
+  .vs-btn:hover{background:var(--pink-soft);color:var(--accent-deep);}
+  .vs-btn:active{transform:scale(.9);}
+  .vs-track{
+    position:relative;flex:1 1 auto;width:5px;margin:1px 0;
+    border-radius:99px;background:rgba(228,182,193,.45);cursor:pointer;
+  }
+  .vs-track::before{content:'';position:absolute;left:-9px;right:-9px;top:0;bottom:0;}  /* 手机上加宽命中区 */
+  .vs-thumb{
+    position:absolute;left:0;top:0;width:5px;min-height:26px;border-radius:99px;
+    background:linear-gradient(180deg,var(--accent-3),var(--accent-2));cursor:grab;
+    box-shadow:0 0 0 1px rgba(255,255,255,.6) inset;transition:filter .15s;
+  }
+  .vs-thumb:hover,.vscroll.on .vs-thumb{filter:brightness(1.08);cursor:grabbing;}
+  @media (min-width:900px){ .vscroll{right:14px;} }
+
+
   /* ---------- 品牌 ---------- */
   .brand{display:flex;gap:12px;align-items:center;padding-bottom:16px;border-bottom:1px dashed var(--line);}
   .crest{
@@ -1507,7 +1542,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.76</div>
+        <div class="brand-sub">HONMARU KEEPER V2.77</div>
       </div>
     </div>
 
@@ -1933,6 +1968,13 @@
 
 <div id="modalRoot"></div>
 <div class="toast" id="toast"></div>
+
+<!-- 图鉴页常驻滚动条：可拖动，两端一键到顶 / 到底 -->
+<div class="vscroll" id="vScroll" hidden>
+  <button class="vs-btn" id="vsTop" type="button" title="回到顶部" aria-label="回到顶部">▲</button>
+  <div class="vs-track" id="vsTrack"><div class="vs-thumb" id="vsThumb"></div></div>
+  <button class="vs-btn" id="vsBottom" type="button" title="滑到底部" aria-label="滑到底部">▼</button>
+</div>
 
 <script>
 /* =========================================================
@@ -2600,6 +2642,7 @@ const RES_MAX = 999999999;
 const KEY = 'honmaru_keeper_v3';
 let S = null;
 let toastTimer = null;   /* toast 在启动时也可能被调用（存储写不进），先声明免得 TDZ */
+let vsDragging = null, vsRafId = 0;   /* 图鉴页滚动条：启动阶段 renderAll 就会用到，先声明 */
 
 /* ---------- 页面脚本自己的异常 ----------
    V2.74 之前 save() 是一个大 try：归档、刷新提示、云同步里任何一句出错，
@@ -9014,6 +9057,12 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.77 图鉴页右侧常驻滚动条',
+     '<p>图鉴一屏放不下 130 振，滑到中间很容易找不到自己在哪。现在<b>图鉴页右侧常驻一条竖向滚动条</b>：' +
+     '滑块长度代表整页有多长、位置代表看到哪了，可以直接按住拖动。</p>' +
+     '<p>两端的 <b>▲ / ▼</b> 一下就到顶 / 到底；点轨道空白处也能跳过去。距离太远时直接跳，不让人干等平滑滚动。</p>' +
+     '<p>只在图鉴页出现，切到别的页自动收起来；手机上做得比较窄（20 px），压在卡片右侧的留白上，不挡字。</p>',
+     '2026.11'],
     ['V2.76 打开快了一大截',
      '<p>之前每次打开都要把整页重新下载一遍（压缩后约 150 KB），手机网络下就是好几秒的白屏。</p>' +
      '<p>现在第一次打开照常下载，之后改用浏览器自带的<b>离线缓存</b>：直接从本机读，基本是立刻出画面，' +
@@ -9485,6 +9534,11 @@ function renderAll(){
   if(ui.tab === 'daily') renderDaily();
   if(ui.tab === 'resources') renderResources();
   if(ui.tab === 'records') renderCalc();
+  vsSchedule();   /* 列表长度变了（筛选 / 搜索），滚动条跟着重算 */
+}
+function vsSchedule(){
+  if(vsRafId) return;
+  vsRafId = requestAnimationFrame(function(){ vsRafId = 0; vsUpdate(); });
 }
 function switchTab(tab){
   ui.tab = tab;
@@ -9498,6 +9552,75 @@ function switchTab(tab){
   renderAll();
   $('#sidebar').classList.remove('open');
   $('#scrim').classList.remove('on');
+  vsUpdate();
+}
+
+/* ---------- 图鉴页常驻滚动条：显示位置、可拖、两端到顶 / 到底 ---------- */
+function vsRange(){
+  const doc = document.documentElement;
+  const total = Math.max(doc.scrollHeight, document.body.scrollHeight);
+  const view = window.innerHeight;
+  return {total: total, view: view, max: Math.max(0, total - view)};
+}
+function vsUpdate(){
+  const box = $('#vScroll'), track = $('#vsTrack'), thumb = $('#vsThumb');
+  if(!box || !track || !thumb) return;
+  const r = vsRange();
+  /* 只在图鉴页、且确实要滚动时才出现 */
+  if(ui.tab !== 'catalog' || r.max < 60){ box.hidden = true; return; }
+  const wasHidden = box.hidden;
+  box.hidden = false;
+  const th = track.clientHeight || 1;
+  const h = Math.max(26, Math.min(th, Math.round(th * r.view / r.total)));
+  const top = Math.round((th - h) * Math.min(1, Math.max(0, (window.scrollY || 0) / r.max)));
+  thumb.style.height = h + 'px';
+  thumb.style.transform = 'translateY(' + top + 'px)';
+  if(wasHidden) box.classList.toggle('on', false);
+}
+function vsJump(top){
+  /* 距离太远（超过三屏）就直接跳，别让人等平滑滚动爬完 */
+  const far = Math.abs(top - (window.scrollY || 0)) > window.innerHeight * 3;
+  try{ window.scrollTo({top: top, behavior: far ? 'auto' : 'smooth'}); }
+  catch(e){ window.scrollTo(0, top); }
+}
+function vsBind(){
+  const box = $('#vScroll'), track = $('#vsTrack'), thumb = $('#vsThumb');
+  if(!box || !track || !thumb) return;
+  $('#vsTop').onclick = function(){ vsJump(0); };
+  $('#vsBottom').onclick = function(){ vsJump(vsRange().max); };
+
+  track.addEventListener('pointerdown', function(e){
+    const th = track.clientHeight || 1;
+    const h = thumb.offsetHeight || 26;
+    const rect = track.getBoundingClientRect();
+    if(e.target === thumb || thumb.contains(e.target)){
+      vsDragging = {y: e.clientY, top: window.scrollY || 0, th: th, h: h};
+    }else{
+      /* 点轨道空白处：把滑块中心挪到手指位置 */
+      const ratio = Math.max(0, Math.min(1, ((e.clientY - rect.top) - h / 2) / Math.max(1, th - h)));
+      vsJump(ratio * vsRange().max);
+    }
+    box.classList.add('on');
+    try{ track.setPointerCapture(e.pointerId); }catch(e2){}
+    e.preventDefault();
+  });
+  track.addEventListener('pointermove', function(e){
+    if(!vsDragging) return;
+    const ratio = (e.clientY - vsDragging.y) / Math.max(1, vsDragging.th - vsDragging.h);
+    const target = vsDragging.top + ratio * vsRange().max;
+    window.scrollTo(0, Math.max(0, Math.min(vsRange().max, target)));
+    e.preventDefault();
+  });
+  ['pointerup', 'pointercancel'].forEach(function(t){
+    track.addEventListener(t, function(){
+      vsDragging = null;
+      box.classList.remove('on');
+    });
+  });
+  window.addEventListener('scroll', vsSchedule, {passive: true});
+  window.addEventListener('resize', vsUpdate);
+  window.addEventListener('orientationchange', function(){ setTimeout(vsUpdate, 260); });
+  vsUpdate();
 }
 
 function resetData(){
@@ -9780,6 +9903,7 @@ function initPetals(){
   initEvents();
   applyTheme(themeState());   /* 把主题与 theme-color 再对一次，避免首屏 meta 还是默认色 */
   switchTab('catalog');
+  vsBind();   /* 图鉴页右侧常驻滚动条（到顶 / 到底 / 可拖） */
   restoreFromIDB();   /* 本机存储被拦时，看看浏览器数据库里有没有上次的存档 */
   cloudBoot();   /* 已启用云同步时：先拉云端，再允许自动上传 */
 })();

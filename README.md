@@ -4,7 +4,7 @@
 
 - 在线版（GitHub Pages）：https://kiku-jenny.github.io/toukenranbu/
 - 在线版（Cloudflare Pages，更快）：https://honmaru-keeper.pages.dev/
-- 当前版本：**V2.76**
+- 当前版本：**V2.77**
 - 数据保存在浏览器 localStorage，不上传任何地方；需要多设备互通时，可在「☁ 云同步」里填自己的 Supabase 密钥（数据先在本机加密再上传）。
 
 ## 更新方式
@@ -32,6 +32,8 @@ bash /workspace/.deploy/sync.sh
 > Cloudflare Pages 项目设置：Framework preset = None，Build command **留空**，Build output directory = `/`。若填了构建命令或把输出目录改成 `public`，会部署出 404 / 空页面。
 
 ## 更新记录
+
+- **V2.77** 图鉴页右侧常驻滚动条：`vsUpdate()` 按 `scrollHeight / innerHeight` 算出滑块长度与位置，`vsBind()` 绑 pointerdown/move/up 支持拖动、点轨道空白跳转，两端 `▲ / ▼` 一键到顶 / 到底（距离超过三屏时用 `auto` 直接跳，避免平滑滚动爬行）；只在 `ui.tab === 'catalog'` 且可滚动距离 ≥ 60 px 时出现，切页签自动收起；`renderAll()` 末尾 `vsSchedule()` 用 rAF 合并重算，筛选 / 搜索导致列表变短时位置同步；控件宽 20 px 贴右边缘，仅压住卡片右侧留白；`html { scrollbar-gutter: stable }` 让桌面原生滚动条常驻，切换页签时内容不再左右跳；`vsDragging / vsRafId` 提到顶部变量区避免 TDZ
 
 - **V2.76** 打开提速：新增 `sw.js`（Service Worker），首页走 stale-while-revalidate —— 第一次照常下载，之后直接从本地缓存出页面（实测第二次打开传输 0 字节、约 120 ms），后台用 ETag / Last-Modified / 长度核对线上版本，变了就更新缓存并 `postMessage` 通知页面，底部弹一个「新版本已经下好了 · 重新载入」小胶囊，不点则下次打开自动是新版；无网也能打开；`file://` 双击打开或浏览器不支持时整段跳过，不影响单文件离线使用；缓存只处理同源 GET，云同步等跨域请求不插手
 - **V2.75** 修「明明才用了 43 KB、写入测试还能写 4 MB，却一直提示本机写不进」：`save()` 原先是一个大 try，归档每日汇总 / 刷新提示 / 云同步这些附带动作任何一句抛异常（手机内核报 `ReferenceError` 等），都会被记成「本机写不进」，再给出「空间不够，去清日志」的错误建议。现在只有 `localStorage.setItem(KEY)` 这一步失败才算写不进，附带动作各自兜住并记进新增的 `appErr`（`noteAppErr()` 保留错误名 / 消息 / 行号）；写不进时若已镜像到 IndexedDB，横幅改为浅色（`.store-banner.soft`）「已自动改存浏览器数据库 · 不影响使用」，不再红色告警；诊断窗新增「页面脚本」一行，检测结果里如实指向脚本异常而不是空间；`renderStorageNote()` 内部整体兜住，提示刷新失败不再影响存档落盘
