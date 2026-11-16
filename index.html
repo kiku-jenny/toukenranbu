@@ -1067,7 +1067,7 @@
   [data-dark="1"] .clr-y{color:#8fce9f;}
   [data-dark="1"] .clr-r{color:#e69a9a;}
   /* 本机存储检测 */
-  .store-banner{display:flex;align-items:center;gap:8px;margin:0 0 12px;
+  .store-banner{display:flex;align-items:center;gap:8px;margin:0 0 12px;cursor:pointer;
     padding:9px 12px;border-radius:10px;background:rgba(194,81,81,.10);
     border:1px solid rgba(194,81,81,.22);}
   .store-banner[hidden]{display:none;}
@@ -1485,7 +1485,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.72</div>
+        <div class="brand-sub">HONMARU KEEPER V2.73</div>
       </div>
     </div>
 
@@ -3069,15 +3069,16 @@ function renderStorageNote(silent){
   if(!box || !txt) return;
   /* 页面顶部也提醒一句：手机上看不到侧栏，只有 toast 一闪就没了 */
   const banner = $('#storeBanner'), bTxt = $('#storeBannerText');
-  const showBanner = lsDead || saveDegraded === 'full';
+  const showBanner = lsDead || !!saveDegraded;
   if(banner){
     banner.hidden = !showBanner;
     if(showBanner && bTxt){
-      bTxt.textContent = lsDead
-        ? (saveDegraded === 'idb'
-            ? '⚠ 浏览器不让存数据，已改用浏览器数据库暂存（换浏览器会丢）'
-            : '⚠ 浏览器不让存数据，改动刷新就没了')
-        : '⚠ 本机存储已满，这次改动没写进去';
+      bTxt.textContent =
+        saveDegraded === 'idb' ? '⚠ 存不进本机，已暂存到浏览器数据库（换浏览器会丢）'
+        : saveDegraded === 'full' ? '⚠ 本机存储已满，这次改动没写进去'
+        : saveDegraded === 'none' ? '⚠ 存不进本机，改动关掉就没了'
+        : saveDegraded === 'local' ? '⚠ 存不进本机，先备份再换个浏览器'
+        : '⚠ 浏览器不让存数据，先点「处理办法」看怎么办';
     }
   }
   if(lsDead){
@@ -3117,8 +3118,11 @@ function storageDiagLines(){
   const lines = [];
   lines.push('网址：' + location.href.replace(/[?#].*$/, ''));
   lines.push('浏览器：' + (navigator.userAgent || '未知'));
-  lines.push('本机存储（localStorage）：' + (lsDead ? '不可用' : '可用'));
+  const writeBlocked = !!saveDegraded && saveDegraded !== 'full';
+  lines.push('本机存储（localStorage）：' +
+    (lsDead ? '不可用' : (writeBlocked ? '读得到，但写不进' : '可用')));
   if(lsDead) lines.push('  错误：' + (lsErrName || '未知（写入后读不回来）'));
+  else if(writeBlocked) lines.push('  写入错误：' + (lsErrName || '未知'));
   lines.push('浏览器数据库（IndexedDB）：' +
     (idbDead ? '不可用' : (idbPromise ? '已连接' : '未检测')));
   let raw = '';
@@ -3153,25 +3157,27 @@ function fallbackCopy(str){
 function openStorageDiag(){
   const lines = storageDiagLines();
   const tips = [];
-  if(lsDead){
-    tips.push('这个浏览器现在不让网页往本机写数据，所以每次改动都存不下来。常见原因：① 无痕 / 隐私窗口（就算没手动开，有些浏览器「省流」「极速」模式也算）；② 设置里关掉了「网站数据 / Cookie」；③ 从微信、QQ 等聊天里直接点开，用的是应用内窗口。');
-    tips.push('能做的：先点「📥 导出」把当前数据存成文件（哪怕现在是空的，也留着做底）。然后复制上面的网址，粘到手机自带浏览器（Chrome / Safari / 系统浏览器）里重新打开，再「导入」这份文件。');
+  /* 写不进本机：读也读不到（lsDead），或者读得到但写失败（saveDegraded 非空且不是「满」） */
+  const blocked = lsDead || (!!saveDegraded && saveDegraded !== 'full');
+  if(blocked){
+    tips.push('这个浏览器不让网页往本机写数据，所以每次改动都存不下来。常见原因：无痕 / 隐私窗口、关掉了「网站数据 / Cookie」、开着省流 / 极速模式，或者是从微信、QQ 等聊天里直接点开的应用内窗口。');
+    tips.push('先把数据搬出去（哪步能成就行）：① 点「导出备份」——手机上会弹系统分享，直接发到微信「文件传输助手」或存进文件；② 数据不多时也可以点「生成同步码」，复制发给自己；③ 换手机自带浏览器（Chrome / 华为 / 小米 / Safari）打开同一个网址，再用「📁 导入」或「📋 读码」还原。');
     tips.push(saveDegraded === 'idb'
-      ? '页面已经退一步用了浏览器数据库暂存：同一个浏览器关掉再开还在，但换浏览器或清理数据会一起清掉。'
-      : '浏览器数据库也写不进去，现在改动只存在这个页面里，刷新就没了。');
+      ? '现在已退一步用浏览器数据库暂存：同一个浏览器关掉再开还在，换浏览器或清理数据会一起没了。'
+      : '浏览器数据库也写不进去，改动只在这个页面里，关掉或刷新就没了——先搬数据。');
   }else{
     const used = storageUsedBytes();
     if(saveDegraded === 'full'){
-      tips.push('本机存储已经满了（浏览器一般只给 5 MB 左右），最新的改动没写进去。先点「📥 导出」备份，再清一清很早的日志——清空日志后每日统计的涨跌和明细都还在，能腾出不少空间。');
+      tips.push('本机存储已经满了（浏览器一般只给 5 MB 左右），最新的改动没写进去。先点「导出备份」，再清一清很早的日志——清空日志后每日统计的涨跌和明细都还在，能腾出不少空间。');
     }else{
       tips.push('本机存储可以用。已用 ' + fmtBytes(used) + '（浏览器一般给 5 MB 左右）。');
     }
-    if(used / STORAGE_REF_LIMIT >= 0.8) tips.push('快满了：建议先「📥 导出」备份，再清一清很早的日志。');
+    if(used / STORAGE_REF_LIMIT >= 0.8) tips.push('快满了：建议先「导出备份」，再清一清很早的日志。');
   }
-  tips.push('数据只存在这个浏览器里，不会自己跨设备。换手机 / 换浏览器要带走，就用「📥 导出」→「📁 导入」，或者配一次「☁ 云同步」。');
+  tips.push('数据只存在这个浏览器里，不会自己跨设备。换手机 / 换浏览器要带走，就用「🔗 同步码」或「📥 导出」→「📁 导入」，也可以配一次「☁ 云同步」。');
   openModal({
     title: '本机存储检测',
-    sub: lsDead ? '现在存不进本机' : '正常',
+    sub: blocked ? '现在存不进本机' : (saveDegraded === 'full' ? '空间已满' : '正常'),
     body: '<div class="stg-box">' +
         '<div class="stg-lines">' + lines.map(function(l){
           return '<div class="stg-l">' + esc(l).replace(/^(\s+)/, '&nbsp;&nbsp;&nbsp;') + '</div>';
@@ -3179,8 +3185,9 @@ function openStorageDiag(){
         '<div class="stg-tips">' + tips.map(function(t){ return '<p>' + esc(t) + '</p>'; }).join('') + '</div>' +
       '</div>',
     actions: [
-      {text:'复制检测结果', cls:'btn', onClick:function(){ copyText(lines.join('\n') + '\n\n' + tips.join('\n'), this); }},
       {text:'导出备份', cls:'btn', onClick:function(){ exportJson(); }},
+      {text:'生成同步码', cls:'btn', onClick:function(){ closeModal(); openSyncGen(); }},
+      {text:'复制检测结果', cls:'btn', onClick:function(){ copyText(lines.join('\n') + '\n\n' + tips.join('\n'), this); }},
       {text:'关闭', cls:'btn primary', onClick:closeModal}
     ]
   });
@@ -3192,6 +3199,7 @@ function save(){
   try{
     const cd = curData();
     if(cd) archiveDays(cd);                     /* 今天之前的变动，顺手存成每日汇总 */
+    if(S) S.savedAt = Date.now();               /* 给两份存档（本机 / 浏览器数据库）比新旧用 */
     json = JSON.stringify(S);
     let raw = null;
     try{ raw = localStorage.getItem(KEY); }catch(e0){}   /* 读都读不到时也别耽误下面的兜底 */
@@ -3212,15 +3220,14 @@ function save(){
                           e.code === 22 || e.code === 1014);
     const why = quota ? 'quota' : 'denied';
     lsErrName = (e && (e.name || '')) || lsErrName;
-    if(quota) saveDegraded = 'full';
+    /* 先按最坏情况记账，等浏览器数据库那边有结果再升级成「已暂存」 */
+    saveDegraded = quota ? 'full' : 'local';
     renderStorageNote(true);
     /* localStorage 写不进：退一步存进浏览器数据库，至少同一个浏览器关掉再开还在 */
     if(json && !quota) mirrorToIDB(json);
     if(saveWarned !== why){
       saveWarned = why;
-      toast(quota
-        ? '保存失败：本机存储空间已满，这次改动没写入。先点「📥 导出」备份，再清理旧记录'
-        : '保存失败：这个浏览器不让网页写本机存储（不是隐私模式也会——常见于关掉了「网站数据」、或从聊天 / 应用里直接打开的窗口）。改动只在当前页面，关掉就没了：先点「📥 导出」备份，再换手机自带浏览器打开。', true);
+      toast(quota ? '存不进本机：空间满了 · 先导出备份再清理' : '存不进本机：已临时留着，看页面顶部的提示', true);
     }
     return false;
   }
@@ -3232,14 +3239,17 @@ function idbReadyToMirror(){
   if(pendingIDBJson){ const j = pendingIDBJson; pendingIDBJson = ''; mirrorToIDB(j); }
 }
 function restoreFromIDB(){
-  if(!lsBootEmpty || !lsDead){ idbReadyToMirror(); return; }
   idbGet('raw').then(function(raw){
     if(!raw){ idbReadyToMirror(); return; }
     let p; try{ p = JSON.parse(raw); }catch(e){ idbReadyToMirror(); return; }
     if(!p || !p.accounts || !p.data){ idbReadyToMirror(); return; }
-    const cd = curData();
-    /* 刚建的空账号才覆盖：用户已经动手记了东西就别冲掉 */
-    if(cd && ((cd.logs || []).length || Number(cd.logsClearedAt) > 0)){ idbReadyToMirror(); return; }
+    const idbTs = Number(p.savedAt) || 0;
+    const curTs = bootSavedAt || 0;      /* 用启动时读到的，别用刚被 save() 刷成 now 的内存值 */
+    /* 只认「本机真的没有存档」；「没有日志」不等于没数据——老用户可能只是没记过变动 */
+    const blank = lsBootEmpty;
+    /* 只在两种情况下采用库里的：本机是空白的，或者库里的明显更新
+       （写不进本机时会走后者——不然刷新后读回旧存档，新改动看着就丢了） */
+    if(!blank && !(idbTs > curTs)){ idbReadyToMirror(); return; }
     Object.keys(p.data).forEach(function(k){ p.data[k] = normalize(p.data[k]); });
     S = p;
     saveDegraded = 'idb';
@@ -3247,7 +3257,8 @@ function restoreFromIDB(){
     pendingIDBJson = '';
     renderAll();
     renderStorageNote();
-    toast('本机存储这次被浏览器拦了，已从浏览器数据库把上次的存档捞回来');
+    toast(blank ? '本机存储被浏览器拦了，已从浏览器数据库把上次的存档捞回来'
+                : '本机存不进新改动，已改用浏览器数据库里更新的那份');
   }, function(){ idbReadyToMirror(); });
 }
 /* localStorage 被拦时把存档镜像进 IndexedDB（同一浏览器有效，换浏览器/清数据照样没有） */
@@ -3257,7 +3268,7 @@ function mirrorToIDB(json){
     if(saveDegraded !== 'idb'){
       saveDegraded = 'idb';
       renderStorageNote(true);
-      toast('本机存储被浏览器拦住了，已改用浏览器数据库暂存——同一个浏览器关掉再开还在，但换浏览器或清数据会丢，记得定期「📥 导出」', true);
+      toast('已暂存到浏览器数据库 · 记得导出备份', true);
     }
   }, function(){
     if(saveDegraded !== 'none'){
@@ -3267,6 +3278,7 @@ function mirrorToIDB(json){
   });
 }
 let lsBootEmpty = false;   /* 启动时 localStorage 里没有存档（新账号 / 读不到） */
+let bootSavedAt = 0;       /* 启动时读到的存档时间：跟浏览器数据库里的那份比新旧，用这个而不是刚改过的内存值 */
 function load(){
   let raw = null;
   try{ raw = localStorage.getItem(KEY); }catch(e){}
@@ -3276,6 +3288,7 @@ function load(){
       const p = JSON.parse(raw);
       if(p && p.accounts && p.data){
         Object.keys(p.data).forEach(function(k){ p.data[k] = normalize(p.data[k]); });
+        bootSavedAt = Number(p.savedAt) || 0;
         return p;
       }
     }catch(e){}
@@ -8521,10 +8534,28 @@ function payload(){
 }
 function exportJson(){
   if(!curData()){ toast('请先新建账号', true); return; }
-  const blob = new Blob([JSON.stringify(payload(), null, 2)], {type:'application/json'});
+  const json = JSON.stringify(payload(), null, 2);
+  const name = '本丸图鉴_' + S.server + '_' + fmtDate(new Date()) + '.json';
+  const blob = new Blob([json], {type:'application/json'});
+  /* 手机上优先走系统分享：微信 / 应用内窗口里点下载常常没反应，分享能直接发给自己 */
+  let file = null;
+  try{ file = (typeof File === 'function') ? new File([blob], name, {type:'application/json'}) : null; }catch(e){}
+  const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+  if(file && mobile && navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+    navigator.share({files:[file], title: name}).then(function(){
+      toast('已交给系统分享');
+    }, function(err){
+      if(err && err.name === 'AbortError') return;   /* 用户自己取消 */
+      saveFileBlob(blob, name);
+    });
+    return;
+  }
+  saveFileBlob(blob, name);
+}
+function saveFileBlob(blob, name){
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = '本丸图鉴_' + S.server + '_' + fmtDate(new Date()) + '.json';
+  a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1500);
   toast('已导出图鉴 JSON');
@@ -8743,6 +8774,14 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.73 存不进本机时，先看到、再搬走',
+     '<p>V2.72 的提示有个漏洞：只有<b>连读都读不到</b>才会在顶部出横幅。像「读得到、但写不进去」这种情况（关掉网站数据、应用内窗口常见），' +
+     '页面顶部什么都不显示，只有角落里一句很长的提示，手机上还挡住半个屏幕。</p>' +
+     '<p>现在只要写不进去，标题下面就常驻一条，<b>整条都能点</b>；提示文字压到一行多，不再糊住内容。检测窗里会把状态写准——' +
+     '「读得到，但写不进」而不是含糊的「可用」。</p>' +
+     '<p>搬数据的路子也顺了：「导出备份」在手机上改走<b>系统分享</b>（应用内窗口点下载常常没反应，分享能直接发到微信「文件传输助手」），' +
+     '检测窗里还多了一个「生成同步码」的入口。三步：导出 / 生成码 → 发给自己 → 换手机自带浏览器打开网址，导入或读码。</p>',
+     '2026.11'],
     ['V2.72 存不进数据时，能看清卡在哪',
      '<p>有些浏览器会把本机存储整个关掉——不是隐私模式也会：关掉了「网站数据 / Cookie」、从聊天里直接点开用的是应用内窗口、或者开着省流 / 极速模式。' +
      '以前只弹一句「隐私模式？」，看着像工具坏了，也不知道该怎么办。</p>' +
@@ -9294,13 +9333,18 @@ function initEvents(){
   $('#btnExport').onclick = exportJson;
   const sBackup = $('#btnStorageBackup');
   if(sBackup) sBackup.onclick = exportJson;
+  const sBanner = $('#storeBanner');
+  if(sBanner) sBanner.onclick = function(e){
+    if(e.target && e.target.id === 'btnStoreBanner') return;   /* 按钮自己有绑定 */
+    openStorageDiag();
+  };
   const sNote = $('#storageNote');
   if(sNote) sNote.onclick = function(e){
     if(e.target && e.target.id === 'btnStorageBackup') return;   /* 按钮自己管导出 */
     openStorageDiag();
   };
-  const sBanner = $('#btnStoreBanner');
-  if(sBanner) sBanner.onclick = function(e){ e.stopPropagation(); openStorageDiag(); };
+  const sBannerBtn = $('#btnStoreBanner');
+  if(sBannerBtn) sBannerBtn.onclick = function(e){ e.stopPropagation(); openStorageDiag(); };
   const openSyncEntry = function(){
     if(syncState.status === 'guard' && pendingGuard){ openCloudGuard(); return; }
     if(syncState.status === 'conflict' && pendingCloud){ openCloudConflict(); return; }
