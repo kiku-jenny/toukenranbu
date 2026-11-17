@@ -3,7 +3,7 @@
    策略：缓存优先 + 后台只发一个 HEAD 核对（比整页重新下载省得多）。
    线上内容变了（ETag / 修改时间 / 长度不同）才重新拉一份，并通知页面「新版本已就绪」。 */
 
-const CACHE = 'honmaru-cache-v12';
+const CACHE = 'honmaru-cache-v13';
 const PAGE = './';
 
 self.addEventListener('install', function(e){
