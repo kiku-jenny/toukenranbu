@@ -10613,7 +10613,13 @@ function initPetals(){
                  location.hostname === 'localhost' || location.hostname === '127.0.0.1';
   if(!('serviceWorker' in navigator) || !secure) return;   /* 本地双击打开（file://）直接跳过 */
   window.addEventListener('load', function(){
-    try{ navigator.serviceWorker.register('./sw.js').catch(function(){}); }catch(e){}
+    try{
+      /* updateViaCache:'none'：sw.js 每次打开都绕过 HTTP 缓存核对，
+         否则服务端发了新版，浏览器还可能拿 10 分钟前的旧 sw.js，页面就一直不刷新 */
+      navigator.serviceWorker.register('./sw.js', {updateViaCache:'none'}).then(function(reg){
+        try{ reg.update(); }catch(e){}
+      }).catch(function(){});
+    }catch(e){}
   });
   try{
     navigator.serviceWorker.addEventListener('message', function(ev){

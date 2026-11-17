@@ -3,14 +3,14 @@
    策略：缓存优先 + 后台只发一个 HEAD 核对（比整页重新下载省得多）。
    线上内容变了（ETag / 修改时间 / 长度不同）才重新拉一份，并通知页面「新版本已就绪」。 */
 
-const CACHE = 'honmaru-cache-v7';
+const CACHE = 'honmaru-cache-v8';
 const PAGE = './';
 
 self.addEventListener('install', function(e){
   e.waitUntil(
     caches.open(CACHE)
-      /* force-cache：刚打开过的页面通常还在 HTTP 缓存里，别为预缓存再下一次 */
-      .then(function(c){ return c.add(new Request(PAGE, {cache:'force-cache'})); })
+      /* reload：绕过 HTTP 缓存，确保新装的 SW 里存的一定是这次发的新页面 */
+      .then(function(c){ return c.add(new Request(PAGE, {cache:'reload'})); })
       .then(function(){ return self.skipWaiting(); })
   );
 });
