@@ -1615,7 +1615,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.83</div>
+        <div class="brand-sub">HONMARU KEEPER V2.84</div>
       </div>
     </div>
 
@@ -5862,6 +5862,8 @@ const REL_F = {lv:1, exp:1, plv:1, k:1, ranbu:1, r:1, rp:1};   /* 进统计的�
 
 function packDayRec(r){
   const o = {n:r.no, c:r.cnt, t:r.last || 0};
+  if(r.lvCnt) o.lc = r.lvCnt;
+  if(r.rbCnt) o.rc = r.rbCnt;
   if(r.hasLv){ o.a = r.lvFrom; o.b = r.lvTo; o.g = r.lvGain; }
   if(r.hasPlv){ o.pa = r.plvFrom; o.pb = r.plvTo; o.pg = r.plvGain; }
   if(r.hasExp) o.e = r.expGain;
@@ -5871,8 +5873,13 @@ function packDayRec(r){
 }
 function unpackDayRec(o){
   const has = function(v){ return v !== null && v !== undefined; };
+  /* 老归档没有 lc/rc，按有没有对应涨跌估一条，角标不会平白变 0 */
+  const lvPart = has(o.a) || has(o.b) || has(o.e) || has(o.pa) || has(o.pb) || !!o.p;
+  const rbPart = !!o.ra || !!o.rb;
   return {
     no:Number(o.n) || 0, name:'', cnt:Number(o.c) || 0, last:Number(o.t) || 0,
+    lvCnt:has(o.lc) ? Number(o.lc) : (lvPart ? 1 : 0),
+    rbCnt:has(o.rc) ? Number(o.rc) : (rbPart ? 1 : 0),
     lvFrom:has(o.a) ? o.a : null, lvTo:has(o.b) ? o.b : null,
     lvGain:Number(o.g) || 0, hasLv:has(o.a) || has(o.b),
     plvFrom:has(o.pa) ? o.pa : null, plvTo:has(o.pb) ? o.pb : null,
@@ -5888,6 +5895,7 @@ function mergeDayRec(map, src){
   if(!rec){
     rec = map[src.no] = {
       no:src.no, name:src.name || ('No.' + src.no), cnt:0, last:0,
+      lvCnt:0, rbCnt:0,
       lvFrom:null, lvTo:null, lvGain:0, hasLv:false,
       plvFrom:null, plvTo:null, plvGain:0, hasPlv:false,
       expGain:0, hasExp:false,
@@ -5896,6 +5904,8 @@ function mergeDayRec(map, src){
     };
   }
   rec.cnt += Number(src.cnt) || 0;
+  rec.lvCnt += Number(src.lvCnt) || 0;
+  rec.rbCnt += Number(src.rbCnt) || 0;
   if(Number(src.last) > Number(rec.last)) rec.last = Number(src.last);
   if(src.name) rec.name = src.name;
   if(src.hasLv){
@@ -6132,6 +6142,7 @@ function dailyAgg(d, from, to){
     if(!rec){
       rec = map[no] = {
         no:no, name:l.name || ('No.' + no), cnt:0, last:0,
+        lvCnt:0, rbCnt:0,
         lvFrom:null, lvTo:null, lvGain:0, hasLv:false,
         plvFrom:null, plvTo:null, plvGain:0, hasPlv:false,
         expGain:0, hasExp:false,
@@ -6140,6 +6151,10 @@ function dailyAgg(d, from, to){
       };
     }
     rec.cnt++;
+    /* 等级/经验 与 乱舞 分开计数：批量编辑可能一条里两样都改，两边各记一次，
+       点「查看」时只给对应的那一类，角标也只显示那一类的条数 */
+    if(lvA !== null || kChg || hasExp || hasPlv) rec.lvCnt++;
+    if(hasRb) rec.rbCnt++;
     /* 这段里最后一次变动的时间：换「更新时间」排序用，名字下面也拿它标时刻 */
     if(!rec.last || l.ts > rec.last) rec.last = l.ts;
     if(l.name) rec.name = l.name;
@@ -6265,10 +6280,14 @@ function dayShift(n){
   renderDaily();
 }
 /* 行尾「查看」：这段里这振有几条记录，点开按时间先后列出来 */
-function dayLogCell(rec){
-  const n = Number(rec.cnt) || 0;
-  return '<td data-l="记录" class="dt-op"><button class="day-view" data-no="' + rec.no + '" data-cnt="' + n + '" title="按时间看这振在这段里的 ' +
-    n + ' 条记录">查看' + (n > 1 ? '<em>' + n + '</em>' : '') + '</button></td>';
+function dayLogCell(rec, kind){
+  const isRb = kind === 'rb';
+  const n = isRb
+    ? (Number(rec.rbCnt) || (rec.hasRb ? 1 : 0))
+    : (Number(rec.lvCnt) || ((rec.hasLv || rec.hasExp || rec.hasPlv || rec.polar) ? 1 : 0));
+  const label = isRb ? '乱舞' : '等级经验';
+  return '<td data-l="记录" class="dt-op"><button class="day-view" data-no="' + rec.no + '" data-kind="' + kind + '" data-cnt="' + n + '" title="按时间看这振在这段里的 ' +
+    n + ' 条' + label + '变动">查看' + (n > 1 ? '<em>' + n + '</em>' : '') + '</button></td>';
 }
 /* 这振在 [from, to] 里真正进了统计的那些日志（改名 / 换获取方式这种不算）。
    日志被清空 / 被挤掉之后，明细从当天的归档 l 里取，两边按内容去重后一起按时间排。 */
@@ -6304,14 +6323,26 @@ function dayLogList(no, from, to){
   return items.sort(function(a, b){ return (a.l.ts - b.l.ts) || (b.s - a.s); })
               .map(function(x){ return x.l; });
 }
-function openDayLogs(no, cnt){
+function openDayLogs(no, cnt, kind){
   const d = curData();
   const row = rowOf(no);
   if(!d || !row) return;
+  const isRb = kind === 'rb';
+  const label = isRb ? '乱舞' : '等级经验';
+  /* 只留这一类字段：等级经验表看 lv/exp/plv/k，乱舞表看 ranbu/r/rp。
+     一条日志可能两样都改（批量编辑），两边都会列出来，但每边只显示自己那几项。 */
+  const keepC = function(c){
+    return isRb
+      ? (c.f === 'ranbu' || c.f === 'r' || c.f === 'rp')
+      : (c.f === 'lv' || c.f === 'exp' || c.f === 'plv' || c.f === 'k');
+  };
+  const flat = function(l){ return logFlat({kind:l.kind, changes:(l.changes || []).filter(keepC)}); };
   const rg = dayRange();
   const from = rg[0], to = rg[1];
   const same = from === to;
-  const list = dayLogList(no, from, to);
+  const list = dayLogList(no, from, to).filter(function(l){
+    return (l.changes || []).some(keepC);
+  });
   if(!list.length){
     /* 明细被清空 / 被上限挤出后，这一振在这段里可能只剩每日汇总 */
     const agg = d.dayAgg || {};
@@ -6320,13 +6351,13 @@ function openDayLogs(no, cnt){
       return (agg[day].x || []).some(function(p){ return Number(p.n) === no; });
     });
     openModal({
-      title: '「' + row.name + '」的变动时间',
+      title: '「' + row.name + '」的' + label + '变动时间',
       sub: (same ? from : (from + ' 至 ' + to)) + ' · 0 条明细',
       body: '<p class="muted" style="margin:0;font-size:12px;line-height:1.9;">' +
         (archived
           ? '这振在这段里的明细没留下来（清空的那些日子已经有了明细备份，更早的只存了汇总，或明细超出保留量被裁掉了）——' +
-            '每日统计里的等级 / 经验 / 乱舞涨跌仍然保留，只是看不到逐条时间。'
-          : '这段里没有找到这振的变动记录。') + '</p>',
+            '每日统计里的' + label + '涨跌仍然保留，只是看不到逐条时间。'
+          : '这段里没有找到这振的' + label + '变动记录。') + '</p>',
       actions: [{text:'关闭', cls:'btn', onClick:closeModal}]
     });
     return;
@@ -6334,8 +6365,8 @@ function openDayLogs(no, cnt){
   /* 汇总里的记录条数比明细多，说明有几天只剩汇总了 */
   const miss = Number(cnt) > list.length;
   openModal({
-    title: '「' + row.name + '」的变动时间',
-    sub: (same ? from : (from + ' 至 ' + to)) + ' · 共 ' + list.length + ' 条明细' +
+    title: '「' + row.name + '」的' + label + '变动时间',
+    sub: (same ? from : (from + ' 至 ' + to)) + ' · 共 ' + list.length + ' 条' + label + '明细' +
          (miss ? '（另有 ' + (Number(cnt) - list.length) + ' 条只留了汇总）' : '') + ' · 按时间先后',
     body: '<div id="dvWrap"></div>',
     actions: [{text:'关闭', cls:'btn', onClick:closeModal}]
@@ -6354,7 +6385,7 @@ function openDayLogs(no, cnt){
       return '<div class="dv-row">' +
         '<span class="dv-i">' + (start + i + 1) + '</span>' +
         '<span class="dv-t">' + t + '</span>' +
-        '<span class="dv-c">' + esc(logFlat(l)) + '</span>' +
+        '<span class="dv-c">' + esc(flat(l)) + '</span>' +
       '</div>';
     }).join('');
     const pager = pages > 1
@@ -6583,7 +6614,7 @@ function renderDaily(){
       return '<tr><td>' + dayNameCell(r, lastTxt) + '</td>' +
         '<td data-l="等级"><div class="day-cell day-cell-l">' + dayLvHTML(r) + '</div></td>' +
         '<td data-l="经验增长"><div class="day-cell">' + expTxt + '</div></td>' +
-        dayLogCell(r) + '</tr>';
+        dayLogCell(r, 'lv') + '</tr>';
     }).join('');
     dayPages(lvPager, pages, ui.dayPageLv, function(pg){ ui.dayPageLv = pg; renderDaily(); }, per);
   }
@@ -6630,7 +6661,7 @@ function renderDaily(){
       return '<tr><td>' + dayNameCell(r) + '</td>' +
         '<td data-l="乱舞变化" class="dt-rb"><div class="day-cell day-cell-l">' + rbTxt + '</div></td>' +
         '<td data-l="获得振数"><div class="day-cell">' + gainTxt + '</div></td>' +
-        dayLogCell(r) + '</tr>';
+        dayLogCell(r, 'rb') + '</tr>';
     }).join('');
     dayPages(rbPager, pages, ui.dayPageRb, function(pg){ ui.dayPageRb = pg; renderDaily(); }, per);
   }
@@ -9770,6 +9801,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.84 每日统计的「查看」按表分开',
+     '<p>以前「等级 · 经验」和「乱舞」两张表里的「查看」，点开都是这振在这段时间里的<b>全部</b>变动，等级、经验、乱舞混在一块，想单独看一样还得自己挑。</p>' +
+     '<p>现在分开：<b>等级经验表里只看等级 / 经验 / 极化等级的变动，乱舞表里只看乱舞等级和进度</b>。就算一条批量编辑同时改了两样，两边也各自只显示自己那部分。按钮后面的小数字也按类别各算各的，标几条就是几条。</p>' +
+     '<p>日志被清空或归档之后，逐条明细仍从当天的备份里取，筛选规则一样——历史的记录也能分开看。</p>',
+     '2026.11'],
     ['V2.83 云同步先选库，选完只显示选中的那一套',
      '<p>以前打开云同步，两个库的按钮并排摆着，下面还挂着两种模式的说明，看完不太确定自己该点哪儿。</p>' +
      '<p>现在先<b>二选一</b>：公共库、我自己的库，各配一句说明，点下去后面板只剩你选的那一套——该填什么、该生成什么，都在眼前。已经配好的直接进当前那一套，顶部一行「当前用：公共库」，旁边有「更换」，想换随时点。</p>' +
@@ -10598,7 +10634,7 @@ function initEvents(){
   if(viewDailyEl) viewDailyEl.addEventListener('click', function(e){
     const b = e.target.closest('.day-view');
     if(!b) return;
-    openDayLogs(Number(b.dataset.no), Number(b.dataset.cnt));
+    openDayLogs(Number(b.dataset.no), Number(b.dataset.cnt), b.dataset.kind || 'lv');
   });
   const dayToday = $('#btnDayToday'); if(dayToday) dayToday.onclick = function(){
     ui.day = fmtDate(new Date()); ui.dayPageLv = 1; ui.dayPageRb = 1; renderDaily();
