@@ -706,6 +706,10 @@
   /* 扩大触摸热区，视觉尺寸不变 */
   .fav-drag::after{content:'';position:absolute;inset:-9px;}
   .fav-drag{position:relative;}
+  .card-del.locked{opacity:.75;cursor:not-allowed;}
+  .card-del.locked:hover{background:none;color:var(--muted);transform:none;}
+  /* 顶部刀账锁定按钮 */
+  .btn.lock-on{color:#a97f2f;border-color:#e6cd96;background:rgba(217,164,65,.1);}
   .card.fav-dragging{opacity:.42;}
   .card.fav.drop-target{outline:2px dashed #cf9a33;outline-offset:-3px;}
   /* 已置顶：金色描边 + 左侧细条，多振时可以一眼看出哪些在前面 */
@@ -1664,7 +1668,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.87</div>
+        <div class="brand-sub">HONMARU KEEPER V2.88</div>
       </div>
     </div>
 
@@ -1771,6 +1775,7 @@
         </select>
         <div class="tool-btns">
           <button class="btn primary" id="btnAddSword">＋ 新增刀剑</button>
+          <button class="btn" id="btnRosterLock" title="锁定刀账后不能删除任何刀剑">🔓 刀账未锁定</button>
           <button class="btn" id="btnFillFlower" title="按内置刀帐把空着的花数补上">🌸 补全花数</button>
           <button class="btn" id="btnExport">📥 导出</button>
           <button class="btn" id="btnImport">📤 导入</button>
@@ -2894,12 +2899,12 @@ const FLOWER = [5,5,3,3,3,1,5,3,5,2,5,2,4,2,2,1,1,1,1,1,1,1,1,1,1,1,5,4,3,4,1,3,
 /* 初次打开（本机还没有存档）时带的初始图鉴：保留原有 130 振的资料 */
 function seedData(){
   return {ver:6, roster:1, tw:seedTw(), open:seedOpen(), res:seedRes(), records:[], logs:[],
-          searchHist:[], logSearchHist:[], calc:seedCalc()};
+          searchHist:[], logSearchHist:[], rosterLock:{on:0, at:0, n:0}, calc:seedCalc()};
 }
 /* 新建的账号从零开始：图鉴、资源、活动、变动记录全空 */
 function blankData(){
   return {ver:6, roster:1, tw:[], open:[], res:[], records:[], logs:[],
-          searchHist:[], logSearchHist:[],
+          searchHist:[], logSearchHist:[], rosterLock:{on:0, at:0, n:0},
           calc:{acts:[], cur:'', curS:'', boost:true, lvlSync:true}};
 }
 /* 变动日志：{id, kind, no, name, act, ses, src, date, changes:[{f, ...}], ts}
@@ -3197,6 +3202,13 @@ function normalize(d){
   /* 搜索历史：老存档没有就补空数组，并钳制到最近 10 条 */
   d.searchHist = normSearchHist(d.searchHist);
   d.logSearchHist = normSearchHist(d.logSearchHist);
+  /* 刀账锁定：老存档默认未锁定 */
+  if(!d.rosterLock || typeof d.rosterLock !== 'object' || Array.isArray(d.rosterLock)){
+    d.rosterLock = {on:0, at:0, n:0};
+  }
+  d.rosterLock.on = Number(d.rosterLock.on) === 1 ? 1 : 0;
+  d.rosterLock.at = Number(d.rosterLock.at) || 0;
+  d.rosterLock.n = Number(d.rosterLock.n) || 0;
   if(!d.dayAgg || typeof d.dayAgg !== 'object' || Array.isArray(d.dayAgg)) d.dayAgg = {};
   /* 归档明细不是数组就当没有（手改 / 同步码截断过的数据别把渲染撑崩） */
   Object.keys(d.dayAgg).forEach(function(k){
@@ -3909,6 +3921,7 @@ function syncThemeUI(){
    侧栏 / 账号
    ========================================================= */
 function renderSidebar(){
+  updateLockBtn();
   $$('.server-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.server === S.server); });
   const list = S.accounts[S.server] || [];
   const sel = $('#acctSelect');
@@ -4365,7 +4378,9 @@ function cardHTML(x){
     '<div class="card-actions">' +
       '<button class="card-btn ghost" data-act="cancel">取消</button>' +
       '<button class="card-btn primary" data-act="save">保存</button>' +
-      '<button class="card-del" data-act="del" title="从图鉴里删掉这振">🗑</button>' +
+      (rosterLocked()
+        ? '<button class="card-del locked" data-act="dellocked" title="刀账已锁定，先在顶部解锁才能删除">🔒</button>'
+        : '<button class="card-del" data-act="del" title="从图鉴里删掉这振">🗑</button>') +
     '</div>' +
   '</div>';
 }
@@ -4794,10 +4809,70 @@ function applyBatch(mode, val){
 }
 
 /* 删除一振（新增错了，或想清掉不想要的条目） */
+/* 刀账锁定：锁定后任何刀都不能删（包括之后新增的）；解锁后恢复。新增始终允许。 */
+function rosterLocked(){
+  const d = curData();
+  return !!(d && d.rosterLock && Number(d.rosterLock.on) === 1);
+}
+/* 顶部锁定按钮的文案 / 样式跟随当前账号的锁定状态 */
+function updateLockBtn(){
+  const b = $('#btnRosterLock');
+  if(!b) return;
+  const d = curData();
+  const on = rosterLocked();
+  b.textContent = on ? '🔒 刀账已锁定' : '🔓 刀账未锁定';
+  b.classList.toggle('lock-on', on);
+  b.title = on
+    ? ('已锁定 ' + (d.rosterLock.n || d.tw.length) + ' 振 · 点此解锁（解锁后才能删刀）')
+    : '锁定后不能删除任何刀剑（新增不受影响），点此锁定';
+}
+function toggleRosterLock(){
+  const d = curData();
+  if(!d) { toast('请先新建账号', true); return; }
+  const locking = !rosterLocked();
+  if(locking){
+    openModal({
+      title:'🔒 锁定刀账',
+      sub:'把当前刀账固定下来，防止误删。',
+      body:'<p style="font-size:12px;color:var(--sub);line-height:2;margin:0;">' +
+        '锁定后，<b style="color:var(--ink)">任何刀剑都不能删除</b>——包括现在已有的，以及锁定后新增的。' +
+        '修改等级 / 经验 / 乱舞、收藏置顶、<b style="color:var(--ink)">新增刀剑</b>都不受影响。<br>' +
+        '要删刀时，先在图鉴顶部点「🔓 解锁刀账」即可。</p>',
+      actions:[
+        {text:'取消', cls:'btn', onClick:closeModal},
+        {text:'确认锁定', cls:'btn primary', onClick:function(){
+          d.rosterLock = {on:1, at:Date.now(), n:d.tw.length};
+          save(); closeModal(); renderCatalog(); renderSidebar();
+          toast('🔒 刀账已锁定 · ' + d.tw.length + ' 振已固定');
+        }}
+      ]
+    });
+  }else{
+    openModal({
+      title:'🔓 解锁刀账',
+      sub:'解锁后可以删除刀剑了。',
+      body:'<p style="font-size:12px;color:var(--sub);line-height:2;margin:0;">' +
+        '解锁只是允许删除，不会改动任何数据。这 ' + d.tw.length +
+        ' 振刀照旧在；之后仍可再次锁定。</p>',
+      actions:[
+        {text:'取消', cls:'btn', onClick:closeModal},
+        {text:'确认解锁', cls:'btn primary', onClick:function(){
+          d.rosterLock = {on:0, at:Date.now(), n:d.tw.length};
+          save(); closeModal(); renderCatalog(); renderSidebar();
+          toast('🔓 刀账已解锁，现在可以删除刀剑了');
+        }}
+      ]
+    });
+  }
+}
 function deleteSword(no){
   const d = curData();
   const row = rowOf(no);
   if(!d || !row) return;
+  if(rosterLocked()){
+    toast('刀账已锁定，先点顶部「🔓 解锁刀账」才能删除', true);
+    return;
+  }
   openModal({
     title:'删除刀剑',
     sub:'会从当前账号的图鉴里移除「' + row.name + '」（No.' + String(no).padStart(3,'0') + '）。',
@@ -5349,6 +5424,7 @@ function bindGrid(){
       else if(act.dataset.act === 'cancel') cancelEdit(no);
       else if(act.dataset.act === 'save') commitEdit(no);
       else if(act.dataset.act === 'del') deleteSword(no);
+      else if(act.dataset.act === 'dellocked') toast('刀账已锁定，先点顶部「🔓 解锁刀账」才能删除', true);
       else if(act.dataset.act === 'expcalc') openExpCalc(no);
       return;
     }
@@ -10070,6 +10146,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.88 刀账锁定：锁定后不能再删刀',
+     '<p>图鉴顶部多了个锁定按钮：点「🔓 刀账未锁定」二次确认后，就变成「🔒 刀账已锁定」（琥珀色高亮）。锁定期间，<b>任何刀剑都不能删除</b>——卡片「✎ 修改」里的 🗑 会变成 🔒，点了会提示先解锁。</p>' +
+     '<p><b>锁定不影响其他操作</b>：照常新增刀剑、改等级 / 经验 / 乱舞、收藏置顶。也就是说可以边锁边继续登记新抽到的刀，只是这些刀也受保护、不能删。要删刀时点顶部按钮「🔓 解锁」即可，解锁不改任何数据，之后还能再锁。</p>' +
+     '<p>锁定状态按账号分开，跟着导出、导入、云同步一起走。</p>',
+     '2026.11'],
     ['V2.87 置顶顺序可以自己拖了',
      '<p>每张置顶卡片左上角多了一个 <b>⠿ 手柄</b>：按住它拖到另一振置顶卡片上，松开就把这振插到那个位置，其余顺次后移。鼠标和手指都能拖，拖动时目标卡片会有虚线框提示。</p>' +
      '<p>调整后的顺序会<b>自动保存</b>，刷新、导出、云同步都会带着走。只有置顶的卡片能拖，普通卡片没有手柄；取消置顶后手柄也会消失。想恢复「按收藏先后排」，取消置顶再重新收藏即可排到最后。</p>',
@@ -10786,6 +10867,7 @@ function initEvents(){
   const ftClear = $('#btnFilterClear');
   if(ftClear) ftClear.onclick = clearAllFilters;
   $('#btnAddSword').onclick = openAddSword;
+  const lockBtn = $('#btnRosterLock'); if(lockBtn) lockBtn.onclick = toggleRosterLock;
   const fillFlBtn = $('#btnFillFlower');
   if(fillFlBtn) fillFlBtn.onclick = fillFlowerAll;
   $('#btnResetData').onclick = resetData;
