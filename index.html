@@ -1599,7 +1599,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.80</div>
+        <div class="brand-sub">HONMARU KEEPER V2.81</div>
       </div>
     </div>
 
@@ -3058,15 +3058,23 @@ function normalize(d){
 /* ---------- 云同步配置：独立于存档，不会被导出 / 同步码带走 ---------- */
 const SYNC_CFG_KEY = 'honmaru_sync_cfg_v1';
 const SYNC_STATE_KEY = 'honmaru_sync_state_v1';
+/* 公共库：填了这两项，新用户打开就自动预填，只需生成同步密钥就能用。
+   留空 = 每个人自己填自己的库。
+   安全性前提：库必须跑过 v3 SQL（表权限已收回，只留两个 RPC 函数），
+   否则公开 anon key 等于把整张表交给任何人。 */
+const DEFAULT_SYNC = { url:'', anon:'' };
+function hasDefaultSync(){ return !!(DEFAULT_SYNC.url && DEFAULT_SYNC.anon); }
 function loadSyncCfg(){
   try{
     const o = JSON.parse(localStorage.getItem(SYNC_CFG_KEY) || 'null');
     if(o && typeof o === 'object') return {
       url:String(o.url || '').trim(), anon:String(o.anon || '').trim(),
-      key:String(o.key || '').trim(), auto:o.auto !== false, enabled:!!o.enabled
+      key:String(o.key || '').trim(), auto:o.auto !== false, enabled:!!o.enabled,
+      mode: o.mode === 'public' ? 'public'
+          : (o.mode === 'own' ? 'own' : ((o.url || o.anon) ? 'own' : 'public'))
     };
   }catch(e){}
-  return {url:'', anon:'', key:'', auto:true, enabled:false};
+  return {url:'', anon:'', key:'', auto:true, enabled:false, mode:'public'};
 }
 let syncCfg = loadSyncCfg();
 function saveSyncCfg(){
@@ -8533,12 +8541,21 @@ const SYNC_SQL = [
   'end $mig$;'
 ].join('\n');
 
-function cloudCfgValid(){
-  return !!(syncCfg.enabled && syncCfg.url && syncCfg.anon && syncCfg.key);
+/* 两种模式：public 用页面预设的公共库（只需密钥）；own 用自己的项目（三项全填） */
+function cloudMode(){ return syncCfg.mode === 'own' ? 'own' : 'public'; }
+function cloudEffUrl(){
+  return cloudMode() === 'own' ? String(syncCfg.url || '') : String(DEFAULT_SYNC.url || '');
 }
-function cloudBase(){ return String(syncCfg.url).replace(/\/+$/, ''); }
+function cloudEffAnon(){
+  return cloudMode() === 'own' ? String(syncCfg.anon || '') : String(DEFAULT_SYNC.anon || '');
+}
+function cloudCfgValid(){
+  return !!(syncCfg.enabled && syncCfg.key && cloudEffUrl() && cloudEffAnon());
+}
+function cloudBase(){ return cloudEffUrl().replace(/\/+$/, ''); }
 function cloudHeaders(extra){
-  const h = {'apikey':syncCfg.anon, 'Authorization':'Bearer ' + syncCfg.anon,
+  const ak = cloudEffAnon();
+  const h = {'apikey':ak, 'Authorization':'Bearer ' + ak,
              'Content-Type':'application/json'};
   if(extra) Object.keys(extra).forEach(function(k){ h[k] = extra[k]; });
   return h;
@@ -8598,7 +8615,7 @@ function renderSyncNote(){
   const s = syncState.status;
   let txt = '☁ 云同步：', cls = 'sync-note';
   if(!cloudCfgValid()){
-    txt += (syncCfg.url || syncCfg.anon) ? '未启用（点此完成设置）' : '未开启（点此设置）';
+    txt += (cloudEffUrl() || syncCfg.key) ? '未启用（点此完成设置）' : '未开启（点此设置）';
   }else if(dataScale(curData()) <= 0 && loadSnaps().length){
     txt += '⚠ 本机数据为空（点此恢复）'; cls += ' warn';
   }else if(s === 'ok'){ txt += '已同步 · ' + fmtClock(syncState.lastSyncAt); cls += ' ok'; }
@@ -8845,8 +8862,10 @@ function applyCloudCfgCode(txt){
   const m = String(txt || '').trim().match(/HMC1\.[A-Za-z0-9_\-]+/);
   if(!m) throw new Error('没找到配置码');
   const o = JSON.parse(new TextDecoder().decode(b64urlDecode(m[0].slice(5))));
-  if(!o.u || !o.a || !o.k) throw new Error('配置码不完整');
-  return o;
+  if(!o.k) throw new Error('配置码不完整');
+  const md = o.m === 'public' ? 'public' : 'own';
+  if(md === 'own' && (!o.u || !o.a)) throw new Error('配置码不完整');
+  return {u:o.u || '', a:o.a || '', k:o.k, m:md};
 }
 function openCloudConflict(){
   const p = pendingCloud; if(!p) return;
@@ -9166,6 +9185,10 @@ async function openGhRestore(){
 }
 function openCloudSync(){
   const st = syncState;
+  const canPub = hasDefaultSync();
+  let pick = (syncCfg.mode === 'own' || !canPub) ? 'own' : 'public';
+  const ownUrl = syncCfg.url || '';
+  const ownAnon = syncCfg.anon || '';
   let expTxt = '';
   if(st.expiresAt){
     try{
@@ -9175,14 +9198,19 @@ function openCloudSync(){
   }else if(cloudCfgValid()){
     expTxt = ' · 云端永久保存';
   }
-  const statusTxt = !cloudCfgValid() ? '<b>未开启</b> · 数据目前只存在这台设备的浏览器里'
+  const statusTxt = !cloudCfgValid()
+    ? (canPub && pick === 'public'
+        ? '<b>未开启</b> · 用的是公共库，点「🎲 生成新密钥」再「保存并启用」就能用'
+        : '<b>未开启</b> · 数据目前只存在这台设备的浏览器里')
     : '<b>' + esc(st.msg || st.status) + '</b>' +
       (st.lastSyncAt ? ' · 本机上次同步 ' + esc(fmtClock(st.lastSyncAt)) : '') +
       (st.remoteAt ? ' · 云端数据 ' + esc(fmtClock(st.remoteAt)) : '') + expTxt +
       (syncFlavor === 'legacy' ? ' · <b class="clr-y">还在用旧表</b>（跑一次下面的 SQL 就切到新版）' : '');
   openModal({
     title:'☁ 云同步 · 多设备互通',
-    sub:'填同一个同步密钥就互通：一个人几台设备、或者几个人各自一串密钥，各存各的一份，互不影响。',
+    sub: (canPub && pick === 'public')
+      ? '用页面提供的公共库：不用建项目、不用填 URL，一串同步密钥就是一份存档。'
+      : '填同一个同步密钥就互通：一个人几台设备、或者几个人各自一串密钥，各存各的一份，互不影响。',
     body:
       '<div class="cloud-status" id="csStatus">' + statusTxt + '</div>' +
       '<p class="cloud-tip">' +
@@ -9196,9 +9224,20 @@ function openCloudSync(){
           return '你的数据有三份：<b>云端</b>永久保存、自动同步 · <b>本机</b>浏览器存档（另含 4 份自动快照）· <b>文件</b> ' + exTxt + '。';
         })() +
       '</p>' +
+      '<div class="cloud-row" id="csModeRow" style="margin-bottom:8px;">' +
+        (canPub ? '<button class="chip' + (pick === 'public' ? ' active' : ' ghost') + '" data-cmode="public">公共库（推荐）</button>' : '') +
+        '<button class="chip' + (pick === 'own' ? ' active' : ' ghost') + '" data-cmode="own">我自己的库</button>' +
+      '</div>' +
+      '<div id="csPubBox"' + (pick === 'public' ? '' : ' style="display:none"') + '>' +
+        '<p class="cloud-tip" style="margin:0 0 8px;">用页面提供的公共库：<b>不用建项目、不用填 URL</b>，只要一串同步密钥。密钥就是你的身份，一串密钥一份存档，各存各的、互相看不到。</p>' +
+      '</div>' +
+      '<div id="csOwnBox"' + (pick === 'own' ? '' : ' style="display:none"') + '>' +
+        '<div class="add-grid">' +
+          '<label class="fld full"><span>Project URL</span><input type="text" id="csUrl" placeholder="https://xxxx.supabase.co" value="' + esc(ownUrl) + '"></label>' +
+          '<label class="fld full"><span>anon public key</span><input type="text" id="csAnon" placeholder="eyJhbGci..." value="' + esc(ownAnon) + '"></label>' +
+        '</div>' +
+      '</div>' +
       '<div class="add-grid">' +
-        '<label class="fld full"><span>Project URL</span><input type="text" id="csUrl" placeholder="https://xxxx.supabase.co" value="' + esc(syncCfg.url) + '"></label>' +
-        '<label class="fld full"><span>anon public key</span><input type="text" id="csAnon" placeholder="eyJhbGci..." value="' + esc(syncCfg.anon) + '"></label>' +
         '<label class="fld full"><span>同步密钥（另一台设备填同一串）</span><input type="text" id="csKey" placeholder="点下面生成，或粘贴已有密钥" value="' + esc(syncCfg.key) + '"></label>' +
       '</div>' +
       '<div class="cloud-row">' +
@@ -9206,6 +9245,7 @@ function openCloudSync(){
         '<button class="chip ghost" id="csCopyKey">复制密钥</button>' +
         '<button class="chip ghost" id="csCopyCfg">📋 复制配置码</button>' +
         '<button class="chip ghost" id="csReadCode">读入配置码</button>' +
+        (ownUrl && ownAnon ? '<button class="chip ghost" id="csPubCfg">📌 复制成「公共库配置」</button>' : '') +
         '<button class="chip ghost" id="csPull">⬇ 拉取云端</button>' +
         '<button class="chip ghost" id="csPush">⬆ 上传本机</button>' +
         '<button class="chip ghost" id="csRescue">🛟 恢复本机数据</button>' +
@@ -9215,7 +9255,16 @@ function openCloudSync(){
       '<div class="add-grid" style="margin-top:8px;">' +
         '<label class="fld full"><span>或：粘贴另一台设备的配置码（免手工填三项）</span><input type="text" id="csCode" placeholder="HMC1.…"></label>' +
       '</div>' +
-      '<p class="cloud-tip">① 在 Supabase 建免费项目，SQL Editor 里跑下面的 SQL（<b>跑一次就够</b>，以前用过旧版的会自动把数据搬过来）；② 项目设置 → API，复制 <b>Project URL</b> 和 <b>anon public</b> 填到上面；③ <b>务必先在「刀帐最全」的那台设备</b>生成同步密钥并「保存并启用」，再点「📋 复制配置码」，其它设备粘贴进下面的框、点「读入配置码」即可。</p>' +
+      '<div id="csPubBox2"' + (pick === 'public' ? '' : ' style="display:none"') + '>' +
+        '<p class="cloud-tip">点「🎲 生成新密钥」→「保存并启用」就完成了。换设备时把同一串密钥粘进来，数据会自动拉下来；一串密钥一份存档，别人拿到也解不开。</p>' +
+      '</div>' +
+      '<div id="csOwnBox2"' + (pick === 'own' ? '' : ' style="display:none"') + '>' +
+        '<p class="cloud-tip">① 在 Supabase 建免费项目，SQL Editor 里跑下面的 SQL（<b>跑一次就够</b>）；② 项目设置 → API，复制 <b>Project URL</b> 和 <b>anon public</b> 填到上面；③ 先在「刀帐最全」的那台设备生成密钥并保存，再复制配置码到其它设备。</p>' +
+        '<details class="cloud-details"><summary>建表 / 升级 SQL（点开，复制后粘到 Supabase SQL Editor）</summary>' +
+          '<textarea class="cloud-sql" id="csSql" readonly>' + esc(SYNC_SQL) + '</textarea>' +
+          '<div class="cloud-row"><button class="chip ghost" id="csCopySql">复制 SQL</button></div>' +
+        '</details>' +
+      '</div>' +
       '<div class="snap-warn">⚠ <b>顺序别反</b>：空设备先启用会把空数据传上云端，等全量设备来拉取时会被覆盖。现在已加保护——云端数据比本机少时<b>不会静默覆盖</b>，会弹窗让你选；空设备也不会再上传空数据。覆盖前会自动留快照，可在「🛟 恢复本机数据」里找回。</div>' +
       '<p class="cloud-tip">数据会先用同步密钥在<b>本机加密</b>再上传，云端只有密文；<b>密钥丢了没法找回</b>，建议复制存好。打开页面会自动拉取云端最新数据；关掉「改动后自动上传」后，本机改动要自己点「⬆ 上传本机」。</p>' +
       '<p class="cloud-tip">新版把表权限收了起来：外部只有两个函数能调，<b>一个密钥只碰得到自己那一行</b>，别人拿不到、也删不掉你的存档。云端的存档<b>永久保存</b>，没有过期时间，服务端不会自动清理任何一行（旧版 SQL 的「60 天到期」规则已取消）。</p>' +
@@ -9241,12 +9290,19 @@ function openCloudSync(){
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
       {text:'保存并启用', cls:'btn primary', onClick:function(){
-        const url = ($('#csUrl').value || '').trim().replace(/\/+$/, '');
-        const anon = ($('#csAnon').value || '').trim();
         const key = ($('#csKey').value || '').trim();
-        if(!url || !anon || !key){ toast('请把 Project URL、anon key、同步密钥都填好', true); return; }
-        if(!/^https?:\/\//i.test(url)){ toast('Project URL 要以 https:// 开头', true); return; }
-        syncCfg = {url:url, anon:anon, key:key, auto:$('#csAuto').checked, enabled:true};
+        if(!key){ toast('点「🎲 生成新密钥」，或粘贴已有密钥', true); return; }
+        const auto = $('#csAuto').checked;
+        if(pick === 'public'){
+          if(!hasDefaultSync()){ toast('公共库还没开通，先选「我自己的库」', true); return; }
+          syncCfg = {url:'', anon:'', key:key, auto:auto, enabled:true, mode:'public'};
+        }else{
+          const url = ($('#csUrl').value || '').trim().replace(/\/+$/, '');
+          const anon = ($('#csAnon').value || '').trim();
+          if(!url || !anon){ toast('Project URL 和 anon key 都要填', true); return; }
+          if(!/^https?:\/\//i.test(url)){ toast('Project URL 要以 https:// 开头', true); return; }
+          syncCfg = {url:url, anon:anon, key:key, auto:auto, enabled:true, mode:'own'};
+        }
         saveSyncCfg();
         closeModal();
         setSyncStatus('pending', '配置已保存，正在连接');
@@ -9272,16 +9328,60 @@ function openCloudSync(){
   if(rs) rs.onclick = function(){ openRescue(); };
   const cpCfg = $('#csCopyCfg');
   if(cpCfg) cpCfg.onclick = function(){
-    const u = ($('#csUrl').value || '').trim(), a = ($('#csAnon').value || '').trim(),
-          k = ($('#csKey').value || '').trim();
-    if(!u || !a || !k){ toast('先把三项填好，再复制配置码', true); return; }
-    copyText('HMC1.' + b64urlEncode(new TextEncoder().encode(JSON.stringify({u:u, a:a, k:k}))));
+    const k = ($('#csKey').value || '').trim();
+    if(!k){ toast('先生成或粘贴同步密钥，再复制配置码', true); return; }
+    const u = pick === 'own' ? ($('#csUrl').value || '').trim() : '';
+    const a = pick === 'own' ? ($('#csAnon').value || '').trim() : '';
+    if(pick === 'own' && (!u || !a)){ toast('先把 Project URL 和 anon key 填好', true); return; }
+    copyText('HMC1.' + b64urlEncode(new TextEncoder().encode(JSON.stringify({u:u, a:a, k:k, m:pick}))));
+  };
+  /* 公共库 / 自己的库 切换 */
+  const applyPick = function(v){
+    pick = v;
+    const row = $('#csModeRow');
+    if(row){
+      Array.prototype.forEach.call(row.querySelectorAll('[data-cmode]'), function(x){
+        const on = x.getAttribute('data-cmode') === pick;
+        x.className = 'chip' + (on ? ' active' : ' ghost');
+      });
+    }
+    const map = {csPubBox:'public', csOwnBox:'own', csPubBox2:'public', csOwnBox2:'own'};
+    Object.keys(map).forEach(function(id){
+      const el = $('#' + id); if(!el) return;
+      el.style.display = (map[id] === pick) ? '' : 'none';
+    });
+    const s2 = $('#csStatus');
+    if(s2 && !cloudCfgValid()){
+      s2.innerHTML = pick === 'public'
+        ? '<b>未开启</b> · 用的是公共库，点「🎲 生成新密钥」再「保存并启用」就能用'
+        : '<b>未开启</b> · 数据目前只存在这台设备的浏览器里';
+    }
+  };
+  const modeRow = $('#csModeRow');
+  if(modeRow){
+    Array.prototype.forEach.call(modeRow.querySelectorAll('[data-cmode]'), function(b){
+      b.onclick = function(){
+        const v = b.getAttribute('data-cmode');
+        if(v === 'public' && !hasDefaultSync()){ toast('公共库还没开通，先用「我自己的库」', true); return; }
+        applyPick(v);
+      };
+    });
+  }
+  const pubCfg = $('#csPubCfg');
+  if(pubCfg) pubCfg.onclick = function(){
+    const u = ($('#csUrl').value || '').trim(), a = ($('#csAnon').value || '').trim();
+    if(!u || !a){ toast('先把 Project URL 和 anon key 填好', true); return; }
+    copyText('{"url":"' + u + '","anon":"' + a + '"}');
+    toast('已复制 · 发给页面作者，就能设为所有人的默认库');
   };
   const rdCfg = $('#csReadCode');
   if(rdCfg) rdCfg.onclick = function(){
     try{
       const o = applyCloudCfgCode($('#csCode').value);
-      $('#csUrl').value = o.u; $('#csAnon').value = o.a; $('#csKey').value = o.k;
+      $('#csKey').value = o.k;
+      if(o.u) $('#csUrl').value = o.u;
+      if(o.a) $('#csAnon').value = o.a;
+      applyPick(o.m === 'public' && hasDefaultSync() ? 'public' : 'own');
       toast('已读入配置，点「保存并启用」');
     }catch(e){ toast('配置码读不了：' + ((e && e.message) || e), true); }
   };
@@ -9609,6 +9709,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.81 云同步分成「公共库」和「我自己的库」',
+     '<p>以前每个人用云同步，都得自己去 Supabase 建项目、跑 SQL、抄三项配置——大部分人卡在这一步。</p>' +
+     '<p>现在打开云同步会先让你选：<b>公共库</b>只需要一串同步密钥，点「生成新密钥」→「保存并启用」就完事；<b>我自己的库</b>还是原来那三项，适合想自己掌握数据的人。</p>' +
+     '<p>两种模式可以随时切换，密钥通用。切到另一个库时，那边云端还是空的，点一次「⬆ 上传本机」把数据推上去就行，本机数据不会丢。</p>',
+     '2026.11'],
     ['V2.80 多一份 GitHub 冷备：仓库不会过期',
      '<p>上一版把云端改成了永久，但「永久」仍然依赖那个 Supabase 项目本身还在。再稳一点的办法是把存档放进一个不归任何应用管的地方——你自己的 GitHub 私有仓库。</p>' +
      '<p>已经建好 <b>kiku-jenny/honmaru-backup</b>（私有）。页面里填一个只授权这一个仓库的令牌，之后每天会提交一个 <code>backups/日期.json</code>；同一天改多次会更新同一个文件，每次更新都留在提交历史里，能回滚到当天任意时刻。</p>' +
