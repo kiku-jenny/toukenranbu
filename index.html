@@ -503,6 +503,12 @@
   .cloud-now button{margin-left:auto;font:inherit;font-size:11px;color:var(--accent-deep);cursor:pointer;
     background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 11px;}
   .cloud-now button:hover{border-color:var(--accent);}
+  /* 资源记录：有条目没填时的三选一提醒 */
+  .res-miss-list{display:flex;flex-direction:column;gap:6px;margin:2px 0 4px;}
+  .res-miss{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:8px 10px;font-size:11.5px;}
+  .res-miss b{color:var(--ink);font-weight:600;}
+  .res-miss span{color:var(--sub);font-size:10.5px;}
   .cloud-sql{width:100%;box-sizing:border-box;height:132px;font-family:monospace;font-size:10.5px;
     line-height:1.6;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);resize:vertical;}
   .cloud-details{margin-top:10px;border:1px solid var(--line);border-radius:9px;padding:8px 10px;}
@@ -1615,7 +1621,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.84</div>
+        <div class="brand-sub">HONMARU KEEPER V2.85</div>
       </div>
     </div>
 
@@ -5473,9 +5479,17 @@ function saveResEdit(id){
   const oldVals = Object.assign({}, r.vals || {});
   const changes = [];
   if(date !== oldDate) changes.push({f:'date', from:oldDate, to:date});
+  /* 编辑修改的是「数值填错的那条」，基准要用它上一条记录的数值，
+     不能用这条自身的旧值（填错时旧值就是错的，日志会变成 0→新值）。
+     只对用户真正改动的字段记日志，没动的字段不记。
+     prev 取按日期排序后、这条记录前面最近的一条；没有上一条才回退到旧值。 */
+  const prev = resAsc(d).filter(function(x){ return x.id !== id && x.date <= date; }).pop() || null;
   RES_ITEMS.forEach(function(it){
-    const from = clampNum(oldVals[it.key], 0, RES_MAX, 0);
-    if(from !== vals[it.key]) changes.push({f:'res', key:it.key, from:from, to:vals[it.key]});
+    const oldV = clampNum(oldVals[it.key], 0, RES_MAX, 0);
+    if(oldV === vals[it.key]) return;                 /* 这项没改，不记日志 */
+    const from = clampNum(prev && prev.vals[it.key] !== undefined && prev.vals[it.key] !== null
+      ? prev.vals[it.key] : oldV, 0, RES_MAX, 0);
+    changes.push({f:'res', key:it.key, from:from, to:vals[it.key]});
   });
   r.date = date;
   r.vals = vals;
@@ -5502,18 +5516,31 @@ function addRes(){
     vals[it.key] = clampNum(raw === '' ? 0 : raw, 0, RES_MAX, 0);
   }
   if(!has){ toast('至少填一项资源数值', true); return; }
-  /* 与「这条记录之前最近的一条」对比，只记用户实际填了的项，没填的 0 不算跌 */
+  /* 有条目空着时先弹窗确认，别默默当 0 存进去 */
+  const emptyKeys = RES_ITEMS.filter(function(it){ return !filled[it.key]; })
+                             .map(function(it){ return it.key; });
+  if(emptyKeys.length){
+    openResMissing(date, vals, emptyKeys);
+    return;
+  }
+  commitRes(date, vals, RES_ITEMS.map(function(it){ return it.key; }));
+}
+
+/* 保存一条资源记录：logKeys 标明这几种资源这次要跟上次比、记进日志 */
+function commitRes(date, vals, logKeys){
+  const d = curData();
+  if(!d) return;
   const prev = resAsc(d).filter(function(r){ return r.date <= date; }).pop() || null;
-  d.res.push({id:uid(), date:date, vals:vals, ts:Date.now()});
+  d.res.push({id:uid(), date:date, vals:Object.assign({}, vals), ts:Date.now()});
   RES_ITEMS.forEach(function(it){
     const el = $('#res' + it.key.charAt(0).toUpperCase() + it.key.slice(1));
-    el.value = '';
+    if(el) el.value = '';
   });
   let logged = 0;
   if(prev){
     const changes = [];
     RES_ITEMS.forEach(function(it){
-      if(!filled[it.key]) return;
+      if(logKeys.indexOf(it.key) < 0) return;
       const from = clampNum(prev.vals[it.key], 0, RES_MAX, 0);
       if(from !== vals[it.key]) changes.push({f:'res', key:it.key, from:from, to:vals[it.key]});
     });
@@ -5524,6 +5551,43 @@ function addRes(){
   }
   save(); renderResources();
   toast('已保存 ' + date + ' 的资源记录' + (logged ? ' · 记下 ' + logged + ' 项变动' : ''));
+}
+
+/* 有资源项没填时：列出空项，让用户选 按 0 / 沿用上次 / 返回重填 */
+function openResMissing(date, vals, emptyKeys){
+  const d = curData();
+  const prev = resAsc(d).filter(function(r){ return r.date <= date; }).pop() || null;
+  const nameOf = function(k){
+    const it = RES_ITEMS.filter(function(x){ return x.key === k; })[0];
+    return it ? (it.icon + ' ' + it.name) : k;
+  };
+  const filledKeys = RES_ITEMS.filter(function(it){ return emptyKeys.indexOf(it.key) < 0; })
+                              .map(function(it){ return it.key; });
+  const rows = emptyKeys.map(function(k){
+    const last = prev && prev.vals[k] !== undefined && prev.vals[k] !== null
+      ? fmtNum(prev.vals[k]) : '—';
+    return '<div class="res-miss"><b>' + esc(nameOf(k)) + '</b><span>上次 ' + last + ' · 不填按 0</span></div>';
+  }).join('');
+  openModal({
+    title: '有 ' + emptyKeys.length + ' 项资源没填',
+    sub: '这些项空着：' + emptyKeys.map(nameOf).join('、') + '。怎么存？',
+    body: '<div class="res-miss-list">' + rows + '</div>' +
+      '<p class="cloud-tip">选「按 0 记」会把空项当作 0；「沿用上次」会填上一条记录的数值；「返回重填」不会保存，回去把数值补上。</p>',
+    actions: [
+      {text:'返回重填', cls:'btn', onClick:closeModal},
+      {text:'沿用上次', cls:'btn', onClick:function(){
+        if(!prev){ toast('还没有上一条记录可以沿用', true); return; }
+        const v = Object.assign({}, vals);
+        emptyKeys.forEach(function(k){
+          v[k] = clampNum(prev.vals[k] !== undefined && prev.vals[k] !== null ? prev.vals[k] : 0, 0, RES_MAX, 0);
+        });
+        closeModal(); commitRes(date, v, filledKeys);
+      }},
+      {text:'按 0 记', cls:'btn primary', onClick:function(){
+        closeModal(); commitRes(date, vals, filledKeys);
+      }}
+    ]
+  });
 }
 
 /* =========================================================
@@ -9801,6 +9865,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.85 资源记录：改错按上一次比对，空项会先问你',
+     '<p><b>改错的那条，日志不再写「0 → 新值」。</b>以前把某条资源数值填错（比如漏填成了 0），再点编辑改回来时，日志拿这条自己的旧值当起点，于是记成「0 → 800」——那个 0 本来就是错的。现在改成跟<b>上一条资源记录</b>比对：「上次 500 → 800」，才是这次改动真正的意思。没动的项不会写进日志。</p>' +
+     '<p><b>有资源项没填，保存时会弹窗问一句。</b>列出空着的项，还有每一项上次的数值，让你选：按 0 记 / 沿用上次 / 返回重填。不再默默把空项存成 0。全填了就不会弹，照旧直接保存。</p>',
+     '2026.11'],
     ['V2.84 每日统计的「查看」按表分开',
      '<p>以前「等级 · 经验」和「乱舞」两张表里的「查看」，点开都是这振在这段时间里的<b>全部</b>变动，等级、经验、乱舞混在一块，想单独看一样还得自己挑。</p>' +
      '<p>现在分开：<b>等级经验表里只看等级 / 经验 / 极化等级的变动，乱舞表里只看乱舞等级和进度</b>。就算一条批量编辑同时改了两样，两边也各自只显示自己那部分。按钮后面的小数字也按类别各算各的，标几条就是几条。</p>' +
