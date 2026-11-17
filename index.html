@@ -1599,7 +1599,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.81</div>
+        <div class="brand-sub">HONMARU KEEPER V2.82</div>
       </div>
     </div>
 
@@ -3062,7 +3062,8 @@ const SYNC_STATE_KEY = 'honmaru_sync_state_v1';
    留空 = 每个人自己填自己的库。
    安全性前提：库必须跑过 v3 SQL（表权限已收回，只留两个 RPC 函数），
    否则公开 anon key 等于把整张表交给任何人。 */
-const DEFAULT_SYNC = { url:'', anon:'' };
+const DEFAULT_SYNC = { url:'https://myhmkznpcxrgpubhqpws.supabase.co',
+                       anon:'sb_publishable_SVMIopgOktohac30hBSf3Q_LnE-_MP6' };
 function hasDefaultSync(){ return !!(DEFAULT_SYNC.url && DEFAULT_SYNC.anon); }
 function loadSyncCfg(){
   try{
@@ -9256,7 +9257,11 @@ function openCloudSync(){
         '<label class="fld full"><span>或：粘贴另一台设备的配置码（免手工填三项）</span><input type="text" id="csCode" placeholder="HMC1.…"></label>' +
       '</div>' +
       '<div id="csPubBox2"' + (pick === 'public' ? '' : ' style="display:none"') + '>' +
-        '<p class="cloud-tip">点「🎲 生成新密钥」→「保存并启用」就完成了。换设备时把同一串密钥粘进来，数据会自动拉下来；一串密钥一份存档，别人拿到也解不开。</p>' +
+        '<p class="cloud-tip">' +
+          (cloudCfgValid()
+            ? '<b>已开启</b>。换设备时把上面这串密钥粘进去 →「保存并启用」，数据会自动拉下来；一串密钥一份存档，别人拿到也解不开。'
+            : '点「🎲 生成新密钥」→「保存并启用」就完成了。换设备时把同一串密钥粘进来，数据会自动拉下来；一串密钥一份存档，别人拿到也解不开。') +
+        '</p>' +
       '</div>' +
       '<div id="csOwnBox2"' + (pick === 'own' ? '' : ' style="display:none"') + '>' +
         '<p class="cloud-tip">① 在 Supabase 建免费项目，SQL Editor 里跑下面的 SQL（<b>跑一次就够</b>）；② 项目设置 → API，复制 <b>Project URL</b> 和 <b>anon public</b> 填到上面；③ 先在「刀帐最全」的那台设备生成密钥并保存，再复制配置码到其它设备。</p>' +
@@ -9268,10 +9273,6 @@ function openCloudSync(){
       '<div class="snap-warn">⚠ <b>顺序别反</b>：空设备先启用会把空数据传上云端，等全量设备来拉取时会被覆盖。现在已加保护——云端数据比本机少时<b>不会静默覆盖</b>，会弹窗让你选；空设备也不会再上传空数据。覆盖前会自动留快照，可在「🛟 恢复本机数据」里找回。</div>' +
       '<p class="cloud-tip">数据会先用同步密钥在<b>本机加密</b>再上传，云端只有密文；<b>密钥丢了没法找回</b>，建议复制存好。打开页面会自动拉取云端最新数据；关掉「改动后自动上传」后，本机改动要自己点「⬆ 上传本机」。</p>' +
       '<p class="cloud-tip">新版把表权限收了起来：外部只有两个函数能调，<b>一个密钥只碰得到自己那一行</b>，别人拿不到、也删不掉你的存档。云端的存档<b>永久保存</b>，没有过期时间，服务端不会自动清理任何一行（旧版 SQL 的「60 天到期」规则已取消）。</p>' +
-      '<details class="cloud-details"><summary>② 建表 / 升级 SQL（点开，复制后粘到 Supabase SQL Editor）</summary>' +
-        '<textarea class="cloud-sql" id="csSql" readonly>' + esc(SYNC_SQL) + '</textarea>' +
-        '<div class="cloud-row"><button class="chip ghost" id="csCopySql">复制 SQL</button></div>' +
-      '</details>' +
       '<details class="cloud-details"><summary>③ GitHub 冷备（可选）· 一天一个文件，仓库不会过期</summary>' +
         '<p class="cloud-tip" style="margin:2px 0 8px;">把存档提交到自己的<b>私有仓库</b>，一天一个 <code>backups/日期.json</code>，每次提交都是一个历史版本。就算 Supabase 项目被删、手机也换了，登录 GitHub 就能把某一天整份拉回来。</p>' +
         '<div class="add-grid">' +
@@ -9709,6 +9710,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.82 公共库正式接上，打开就能用',
+     '<p>公共库已经配好，落在作者自己的 Supabase 项目上。现在打开云同步，<b>「公共库」是默认选项，地址和密钥已经填好，只剩一串同步密钥要你自己生成</b>：点「生成新密钥」→「保存并启用」，两步就通了。</p>' +
+     '<p>这串密钥就是你在云端的唯一身份，<b>换设备、换浏览器、清缓存，只要把它拼回去，数据就回来了</b>。请单独抄一份留在手边，页面里也能随时复制。</p>' +
+     '<p>不想把存档放在别人的库里，切到「我自己的库」照旧填三项即可，两种模式随时切换，本机数据都不会丢。</p>',
+     '2026.11'],
     ['V2.81 云同步分成「公共库」和「我自己的库」',
      '<p>以前每个人用云同步，都得自己去 Supabase 建项目、跑 SQL、抄三项配置——大部分人卡在这一步。</p>' +
      '<p>现在打开云同步会先让你选：<b>公共库</b>只需要一串同步密钥，点「生成新密钥」→「保存并启用」就完事；<b>我自己的库</b>还是原来那三项，适合想自己掌握数据的人。</p>' +
