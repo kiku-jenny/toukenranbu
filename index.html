@@ -586,6 +586,35 @@
     color:var(--muted-3);font-size:12px;padding:4px;display:none;
   }
   .search.has-text .clear{display:block;}
+  /* 搜索历史下拉：聚焦弹出，点选回填，底部清除 */
+  .shist{
+    position:absolute;left:0;right:0;top:calc(100% + 5px);z-index:45;
+    background:var(--surface);border:1px solid var(--line);border-radius:11px;
+    box-shadow:0 12px 28px -14px rgba(120,60,75,.5);
+    max-height:252px;overflow-y:auto;padding:4px;display:none;
+  }
+  .shist.show{display:block;}
+  .shist-hd{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:5px 9px 6px;font-size:10.5px;color:var(--muted-2);letter-spacing:.04em;
+  }
+  .shist-hd b{font-weight:600;color:var(--sub);}
+  .shist-item{
+    display:flex;align-items:center;gap:8px;width:100%;text-align:left;
+    padding:7px 9px;border:0;border-radius:8px;background:none;
+    font-size:12.5px;color:var(--ink);cursor:pointer;font-family:inherit;line-height:1.4;
+  }
+  .shist-item:hover{background:var(--tint-a);}
+  .shist-item .shico{font-size:11px;color:var(--muted-3);flex:0 0 auto;}
+  .shist-item .shtxt{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .shist-empty{padding:13px 9px;font-size:11.5px;color:var(--muted-2);text-align:center;}
+  .shist-foot{border-top:1px dashed var(--line);margin-top:3px;padding-top:3px;}
+  .shist-clear{
+    display:flex;align-items:center;justify-content:center;gap:5px;width:100%;
+    padding:7px;border:0;border-radius:8px;background:none;
+    font-size:11.5px;color:var(--sub);cursor:pointer;font-family:inherit;
+  }
+  .shist-clear:hover{background:var(--surface-2);color:var(--accent-deep);}
   .tool-btns{display:flex;gap:7px;flex-wrap:wrap;margin-left:auto;}
   .btn{
     padding:8px 13px;border:1px solid var(--line);border-radius:10px;background:var(--surface);
@@ -1621,7 +1650,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.85</div>
+        <div class="brand-sub">HONMARU KEEPER V2.86</div>
       </div>
     </div>
 
@@ -1714,8 +1743,9 @@
       <div class="catalog-tools">
         <div class="search" id="searchWrap">
           <span class="icon">🔍</span>
-          <input id="fSearch" placeholder="搜索名称 / 编号 / 刀种 / 获取方式…">
+          <input id="fSearch" placeholder="搜索名称 / 编号 / 刀种 / 获取方式…" autocomplete="off">
           <button class="clear" id="btnClearSearch" aria-label="清空">✕</button>
+          <div class="shist" id="fSearchHist"></div>
         </div>
         <select class="select" id="fSort" style="width:auto;flex:0 0 auto;">
           <option value="no">按编号排序</option>
@@ -1816,8 +1846,9 @@
         <div class="log-tools">
           <div class="search" id="logSearchWrap">
             <span class="icon">🔍</span>
-            <input id="logSearch" placeholder="搜索刀剑名称 / 变动内容 / 日期…">
+            <input id="logSearch" placeholder="搜索刀剑名称 / 变动内容 / 日期…" autocomplete="off">
             <button class="clear" id="btnClearLogSearch" aria-label="清空">✕</button>
+            <div class="shist" id="logSearchHist"></div>
           </div>
           <select class="select log-date" id="logDate" title="按日期筛选"></select>
           <div class="log-stat" id="logStat"></div>
@@ -2848,11 +2879,13 @@ const FLOWER = [5,5,3,3,3,1,5,3,5,2,5,2,4,2,2,1,1,1,1,1,1,1,1,1,1,1,5,4,3,4,1,3,
 
 /* 初次打开（本机还没有存档）时带的初始图鉴：保留原有 130 振的资料 */
 function seedData(){
-  return {ver:6, roster:1, tw:seedTw(), open:seedOpen(), res:seedRes(), records:[], logs:[], calc:seedCalc()};
+  return {ver:6, roster:1, tw:seedTw(), open:seedOpen(), res:seedRes(), records:[], logs:[],
+          searchHist:[], logSearchHist:[], calc:seedCalc()};
 }
 /* 新建的账号从零开始：图鉴、资源、活动、变动记录全空 */
 function blankData(){
   return {ver:6, roster:1, tw:[], open:[], res:[], records:[], logs:[],
+          searchHist:[], logSearchHist:[],
           calc:{acts:[], cur:'', curS:'', boost:true, lvlSync:true}};
 }
 /* 变动日志：{id, kind, no, name, act, ses, src, date, changes:[{f, ...}], ts}
@@ -2861,6 +2894,91 @@ const LOG_FIELDS = {name:'名称', type:'刀种', fl:'花数', k:'极化', r:'�
 const LOG_KINDS = {sword:'图鉴', ranbu:'乱舞 +1', res:'资源', new:'新刀', del:'删除'};
 /* 日志最多留这么多条，超出把最旧的挤掉。只影响明细与每日统计的历史，图鉴 / 资源数据不受影响 */
 const LOG_MAX = 2000;
+/* 搜索历史：两个搜索框各留这么多条，满了一条新的挤掉最早那条 */
+const SEARCH_HIST_MAX = 10;
+function normSearchHist(a){
+  if(!Array.isArray(a)) return [];
+  const out = [];
+  a.forEach(function(x){
+    const s = String(x == null ? '' : x).trim();
+    if(s && s.length <= 80 && out.indexOf(s) < 0) out.push(s);
+  });
+  return out.slice(-SEARCH_HIST_MAX);   /* 留最近 10 条，最早的在最前 */
+}
+/* 记住一次搜索：去掉重复、加到末尾、超出就挤掉最早的 */
+function pushSearchHist(kind, val){
+  const s = String(val == null ? '' : val).trim();
+  if(!s || s.length > 80) return;
+  const d = curData(); if(!d) return;
+  const key = (kind === 'log') ? 'logSearchHist' : 'searchHist';
+  const arr = normSearchHist(d[key]);
+  const i = arr.indexOf(s);
+  if(i >= 0) arr.splice(i, 1);
+  arr.push(s);
+  if(arr.length > SEARCH_HIST_MAX) arr.splice(0, arr.length - SEARCH_HIST_MAX);
+  d[key] = arr;
+  save();
+}
+/* 搜索框历史下拉：聚焦弹出、点选回填、回车/失焦记一条、底部清除。
+   apply(v) 由调用方负责回填搜索框并触发对应渲染。 */
+function bindSearchHist(inp, wrap, drop, kind, apply){
+  if(!inp || !wrap || !drop) return;
+  const key = (kind === 'log') ? 'logSearchHist' : 'searchHist';
+  let keepOpen = false;   /* 点条目 / 点清除时，别让随后的 blur 把下拉关掉 */
+  const render = function(){
+    const d = curData();
+    const list = (d ? normSearchHist(d[key]) : []).slice().reverse();  /* 最新在最上 */
+    let html = '';
+    if(!list.length){
+      html = '<div class="shist-empty">还没有搜索记录，搜过之后会出现在这里</div>';
+    }else{
+      html = '<div class="shist-hd"><b>最近搜索</b><span>共 ' + list.length + ' 条</span></div>' +
+        list.map(function(s){
+          return '<button class="shist-item" data-v="' + esc(s) + '"><span class="shico">🕘</span>' +
+                 '<span class="shtxt">' + esc(s) + '</span></button>';
+        }).join('');
+    }
+    html += '<div class="shist-foot"><button class="shist-clear">🗑 清除搜索记录</button></div>';
+    drop.innerHTML = html;
+    Array.prototype.forEach.call(drop.querySelectorAll('.shist-item'), function(b){
+      /* mousedown 阻止默认，避免点条目时输入框失焦把下拉关掉 */
+      b.addEventListener('mousedown', function(e){ e.preventDefault(); });
+      b.onclick = function(){
+        const v = b.getAttribute('data-v');
+        keepOpen = true;
+        inp.value = v;
+        apply(v);
+        drop.classList.remove('show');
+        setTimeout(function(){ keepOpen = false; }, 160);
+      };
+    });
+    const cb = drop.querySelector('.shist-clear');
+    if(cb){
+      cb.onclick = function(){
+        const dd = curData(); if(!dd) return;
+        dd[key] = [];
+        save(); render();
+        keepOpen = true; drop.classList.add('show');
+        setTimeout(function(){ keepOpen = false; }, 160);
+        toast('搜索记录已清除');
+      };
+    }
+  };
+  const openDrop = function(){ render(); drop.classList.add('show'); };
+  inp.addEventListener('focus', openDrop);
+  /* 已经聚焦时再点一下（比如回车后下拉关了），也要重新弹出 */
+  inp.addEventListener('click', openDrop);
+  inp.addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ pushSearchHist(kind, inp.value); drop.classList.remove('show'); }
+  });
+  inp.addEventListener('blur', function(){
+    if((inp.value || '').trim()) pushSearchHist(kind, inp.value);
+    setTimeout(function(){ if(!keepOpen) drop.classList.remove('show'); }, 120);
+  });
+  document.addEventListener('click', function(e){
+    if(!wrap.contains(e.target) && !keepOpen) drop.classList.remove('show');
+  });
+}
 function resItemOf(key){
   const hit = RES_ITEMS.filter(function(it){ return it.key === key; })[0];
   return hit || {key:String(key || ''), name:String(key || '资源'), icon:'📦'};
@@ -3062,6 +3180,9 @@ function normalize(d){
     d.openFix = 1;
   }
   if(!Array.isArray(d.res)) d.res = seedRes();
+  /* 搜索历史：老存档没有就补空数组，并钳制到最近 10 条 */
+  d.searchHist = normSearchHist(d.searchHist);
+  d.logSearchHist = normSearchHist(d.logSearchHist);
   if(!d.dayAgg || typeof d.dayAgg !== 'object' || Array.isArray(d.dayAgg)) d.dayAgg = {};
   /* 归档明细不是数组就当没有（手改 / 同步码截断过的数据别把渲染撑崩） */
   Object.keys(d.dayAgg).forEach(function(k){
@@ -9865,6 +9986,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.86 搜索框有了「最近搜索」',
+     '<p>图鉴和变动记录两个搜索框，现在<b>都会记住最近搜过的词</b>：点进搜索框就弹出「最近搜索」列表，点一下直接填回去搜，不用重新打字。</p>' +
+     '<p>各留 <b>10 条</b>，新的记在前面、重复的会自动挪到最前，满 10 条后新的一条挤掉最早那条。列表底部有「🗑 清除搜索记录」，点一下清空。搜索历史跟着账号存档走，导出、导入、云同步都会一起带走；两个搜索框各存各的，互不混。</p>' +
+     '<p>按回车或点开别处时记一条搜索词，逐字输入的过程不会记进去。</p>',
+     '2026.11'],
     ['V2.85 资源记录：改错按上一次比对，空项会先问你',
      '<p><b>改错的那条，日志不再写「0 → 新值」。</b>以前把某条资源数值填错（比如漏填成了 0），再点编辑改回来时，日志拿这条自己的旧值当起点，于是记成「0 → 800」——那个 0 本来就是错的。现在改成跟<b>上一条资源记录</b>比对：「上次 500 → 800」，才是这次改动真正的意思。没动的项不会写进日志。</p>' +
      '<p><b>有资源项没填，保存时会弹窗问一句。</b>列出空着的项，还有每一项上次的数值，让你选：按 0 记 / 沿用上次 / 返回重填。不再默默把空项存成 0。全填了就不会弹，照旧直接保存。</p>',
@@ -10541,6 +10667,11 @@ function initEvents(){
   $('#btnClearSearch').onclick = function(){
     search.value = ''; ui.q = ''; $('#searchWrap').classList.remove('has-text'); renderCatalog(); search.focus();
   };
+  bindSearchHist(search, $('#searchWrap'), $('#fSearchHist'), 'sword', function(v){
+    ui.q = String(v || '').trim();
+    $('#searchWrap').classList.toggle('has-text', !!ui.q);
+    renderCatalog();
+  });
   $('#fSort').onchange = function(){ ui.sort = this.value; renderCatalog(); };
   $$('#ownFilters .chip[data-own]').forEach(function(b){
     b.onclick = function(){ ui.own = b.dataset.own; renderCatalog(); };
@@ -10630,6 +10761,11 @@ function initEvents(){
     $('#logSearchWrap').classList.remove('has-text');
     renderLogs(); logSearch.focus();
   };
+  bindSearchHist(logSearch, $('#logSearchWrap'), $('#logSearchHist'), 'log', function(v){
+    ui.logQ = String(v || '').trim(); ui.logPage = 1;
+    $('#logSearchWrap').classList.toggle('has-text', !!ui.logQ);
+    renderLogs();
+  });
   $('#btnClearLogs').onclick = clearLogs;
   $$('#logKinds button[data-lk]').forEach(function(b){
     b.onclick = function(){
