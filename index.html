@@ -491,11 +491,89 @@
   #viewTpl .tpl-table{min-width:600px;}
   #viewTpl .tpl-table td{white-space:nowrap;}
   #viewTpl .tpl-table td .input,#viewTpl .tpl-table td .select{min-width:0;}
+  .tpl-search{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .tpl-search .input{flex:1;min-width:0;font-size:12.5px;padding:7px 10px;}
+  .tpl-search-n{font-size:11px;color:var(--muted);white-space:nowrap;}
   @media (max-width:640px){
-    .tpl-hd{flex-direction:column;}
+    .tpl-hd{flex-direction:column;gap:6px;margin-bottom:8px;}
+    .tpl-hd-txt p{display:none;}
     .tpl-hd-acts{width:100%;}
-    .tpl-hd-acts .btn{flex:1;}
-    #viewTpl .tpl-table-wrap{max-height:none;min-height:0;}
+    .tpl-hd-acts .btn{flex:1;padding:6px 10px;font-size:12.5px;}
+    .tpl-stat{font-size:11px;margin-bottom:6px;}
+    .tpl-cfg{gap:6px 10px;padding:6px 9px;margin-bottom:7px;}
+    .tpl-note-d{margin-bottom:7px;}
+    #viewTpl .tpl-note-d summary{display:block;padding:3px 2px;}
+    .tpl-note-d[open] summary{margin-bottom:5px;}
+    .tpl-note{padding:7px 9px;margin-bottom:0;line-height:1.6;}
+    .tpl-acts{gap:7px;}
+    .tpl-acts .btn{flex:1 1 calc(50% - 4px);font-size:12px;padding:8px 10px;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .tpl-acts .btn.primary{flex:1 1 100%;}
+    .tpl-pwd{gap:7px;}
+    .tpl-pwd .input{flex:1 1 60%;min-width:0;}
+    #viewTpl .tpl-table-wrap{max-height:none;min-height:0;overflow:visible;border:0;border-radius:0;}
+    /* 手机端：表格堆叠成卡片，所有字段都在屏幕内，不用横向拖 */
+    #viewTpl .tpl-table,#viewTpl .tpl-table tbody{display:block;min-width:0;}
+    #viewTpl .tpl-table thead{display:none;}
+    #viewTpl .tpl-table tr{border:1px solid var(--line);border-radius:11px;
+      background:var(--surface-2);margin-bottom:9px;}
+    #viewTpl .tpl-table td{display:block;padding:0;border:0;white-space:normal;}
+
+    /* 编辑态：一张卡里竖排，刀名占整行，刀种/花数并排 */
+    #viewTpl .tpl-table.editable tr{display:grid;position:relative;
+      grid-template-columns:1fr 1fr;
+      grid-template-areas:
+        "no   no"
+        "name name"
+        "type fl"
+        "src  src"
+        "pk   pk";
+      gap:7px 8px;padding:10px 11px;}
+    .tpl-c-no{grid-area:no;align-self:center;text-align:left;font-weight:600;
+      color:var(--sub);font-size:11.5px;padding-right:42px;}
+    #viewTpl .tpl-table td.tpl-dragcol{display:none;}
+    #viewTpl .tpl-table.editable .tpl-c-del{position:absolute;top:7px;right:7px;}
+    .tpl-c-name{grid-area:name;}
+    .tpl-c-type{grid-area:type;}
+    .tpl-c-fl{grid-area:fl;}
+    .tpl-c-src{grid-area:src;}
+    .tpl-c-pk{grid-area:pk;text-align:left;}
+    #viewTpl .tpl-table.editable .tpl-c-name::before,
+    #viewTpl .tpl-table.editable .tpl-c-src::before,
+    #viewTpl .tpl-table.editable .tpl-c-pk::before{display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;}
+    #viewTpl .tpl-table.editable .tpl-c-type::before,
+    #viewTpl .tpl-table.editable .tpl-c-fl::before{display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;}
+    #viewTpl .tpl-table.editable .tpl-c-name::before{content:"刀名";}
+    #viewTpl .tpl-table.editable .tpl-c-type::before{content:"刀种";}
+    #viewTpl .tpl-table.editable .tpl-c-fl::before{content:"花数";}
+    #viewTpl .tpl-table.editable .tpl-c-src::before{content:"获取方式";}
+    #viewTpl .tpl-table.editable .tpl-c-pk::before{content:none;}
+    #viewTpl .tpl-table.editable .tpl-pk-lab{display:inline;font-size:12.5px;color:var(--sub);}
+    #viewTpl .tpl-table.editable .tpl-in{font-size:13px;padding:6px 8px;min-width:0;}
+    #viewTpl .tpl-table.editable .tpl-c-pk label,
+    #viewTpl .tpl-table.editable .tpl-c-pk{display:flex;align-items:center;gap:6px;}
+    #viewTpl .tpl-table.editable .tpl-c-pk input{width:17px;height:17px;flex-shrink:0;}
+
+    /* 只读态：紧凑两行，全部字段一眼可见 */
+    /* 只读：单行排布，刀名可省略，其余信息用紧凑样式，全部在屏内 */
+    #viewTpl .tpl-table.readonly tr{display:flex;flex-wrap:nowrap;align-items:baseline;
+      gap:2px 6px;padding:8px 11px;margin-bottom:0;border:0;border-bottom:1px solid var(--line);
+      border-radius:0;background:transparent;overflow:hidden;}
+    #viewTpl .tpl-table.readonly tr:last-child{border-bottom:0;}
+    #viewTpl .tpl-table.readonly td{display:inline;}
+    #viewTpl .tpl-table.readonly .tpl-c-name{font-weight:600;flex:1 1 auto;min-width:0;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    #viewTpl .tpl-table.readonly .tpl-c-src{flex:0 1 auto;min-width:0;overflow:hidden;
+      text-overflow:ellipsis;white-space:nowrap;max-width:30%;}
+    #viewTpl .tpl-table.readonly .tpl-c-pk{flex:0 0 auto;}
+    #viewTpl .tpl-table.readonly .pk-txt{display:none;}
+    #viewTpl .tpl-table td.tpl-c-no::before{content:"No.";font-size:9.5px;color:var(--muted-2);}
+    #viewTpl .tpl-table.readonly .tpl-c-no{flex:0 0 auto;}
+    #viewTpl .tpl-table.readonly .tpl-c-type,
+    #viewTpl .tpl-table.readonly .tpl-c-fl,
+    #viewTpl .tpl-table.readonly .tpl-c-src,
+    #viewTpl .tpl-table.readonly .tpl-c-pk{flex:0 0 auto;font-size:11px;color:var(--sub);}
+    #viewTpl .tpl-table.readonly .tpl-c-src{color:var(--muted);}
   }
   .tpl-cfg{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;font-size:11.5px;
     color:var(--sub);background:var(--surface-2);border:1px solid var(--line);border-radius:9px;
@@ -506,8 +584,16 @@
   .tpl-pkcol{text-align:center;white-space:nowrap;}
   .pk-on{color:#4f8365;font-weight:600;}
   .pk-off{color:var(--muted-2);}
+  .tpl-pk-lab{display:none;}
   .tpl-note{font-size:11.5px;line-height:1.7;color:var(--sub);background:var(--tint-a);
     border:1px solid var(--line);border-radius:9px;padding:8px 10px;margin-bottom:10px;}
+  .tpl-note-d{margin-bottom:10px;}
+  .tpl-note-d summary{display:none;cursor:pointer;font-size:11.5px;color:var(--accent-deep);
+    padding:5px 2px;list-style:none;user-select:none;}
+  .tpl-note-d summary::-webkit-details-marker{display:none;}
+  .tpl-note-d summary::before{content:"▸ ";}
+  .tpl-note-d[open] summary::before{content:"▾ ";}
+  .tpl-note-d .tpl-note{margin-bottom:0;}
   .tpl-table-wrap{max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:9px;}
   .tpl-table{width:100%;border-collapse:collapse;font-size:11.5px;}
   .tpl-table th{position:sticky;top:0;background:var(--surface-2);color:var(--muted);
@@ -1733,7 +1819,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.00</div>
+        <div class="brand-sub">HONMARU KEEPER V3.01</div>
       </div>
     </div>
 
@@ -3248,6 +3334,11 @@ let tplProofCache = '';     /* 本会话验证通过后的写凭证（只存内�
 const TPL_TYPES = ['短刀','胁差','打刀','太刀','大太刀','枪','薙刀','剑'];
 
 function tplSourceText(){
+  /* 窄屏（手机）只留最关键的三项，避免顶部信息铺满一整屏 */
+  if(window.innerWidth <= 640){
+    return TPL.rows.length + ' 振 · v' + TPL.ver + (TPL.locked ? ' · 🔒 已锁定' : ' · 未锁定') +
+           ' · 极' + POL_MAX() + ' / 乱 ' + RB_MAX();
+  }
   return '内置 ' + TPL_BUILTIN.length + ' 振兜底 · 当前 ' + TPL.rows.length + ' 振 · 版本 v' + TPL.ver +
          (TPL.locked ? ' · 🔒 已锁定' : ' · 未锁定') +
          ' · 极上限 Lv' + POL_MAX() + ' · 乱舞上限 ' + RB_MAX();
@@ -3283,31 +3374,40 @@ function renderTplPanel(edit){
       : '<span>极化等级上限 <b>' + POL_MAX() + '</b></span>' +
         '<span>乱舞上限 <b>' + RB_MAX() + '</b></span>') +
     '<span>已开放极化 <b>' + openN + '</b> 振</span></div>';
+  const narrow = window.innerWidth <= 640;
   const head =
     '<div class="tpl-stat">' + esc(tplSourceText()) + '</div>' + cfg +
-    '<div class="tpl-note">刀名 / 刀种 / 花数 / 获取方式 / <b>是否开放极化</b> / 极化与乱舞上限<b>全服一致</b>，由作者统一维护；' +
-    '「是否拥有 / 已极化 / 等级 / 乱舞 / 收藏」是每个账号各自记录，不在模板里。</div>';
-  let table = '<div class="tpl-table-wrap"><table class="tpl-table"><thead><tr>' +
+    '<details class="tpl-note-d"' + (narrow ? '' : ' open') + '>' +
+      '<summary>ⓘ 哪些字段全服一致</summary>' +
+      '<div class="tpl-note">刀名 / 刀种 / 花数 / 获取方式 / <b>是否开放极化</b> / 极化与乱舞上限<b>全服一致</b>，由作者统一维护；' +
+      '「是否拥有 / 已极化 / 等级 / 乱舞 / 收藏」是每个账号各自记录，不在模板里。</div>' +
+    '</details>';
+  const searchBar =
+    '<div class="tpl-search">' +
+      '<input class="input" id="tplSearch" type="search" placeholder="搜索刀名 / 编号 / 刀种" autocomplete="off">' +
+      '<span class="tpl-search-n" id="tplSearchN"></span>' +
+    '</div>';
+  let table = searchBar + '<div class="tpl-table-wrap"><table class="tpl-table ' + (edit ? 'editable' : 'readonly') + '"><thead><tr>' +
     (edit ? '<th></th>' : '') + '<th>编号</th><th>刀名</th><th>刀种</th><th>花数</th><th>获取方式</th><th class="tpl-pkcol">可极化</th>' +
     (edit ? '<th></th>' : '') + '</tr></thead><tbody>';
   rows.forEach(function(r, i){
-    table += '<tr>' +
+    table += '<tr data-hay="' + esc((r.no + ' ' + r.name + ' ' + r.type).toLowerCase()) + '">' +
       (edit ? '<td class="tpl-dragcol">⠿</td>' : '') +
-      '<td class="tpl-no">' + r.no + '</td>' +
+      '<td class="tpl-no tpl-c-no">' + r.no + '</td>' +
       (edit
-        ? '<td><input class="input tpl-in" data-tf="name" data-i="' + i + '" value="' + esc(r.name) + '" maxlength="24"></td>' +
-          '<td><select class="select tpl-in" data-tf="type" data-i="' + i + '">' +
+        ? '<td class="tpl-c-name"><input class="input tpl-in" data-tf="name" data-i="' + i + '" value="' + esc(r.name) + '" maxlength="24"></td>' +
+          '<td class="tpl-c-type"><select class="select tpl-in" data-tf="type" data-i="' + i + '">' +
             TPL_TYPES.map(function(t){ return '<option' + (t === r.type ? ' selected' : '') + '>' + t + '</option>'; }).join('') +
           '</select></td>' +
-          '<td><select class="select tpl-in" data-tf="fl" data-i="' + i + '">' +
+          '<td class="tpl-c-fl"><select class="select tpl-in" data-tf="fl" data-i="' + i + '">' +
             [0,1,2,3,4,5].map(function(n){ return '<option value="' + n + '"' + (n === r.fl ? ' selected' : '') + '>' + (n === 0 ? '未知' : n) + '</option>'; }).join('') +
           '</select></td>' +
-          '<td><input class="input tpl-in" data-tf="src" data-i="' + i + '" value="' + esc(r.src) + '" maxlength="32" placeholder="留空"></td>'
-        : '<td>' + esc(r.name) + '</td><td>' + esc(r.type) + '</td><td>' + (r.fl || '未知') + '</td><td>' + (esc(r.src) || '—') + '</td>') +
+          '<td class="tpl-c-src"><input class="input tpl-in" data-tf="src" data-i="' + i + '" value="' + esc(r.src) + '" maxlength="32" placeholder="留空"></td>'
+        : '<td class="tpl-c-name">' + esc(r.name) + '</td><td class="tpl-c-type">' + esc(r.type) + '</td><td class="tpl-c-fl">' + (r.fl || '未知') + '花</td><td class="tpl-c-src">' + (esc(r.src) || '—') + '</td>') +
       (edit
-        ? '<td class="tpl-pkcol"><input type="checkbox" class="tpl-in" data-tf="pk" data-i="' + i + '"' + (Number(r.pk) === 1 ? ' checked' : '') + ' title="勾上=该刀已开放极化"></td>'
-        : '<td class="tpl-pkcol">' + (Number(r.pk) === 1 ? '<span class="pk-on">✔ 已开放</span>' : '<span class="pk-off">—</span>') + '</td>') +
-      (edit ? '<td><button class="icon-btn danger tpl-del" data-i="' + i + '" title="从模板移除">🗑</button></td>' : '') +
+        ? '<td class="tpl-pkcol tpl-c-pk"><label><input type="checkbox" class="tpl-in" data-tf="pk" data-i="' + i + '"' + (Number(r.pk) === 1 ? ' checked' : '') + ' title="勾上=该刀已开放极化"><span class="tpl-pk-lab">可极化</span></label></td>'
+        : '<td class="tpl-pkcol tpl-c-pk">' + (Number(r.pk) === 1 ? '<span class="pk-on">✔<i class="pk-txt"> 已开放</i></span>' : '<span class="pk-off">—</span>') + '</td>') +
+      (edit ? '<td class="tpl-c-del"><button class="icon-btn danger tpl-del" data-i="' + i + '" title="从模板移除">🗑</button></td>' : '') +
       '</tr>';
   });
   table += '</tbody></table></div>';
@@ -3332,10 +3432,30 @@ function renderTplPanel(edit){
         '<button class="btn primary" id="tplPublish">⬆ 发布到云端（全服生效）</button>' +
         '<button class="btn" id="tplReloadEdit">↺ 放弃改动</button>' +
       '</div>' +
-      '<div class="tpl-note" style="margin-top:8px;">锁定后模板不可再改；发布需作者口令且模板未锁定。发布后所有账号打开时自动同步刀名 / 刀种 / 花数 / 获取方式 / 是否开放极化，版本 +1。极化上限经验表只覆盖到 Lv199，调到 199 以上时超出部分按 Lv199 的满经验计。</div>';
+      '<details class="tpl-note-d"' + (narrow ? '' : ' open') + ' style="margin-top:8px;">' +
+        '<summary>ⓘ 发布与上限说明</summary>' +
+        '<div class="tpl-note">锁定后模板不可再改；发布需作者口令且模板未锁定。发布后所有账号打开时自动同步刀名 / 刀种 / 花数 / 获取方式 / 是否开放极化，版本 +1。极化上限经验表只覆盖到 Lv199，调到 199 以上时超出部分按 Lv199 的满经验计。</div>' +
+      '</details>';
   }
 
   page.innerHTML = bar + '<div class="tpl-body">' + head + table + foot + '</div>';
+  const sq = $('#tplSearch');
+  if(sq){
+    const rowsEl = page.querySelectorAll('.tpl-table tbody tr');
+    const cnt = $('#tplSearchN');
+    const apply = function(){
+      const q = (sq.value || '').trim().toLowerCase();
+      let n = 0;
+      Array.prototype.forEach.call(rowsEl, function(tr){
+        const hit = !q || (tr.dataset.hay || '').indexOf(q) >= 0;
+        tr.hidden = !hit;
+        if(hit) n++;
+      });
+      if(cnt) cnt.textContent = q ? (n + ' / ' + rowsEl.length) : '';
+    };
+    sq.addEventListener('input', apply);
+    apply();
+  }
   const back = $('#tplBackView');
   if(back) back.onclick = function(){ tplEdit = null; renderTplPanel(false); };
   const enter = $('#tplEnterEdit');
@@ -10727,6 +10847,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.01 手机端改刀帐改得更顺手',
+     '<p>作者管理在手机上以前还是横向宽表：一屏只看得到<b>编号 / 刀名 / 刀种</b>，花数、获取方式、可极化、删除都要左右拖才露出来。现在手机（≤640px）自动换成<b>竖向卡片</b>，每振一张卡：编号在左上、删除在右上，刀名一行，刀种和花数并排，获取方式、可极化各占一行，<b>全部在屏幕内，不用横拖</b>。</p>' +
+     '<p>查看模式也跟着变紧凑：一行显示「编号 · 刀名 · 刀种 · 花数 · 获取 · ✔」，长刀名自动省略号，131 振扫起来快很多。表格上方加了<b>搜索框</b>（刀名 / 编号 / 刀种），改某一振时先搜再改，不用从头滚到尾。</p>' +
+     '<p>页面顶部也收紧了：手机只说「131 振 · v4 · 未锁定 · 极199 / 乱10」，两段长说明折叠成「ⓘ 点开看」，底部口令与按钮改成两列 + 发布整行，编辑时视线不被说明挤走。</p>',
+     '2026.11'],
     ['V3.00 刀帐模板改成整页，不再弹窗',
      '<p>「📖 刀帐模板」和里面的「作者管理」以前都套在弹窗里，131 行表格在手机上只能挤在一个小框里滑。现在改成<b>独立整页</b>：从侧栏「📖 刀帐模板」进入，页面标题变成「刀帐 / 全服模板」，表格高度跟着屏幕走，手机上就是正常页面滚动。</p>' +
      '<p>查看模式右上角点「作者管理」切到编辑态，左上「← 返回查看」切回去；口令验证、新增 / 删除、可极化勾选、两个上限、锁定、发布都还在原来的位置，只是不再盖在弹窗上。侧栏入口在模板页会高亮，点别的菜单直接离开。</p>',
