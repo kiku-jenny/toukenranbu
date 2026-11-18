@@ -754,6 +754,9 @@
   }
   .card-name{font-size:17px;letter-spacing:.05em;line-height:1.3;margin-bottom:9px;font-weight:700;}
   .card-name.long{font-size:14.5px;}
+  .card-note{margin:-5px 0 9px;font-size:11.5px;line-height:1.35;color:var(--accent-deep);opacity:.9;
+    overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-all;}
+  .card.unowned .card-note{color:#9c8d92;}
   .card.kw .card-name{color:var(--accent-deep);}
   /* 未拥有：整张卡压暗一点，右上角挂个标记 */
   .card.unowned{background:rgba(140,120,125,.06);border-style:dashed;border-color:var(--line);}
@@ -1695,7 +1698,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.94</div>
+        <div class="brand-sub">HONMARU KEEPER V2.95</div>
       </div>
     </div>
 
@@ -2912,7 +2915,7 @@ function seedTw(ownVal){
   return TPL_BUILTIN.map(function(t){
     var r = RAW.filter(function(z){ return z[0] === t.no; })[0];
     return {no:t.no, name:t.name, type:t.type, k:r ? r[3] : 0, r:r ? r[4] : 1,
-            lv:r ? r[5] : 1, exp:r ? r[6] : 0, src:t.src, fl:t.fl, rp:0, own:own};
+            lv:r ? r[5] : 1, exp:r ? r[6] : 0, src:t.src, fl:t.fl, rp:0, own:own, note:''};
   });
 }
 /* 已开放极化的名单：目前 90 振（即已极化的那些），后续官方开放新极化时在页面里勾选即可 */
@@ -3114,7 +3117,7 @@ function applyTplToData(d){
     TPL.rows.forEach(function(t){
       if(!have[t.no]){
         d.tw.push({no:t.no, name:t.name, type:t.type, k:0, r:1, lv:1, exp:0,
-                   src:t.src, fl:t.fl, rp:0, own:0, fav:0, favAt:0});
+                   src:t.src, fl:t.fl, rp:0, own:0, fav:0, favAt:0, note:''});
       }
     });
     d.tw.sort(function(a,b){ return a.no - b.no; });
@@ -3320,7 +3323,7 @@ function blankData(){
 }
 /* 变动日志：{id, kind, no, name, act, ses, src, date, changes:[{f, ...}], ts}
    kind = sword（图鉴字段） / ranbu（活动登记喂刀 +1） / res（资源快照变化） */
-const LOG_FIELDS = {name:'名称', type:'刀种', fl:'花数', k:'极化', r:'乱舞', rp:'乱舞进度', lv:'等级', plv:'极化等级', exp:'经验', src:'获取方式', own:'拥有状态', date:'日期'};
+const LOG_FIELDS = {name:'名称', type:'刀种', fl:'花数', k:'极化', r:'乱舞', rp:'乱舞进度', lv:'等级', plv:'极化等级', exp:'经验', src:'获取方式', own:'拥有状态', note:'备注', date:'日期'};
 const LOG_KINDS = {sword:'图鉴', ranbu:'乱舞 +1', res:'资源', new:'新刀', del:'删除'};
 /* 日志最多留这么多条，超出把最旧的挤掉。只影响明细与每日统计的历史，图鉴 / 资源数据不受影响 */
 const LOG_MAX = 2000;
@@ -3532,7 +3535,9 @@ function normRow(o, dft){
     own: (o && Number(o.own) === 0) ? 0 : 1,
     /* 收藏置顶：可以有多振，老数据默认不置顶；favAt 记住收藏时间，先收藏的排前面 */
     fav: (o && Number(o.fav) === 1) ? 1 : 0,
-    favAt: (o && Number(o.fav) === 1) ? (Number(o.favAt) || 0) : 0
+    favAt: (o && Number(o.fav) === 1) ? (Number(o.favAt) || 0) : 0,
+    /* 备注：每账号私有的标注（不进全服模板），如「主力队 / 待练 / 等材料」 */
+    note: String((o && o.note) || '').slice(0, 60)
   };
 }
 function normalize(d){
@@ -4515,7 +4520,8 @@ function filteredRows(){
     if(ui.q){
       const q = ui.q.toLowerCase();
       const hay = (x.name + ' ' + x.no + ' ' + String(x.no).padStart(3, '0') + ' no.' + x.no +
-                   ' no.' + String(x.no).padStart(3, '0') + ' ' + x.type + ' ' + (x.src || '')).toLowerCase();
+                   ' no.' + String(x.no).padStart(3, '0') + ' ' + x.type + ' ' + (x.src || '') +
+                   ' ' + (x.note || '')).toLowerCase();
       if(hay.indexOf(q) < 0) return false;
     }
     return true;
@@ -4734,7 +4740,9 @@ function cardHTML(x){
         '<span class="type-tag">'+esc(v.type)+'</span>' +
       '</span>' +
     '</div>' +
-    '<div class="card-name'+(long?' long':'')+'">'+esc(v.name)+'</div>';
+    '<div class="card-name'+(long?' long':'')+'">'+esc(v.name)+'</div>' +
+    (!editing && (v.note || '').trim()
+      ? '<div class="card-note" title="'+esc(v.note)+'">'+esc(v.note)+'</div>' : '');
 
   if(!editing){
     /* 乱舞这一栏直接给「乱舞 n→n+1」和剩余数量，不再显示 x/y 进度 */
@@ -4812,6 +4820,7 @@ function cardHTML(x){
     '</div>' +
     '<div data-pre="1">' + (showEst ? estHTML(v.type, v.exp, v.fl, {k:v.k, lv:v.lv, no:x.no, editable:true}) : '') + '</div>' +
     '<label class="fld"><span>获取方式</span><input type="text" maxlength="24" data-no="'+x.no+'" data-f="src" value="'+esc(srcTxt)+'" placeholder="如 7-4王点"></label>' +
+    '<label class="fld"><span title="只给自己看的标注，不进全服模板，可点卡片名下方查看">备注（自己记）</span><input type="text" maxlength="60" data-no="'+x.no+'" data-f="note" value="'+esc(v.note || '')+'" placeholder="如 主力队 / 待练 / 等材料"></label>' +
     '<div class="card-actions">' +
       '<button class="card-btn ghost" data-act="cancel">取消</button>' +
       '<button class="card-btn primary" data-act="save">保存</button>' +
@@ -4878,6 +4887,9 @@ function readField(o, el){
   }else if(f === 'src'){
     o.src = (el.value || '').trim().slice(0, 24);
     el.value = o.src;
+  }else if(f === 'note'){
+    o.note = (el.value || '').trim().slice(0, 60);
+    el.value = o.note;
   }else if(f === 'name'){
     o.name = (el.value || '').trim().slice(0, 20);
   }else if(f === 'type'){
@@ -4958,7 +4970,7 @@ function shiftFav(no, dir){
 function startEdit(no){
   const row = rowOf(no);
   if(!row) return;
-  ui.edit[no] = {name:row.name, type:row.type, k:row.k, r:row.r, rp:row.rp || 0, fl:row.fl || 0, lv:row.lv, exp:row.exp, src:row.src || '', own:(Number(row.own)===0?0:1)};
+  ui.edit[no] = {name:row.name, type:row.type, k:row.k, r:row.r, rp:row.rp || 0, fl:row.fl || 0, lv:row.lv, exp:row.exp, src:row.src || '', note:row.note || '', own:(Number(row.own)===0?0:1)};
   repaintCard(no);
   const card = document.querySelector('#grid .card[data-no="'+no+'"]');
   if(card){
@@ -4989,13 +5001,13 @@ function commitEdit(no){
   const d = curData();
   const row = rowOf(no);
   if(!d || !row) return;
-  const draft = ui.edit[no] || {name:row.name, type:row.type, k:row.k, r:row.r, rp:row.rp || 0, fl:row.fl || 0, lv:row.lv, exp:row.exp, src:row.src || '', own:(Number(row.own)===0?0:1)};
+  const draft = ui.edit[no] || {name:row.name, type:row.type, k:row.k, r:row.r, rp:row.rp || 0, fl:row.fl || 0, lv:row.lv, exp:row.exp, src:row.src || '', note:row.note || '', own:(Number(row.own)===0?0:1)};
   const card = document.querySelector('#grid .card[data-no="'+no+'"]');
   if(card){
     const els = card.querySelectorAll('[data-f]');
     Array.prototype.forEach.call(els, function(el){ readField(draft, el); });
   }
-  const before = {name:row.name, type:row.type, fl:row.fl || 0, k:row.k, r:row.r, rp:row.rp || 0, lv:row.lv, exp:row.exp, src:row.src || '', own:(Number(row.own)===0?0:1)};
+  const before = {name:row.name, type:row.type, fl:row.fl || 0, k:row.k, r:row.r, rp:row.rp || 0, lv:row.lv, exp:row.exp, src:row.src || '', note:row.note || '', own:(Number(row.own)===0?0:1)};
   const kk = draft.k === 1 ? 1 : 0;
   const next = {
     name: String(draft.name || '').trim().slice(0, 20) || row.name,
@@ -5007,6 +5019,7 @@ function commitEdit(no){
     lv: clampNum(draft.lv, 1, kk === 1 ? 199 : 99, row.lv),
     exp: clampFloat(draft.exp, 0, RES_MAX, row.exp),
     src: (draft.src || '').trim().slice(0, 24),
+    note: (draft.note || '').trim().slice(0, 60),
     own: Number(draft.own) === 0 ? 0 : 1
   };
   /* 已极化且填了经验：等级以经验为准，保存前再校正一次，避免手填等级与经验对不上 */
@@ -5035,7 +5048,7 @@ function commitEdit(no){
   Object.keys(LOG_FIELDS).forEach(function(f){
     if(f === 'r' || f === 'rp' || f === 'plv' || f === 'date') return;   // 乱舞并成一条、极化等级下面单独算、日期只属于资源记录
     const a = before[f], b = next[f];
-    const same = (f === 'src' || f === 'name' || f === 'type') ? String(a) === String(b) : Number(a) === Number(b);
+    const same = (f === 'src' || f === 'name' || f === 'type' || f === 'note') ? String(a) === String(b) : Number(a) === Number(b);
     if(!same) changes.push({f:f, from:a, to:b});
   });
   /* 普刀只涨了经验、卡面等级没动，但换算出的极化等级升级了 —— 这也算升一级，
@@ -5453,7 +5466,7 @@ function showSwordAfterAdd(no){
   if(ui.kiwame === '0' && isKw){ ui.kiwame = ''; relax = true; }
   if(ui.kiwame === 'na' && opened){ ui.kiwame = ''; relax = true; }
   if(ui.kiwame === 'open' && (!opened || isKw)){ ui.kiwame = ''; relax = true; }
-  if(ui.q && row.name.toLowerCase().indexOf(String(ui.q).toLowerCase()) < 0){
+  if(ui.q && (row.name + ' ' + (row.note || '')).toLowerCase().indexOf(String(ui.q).toLowerCase()) < 0){
     ui.q = '';
     const el = $('#fSearch');
     if(el) el.value = '';
@@ -6294,6 +6307,7 @@ function logVal(f, v){
   if(f === 'plv') return 'Lv ' + (Number(v) || 0);
   if(f === 'own') return Number(v) === 0 ? '未拥有' : '已拥有';
   if(f === 'src') return String(v || '').trim() || '—';
+  if(f === 'note') return String(v || '').trim() || '—';
   if(f === 'exp') return fmtNum(v);
   if(f === 'fl') return Number(v) > 0 ? Number(v) + ' 花' : '未知';
   return String(v);
@@ -10549,6 +10563,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.95 可对刀名设置备注（各账号独立）',
+     '<p>每振刀现在可以写一句<b>备注</b>（如「主力队 / 待练 / 等材料」），点卡片「✎ 修改」在最下面填写，保存后显示在刀名下方。备注是<b>你自己账号的标注</b>，不进全服模板、不影响别人；导出 / 云同步都会带上。</p>' +
+     '<p>顶部搜索框现在也<b>能按备注搜刀</b>；备注的增删改同样会记入变动日志。清空备注即取消。</p>',
+     '2026.11'],
     ['V2.94 全服刀帐模板（刀名/花数/刀种/获取方式）',
      '<p>刀帐里的<b>刀名、花数、刀种、获取方式</b>现在是<b>全服统一的一份模板</b>，由作者一人维护；你账号里的「是否拥有 / 极化 / 等级 / 经验 / 乱舞 / 收藏」仍然各自独立，互不影响。内置模板已从 130 振补齐到 <b>131 振</b>（新增八八王国吉，桃太郎改名桃太郎祐定），老账号打开时会自动对齐、个人数据全部保留。</p>' +
      '<p>作者可在侧栏底部「📖 刀帐模板 → 作者管理」里<b>编辑 / 新增 / 删除 / 锁定</b>并用口令发布到公共库；发布后所有账号下次打开自动同步。模板<b>锁定后不可再改</b>，别人没有口令也改不了。SQL 没跑之前应用照常用内置 131 振，不受影响。</p>',
