@@ -554,26 +554,31 @@
     #viewTpl .tpl-table.editable .tpl-c-pk{display:flex;align-items:center;gap:6px;}
     #viewTpl .tpl-table.editable .tpl-c-pk input{width:17px;height:17px;flex-shrink:0;}
 
-    /* 只读态：紧凑两行，全部字段一眼可见 */
-    /* 只读：单行排布，刀名可省略，其余信息用紧凑样式，全部在屏内 */
-    #viewTpl .tpl-table.readonly tr{display:flex;flex-wrap:nowrap;align-items:baseline;
-      gap:2px 6px;padding:8px 11px;margin-bottom:0;border:0;border-bottom:1px solid var(--line);
+    /* 只读：固定列宽网格。原来用 flex，获取方式一长就把刀名压窄、
+       连带刀种/花数整行左移，填没填获取方式的行的竖排参差。
+       现在每列宽度写死，只有刀名 1fr 吸收剩余，各列上下一条竖线。 */
+    #viewTpl .tpl-table.readonly tr{display:grid;
+      grid-template-columns:38px minmax(0,1fr) 38px 26px 42px 16px;
+      align-items:center;gap:2px 4px;padding:8px 11px;
+      margin-bottom:0;border:0;border-bottom:1px solid var(--line);
       border-radius:0;background:transparent;overflow:hidden;}
     #viewTpl .tpl-table.readonly tr:last-child{border-bottom:0;}
-    #viewTpl .tpl-table.readonly td{display:inline;}
-    #viewTpl .tpl-table.readonly .tpl-c-name{font-weight:600;flex:1 1 auto;min-width:0;
+    #viewTpl .tpl-table.readonly td{display:block;min-width:0;grid-area:auto;
       overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    #viewTpl .tpl-table.readonly .tpl-c-src{flex:0 1 auto;min-width:0;overflow:hidden;
-      text-overflow:ellipsis;white-space:nowrap;max-width:30%;}
-    #viewTpl .tpl-table.readonly .tpl-c-pk{flex:0 0 auto;}
+    #viewTpl .tpl-table.readonly .tpl-c-name{font-weight:600;}
+    #viewTpl .tpl-table.readonly .tpl-c-src{max-width:none;color:var(--muted);}
     #viewTpl .tpl-table.readonly .pk-txt{display:none;}
     #viewTpl .tpl-table td.tpl-c-no::before{content:"No.";font-size:9.5px;color:var(--muted-2);}
-    #viewTpl .tpl-table.readonly .tpl-c-no{flex:0 0 auto;}
     #viewTpl .tpl-table.readonly .tpl-c-type,
     #viewTpl .tpl-table.readonly .tpl-c-fl,
     #viewTpl .tpl-table.readonly .tpl-c-src,
-    #viewTpl .tpl-table.readonly .tpl-c-pk{flex:0 0 auto;font-size:11px;color:var(--sub);}
-    #viewTpl .tpl-table.readonly .tpl-c-src{color:var(--muted);}
+    #viewTpl .tpl-table.readonly .tpl-c-pk{font-size:11px;color:var(--sub);}
+    /* 更窄的屏幕把固定列再收紧一点，优先保住刀名 */
+    @media (max-width:360px){
+      #viewTpl .tpl-table.readonly tr{
+        grid-template-columns:36px minmax(0,1fr) 36px 24px 38px 14px;
+        gap:2px 3px;padding:8px 9px;}
+    }
   }
   .tpl-cfg{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;font-size:11.5px;
     color:var(--sub);background:var(--surface-2);border:1px solid var(--line);border-radius:9px;
@@ -1853,7 +1858,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.04</div>
+        <div class="brand-sub">HONMARU KEEPER V3.05</div>
       </div>
     </div>
 
@@ -10934,6 +10939,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.05 模板查看列表都对齐了',
+     '<p>手机上模板「查看模式」以前用弹性行排：获取方式那一栏填了内容（如「7-4王点」）就会把刀名挤窄，<b>连带刀种、花数整行左移</b>——实测填了获取方式的行比只显示「—」的行左移约 26px，竖着看是锯齿状，不好看。</p>' +
+     '<p>现在改成<b>固定列宽网格</b>：编号、刀名、刀种、花数、获取方式、可极化各占固定一列，只有刀名吸收剩余宽度，<b>每一列上下都在同一条竖线上</b>。刀名宽度也留够了，「三日月宗近」「にっかり青江」这些长名照样看得全，只有更长的才省略号。</p>',
+     '2026.11'],
     ['V3.04 花数 · 刀种只读，获取方式自己记',
      '<p>刀帐卡片「✎ 修改」里，<b>花数</b>和<b>刀种</b>都改成只读了：花数只剩一个「N 花」小框，刀种是一行灰字，跟刀名一样来自全服刀帐模板，不用再自己填。状态、极化、等级、经验、乱舞、获取方式、备注照旧能改；模板里没有的纯本地刀不受影响。</p>' +
      '<p><b>获取方式改成自己记</b>：以前它和刀名一起被模板覆盖，改完下次同步就没了。现在保存后会一直留着，刷新、云同步、作者发布新模板都不会动它；模板里填的获取方式只作为「新增一振」时的默认值。</p>' +
