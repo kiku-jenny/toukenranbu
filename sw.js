@@ -1,9 +1,14 @@
 /* 刀剑乱舞管家 · 离线缓存
-   目的只有一个：第二次打开时几乎瞬时出页面，而不是每次都等那 150 KB 下载。
-   策略：缓存优先 + 后台只发一个 HEAD 核对（比整页重新下载省得多）。
-   线上内容变了（ETag / 修改时间 / 长度不同）才重新拉一份，并通知页面「新版本已就绪」。 */
+   第一次打开正常下载，之后缓存优先，几乎瞬时出页面。
 
-const CACHE = 'honmaru-cache-v17';
+   更新机制（v18 起改为标准 Service Worker 流程）：
+   - 去掉了原来「每次打开都发 HEAD 探测」的逻辑：HEAD 返回的 content-length 是
+     压缩后的大小，和缓存里 GET 响应的解压大小对不上，会一直误报「有新版本」。
+   - 改由 sw.js 自身当版本清单：发版时把 CACHE 版本号 +1，浏览器发现 sw.js 变了
+     就会安装新 SW、预缓存新页面；activate 时提示一次「新版本已就绪」。
+   - 平时不发任何探测请求，不会误报；不点提示也没关系，下次打开自动就是新版。 */
+
+const CACHE = 'honmaru-cache-v18';
 const PAGE = './';
 
 self.addEventListener('install', function(e){
@@ -17,11 +22,14 @@ self.addEventListener('install', function(e){
 
 self.addEventListener('activate', function(e){
   e.waitUntil(
-    caches.keys()
-      .then(function(keys){
-        return Promise.all(keys.map(function(k){ return k === CACHE ? null : caches.delete(k); }));
-      })
-      .then(function(){ return self.clients.claim(); })
+    caches.keys().then(function(keys){
+      /* 存在旧版本缓存 = 这是一次「更新」而非首次安装，提示一次即可 */
+      const hadOld = keys.some(function(k){ return k !== CACHE && k.indexOf('honmaru-cache-') === 0; });
+      return Promise.all(keys.map(function(k){ return k === CACHE ? null : caches.delete(k); }))
+        .then(function(){ return hadOld; });
+    })
+    .then(function(hadOld){ return self.clients.claim().then(function(){ return hadOld; }); })
+    .then(function(hadOld){ if(hadOld) notifyUpdate(); })
   );
 });
 
@@ -42,10 +50,7 @@ async function serve(req){
   let hit = null;
   try{ hit = await cache.match(key, {ignoreSearch:true}); }catch(e){}
 
-  if(hit){
-    revalidate(req, cache, key, hit);      /* 后台核对，不占这次打开的时间 */
-    return hit;
-  }
+  if(hit) return hit;                                       /* 缓存优先，不再后台探测 */
   try{
     const res = await fetch(req);
     if(res && res.ok && res.type === 'basic') cache.put(key, res.clone());
@@ -56,41 +61,8 @@ async function serve(req){
   }
 }
 
-/* 只发 HEAD：正常情况一个往返就够，不用再把整页拉一遍 */
-async function revalidate(req, cache, key, hit){
-  try{
-    let head = null;
-    try{
-      head = await fetch(req.url, {method:'HEAD', cache:'no-store'});
-    }catch(e){ head = null; }
-    if(head && head.status === 405){       /* 服务器不认 HEAD：退回整页比对 */
-      const res = await fetch(req, {cache:'no-store'});
-      if(res && res.ok && res.type === 'basic' && stamp(res) !== stamp(hit)){
-        await cache.put(key, res.clone());
-        notifyUpdate();
-      }
-      return;
-    }
-    if(!head || !head.ok) return;
-    const now = stamp(head), old = stamp(hit);
-    if(!now || !old || now === old) return;
-    const res = await fetch(req, {cache:'no-store'});
-    if(res && res.ok && res.type === 'basic'){
-      await cache.put(key, res.clone());
-      notifyUpdate();
-    }
-  }catch(e){}
-}
-
 function notifyUpdate(){
   self.clients.matchAll({type:'window'}).then(function(list){
     list.forEach(function(c){ c.postMessage({type:'hk-update'}); });
   });
-}
-
-/* 用能拿到的头部拼个指纹：GitHub Pages 有 ETag，普通服务器常只有 Last-Modified / 长度 */
-function stamp(res){
-  if(!res || !res.headers) return '';
-  const h = res.headers;
-  return [h.get('etag') || '', h.get('last-modified') || '', h.get('content-length') || ''].join('|');
 }
