@@ -1708,7 +1708,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.97</div>
+        <div class="brand-sub">HONMARU KEEPER V2.98</div>
       </div>
     </div>
 
@@ -3343,7 +3343,7 @@ function bindTplEdit(){
   if(rel) rel.onclick = function(){ tplEdit = tplNorm(TPL); renderTplPanel(true); };
 }
 
-/* 初次打开（本机还没有存档）时带的初始图鉴：保留原有 130 振的资料 */
+/* 初次打开（本机还没有存档）时带的初始图鉴：直接铺全服模板（131 振） */
 function seedData(){
   return {ver:6, roster:1, tw:seedTw(), open:seedOpen(), res:seedRes(), records:[], logs:[],
           searchHist:[], logSearchHist:[], rosterLock:{on:0, at:0, n:0}, tplVer:TPL.ver, calc:seedCalc()};
@@ -3590,16 +3590,16 @@ function normalize(d){
       return normRow(o, seedMap[no] || {no:no, name:'未命名', type:'打刀', k:0, r:1, lv:1, exp:0, src:''});
     });
   }else{
-    /* 老存档第一次打开：按 130 振补全一次，之后打上 roster 标记 */
+    /* 老存档第一次打开：按内置刀帐补全一次，之后打上 roster 标记 */
     out = seedRows.map(function(row){
       const o = oldMap[row.no];
       return o ? normRow(o, row) : row;
     });
-    /* 编号在 130 之后的刀（后续增补的）保留下来 */
+    /* 编号超出内置刀帐的刀（后续增补的）保留下来 */
     old.forEach(function(o){
       if(!o || o.no == null) return;
       const no = Number(o.no);
-      if(!RAW_BY_NO[no]) out.push(normRow(o, {no:no, name:'未命名', type:'打刀', k:0, r:1, lv:1, exp:0, src:''}));
+      if(!seedMap[no]) out.push(normRow(o, {no:no, name:'未命名', type:'打刀', k:0, r:1, lv:1, exp:0, src:''}));
     });
     d.roster = 1;
   }
@@ -5402,26 +5402,27 @@ function fillFlowerAll(){
   });
 }
 
-/* 空账号：一键铺开完整 130 振刀帐（只有编号/名称/刀种/花数，进度留空） */
+/* 空账号：一键铺开完整刀帐（以全服模板为准，当前 131 振；只有编号/名称/刀种/花数，进度留空） */
 function fillBaseRoster(){
   const d = curData();
   if(!d) return;
   if(d.tw.length){ toast('图鉴里已经有刀了，直接用「＋ 新增刀剑」补就行'); return; }
+  const total = TPL_BUILTIN.length;
   openModal({
-    title:'📋 填入 130 振刀帐',
+    title:'📋 填入 ' + total + ' 振刀帐',
     sub:'从头开始也可以先把整本刀帐铺好，再一把把填自己的进度。',
     body:'<p style="margin:0;font-size:12px;line-height:1.95;color:var(--sub);">' +
          '只会填<b>编号、名称、刀种、花数</b>；<b>全部先标成「未拥有」</b>，拿到哪振就在卡片里把状态改成已拥有。' +
          '极化按「普」、乱舞 1、等级 Lv 1、总经验 0，之后按自己实际情况改；极化开放名单一并恢复（90 振）。</p>',
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
-      {text:'填入 130 振', cls:'btn primary', onClick:function(){
+      {text:'填入 ' + total + ' 振', cls:'btn primary', onClick:function(){
         d.tw = seedTw().map(function(x){
           return {no:x.no, name:x.name, type:x.type, k:0, r:1, lv:1, exp:0, src:'', fl:x.fl, rp:0, own:0};
         });
         d.open = seedOpen();
         save(); closeModal(); renderAll();
-        toast('已填入 130 振刀帐（都标为未拥有），拿到哪振就改成已拥有');
+        toast('已填入 ' + d.tw.length + ' 振刀帐（都标为未拥有），拿到哪振就改成已拥有');
       }}
     ]
   });
@@ -5430,11 +5431,21 @@ function fillBaseRoster(){
 /* 新增一振：编号自动排在最后 */
 /* 检索池 = 内置刀帐 + 图鉴里后来增补的刀。编号以内置刀帐为准，增补的追加在后面。
    新增弹窗的提示、候选列表、按名/按号命中都用这一份，避免「刚加的刀搜不到」。 */
+/* 模板里按编号取一行（编号 / 名称 / 刀种 / 花数，全服一致） */
+function tplRowByNo(no){
+  const n = Number(no) || 0;
+  const rows = (typeof TPL !== 'undefined' && TPL && Array.isArray(TPL.rows) && TPL.rows.length) ? TPL.rows : TPL_BUILTIN;
+  for(let i = 0; i < rows.length; i++){ if(Number(rows[i].no) === n) return rows[i]; }
+  return null;
+}
 function rosterPool(){
   const d = curData();
-  const out = RAW.map(function(r){
-    return {no:r[0], name:r[1], type:r[2], k:Number(r[3]) === 1 ? 1 : 0,
-            fl:FLOWER[r[0]-1] || 0, custom:false};
+  const rows = (typeof TPL !== 'undefined' && TPL && Array.isArray(TPL.rows) && TPL.rows.length) ? TPL.rows : TPL_BUILTIN;
+  const out = rows.map(function(t){
+    const r = RAW_BY_NO[t.no];
+    return {no:Number(t.no), name:t.name, type:t.type,
+            k:r && Number(r.k) === 1 ? 1 : 0,
+            fl:Number(t.fl) || FLOWER[t.no-1] || 0, custom:false};
   });
   if(d && Array.isArray(d.tw)){
     const have = {};
@@ -5453,10 +5464,11 @@ function rosterPool(){
 function poolByNo(no){
   const n = Number(no) || 0;
   if(n < 1) return null;
-  if(RAW_BY_NO[n]){
+  const tpl = tplRowByNo(n);
+  if(tpl){
     const r = RAW_BY_NO[n];
-    return {no:r.no, name:r.name, type:r.type, k:Number(r.k) === 1 ? 1 : 0,
-            fl:FLOWER[r.no-1] || 0, custom:false};
+    return {no:n, name:tpl.name, type:tpl.type, k:r && Number(r.k) === 1 ? 1 : 0,
+            fl:Number(tpl.fl) || 0, custom:false};
   }
   const x = rowOf(n);
   if(!x) return null;
@@ -5512,7 +5524,7 @@ function showSwordAfterAdd(no){
   }
 }
 
-/* 新增刀剑：先查 130 振刀帐，命中就反填 / 补回，不重复新增 */
+/* 新增刀剑：先查刀帐模板，命中就反填 / 补回，不重复新增 */
 function openAddSword(){
   const d = curData();
   if(!d){ toast('请先新建账号', true); return; }
@@ -5835,10 +5847,10 @@ function renderCatalog(){
     grid.innerHTML = '';
     empty.hidden = false;
     if(!d.tw.length){
-      empty.innerHTML = '<b>这个账号还是空的</b>新账号不会预置任何资料。可以一把把「＋ 新增刀剑」，也可以直接从完整的 130 振刀帐开始。' +
+      empty.innerHTML = '<b>这个账号还是空的</b>新账号不会预置任何资料。可以一把把「＋ 新增刀剑」，也可以直接从完整的 ' + TPL_BUILTIN.length + ' 振刀帐开始。' +
         '<div class="empty-acts">' +
           '<button class="btn primary" id="btnEmptyAdd">＋ 新增刀剑</button>' +
-          '<button class="btn" id="btnEmptyRoster">📋 填入 130 振刀帐</button>' +
+          '<button class="btn" id="btnEmptyRoster">📋 填入 ' + TPL_BUILTIN.length + ' 振刀帐</button>' +
         '</div>';
       const bAdd = $('#btnEmptyAdd'); if(bAdd) bAdd.onclick = openAddSword;
       const bRoster = $('#btnEmptyRoster'); if(bRoster) bRoster.onclick = fillBaseRoster;
@@ -7777,7 +7789,7 @@ function clearLogs(){
 /* =========================================================
    活动记录 · 掉刀计算器
    ========================================================= */
-/* 花数：按 No.1 → No.130 顺序（取自公开刀帐数据），编号在此之后的刀单独写 fl 字段 */
+/* 花数：按 No.1 → No.130 顺序（取自公开刀帐数据），No.131 及之后由模板 fl 提供 */
 
 let calcPickNo = 0;
 let calcSortMode = 'no';
@@ -10631,6 +10643,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.98 刀帐数量统一为 131 振',
+     '<p>之前「📋 填入刀帐」的标题和按钮还写着 <b>130 振</b>，是旧文案没跟着改，实际铺出来本来就是 131 振。现在标题、按钮、提示里的数字都<b>直接读模板条数</b>，以后增补新刀不会再对不上。</p>' +
+     '<p>另外修好两处小问题：<b>新增刀剑的检索池</b>以前只查内置 130 振，第 131 振「八八王国吉」搜不到、会被当成新刀重复加入，现在整份模板都能搜到并按编号反填；<b>老存档迁移</b>时若本来就有第 131 振，不会再重复生成一条。</p>',
+     '2026.11'],
     ['V2.97 修好云同步反复弹「两边都改过」',
      '<p>之前每次打开都可能弹「两边都改过」，其实数据根本没冲突。原因有两个：一是<b>打开时应用全服模板</b>会被误判成「本机有改动」，二是<b>只按时间戳判断</b>，手机与服务器时间有偏差就会一直认为云端更新。</p>' +
      '<p>现在<b>先比对实际内容</b>：本机和云端数据一致时就当已同步，不再打扰；只有内容真的不同才提示你选以哪边为准。手动改过的数据仍会照常提示，不会漏。</p>',
