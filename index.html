@@ -694,24 +694,22 @@
   .fav-btn:hover{color:#d9a441;transform:scale(1.12);}
   .fav-btn:focus-visible{outline:2px solid var(--line-strong);outline-offset:1px;}
   .fav-btn.on{color:#d9a441;text-shadow:0 1px 5px rgba(217,164,65,.45);}
-  /* 置顶拖拽手柄：按住 ⠿ 拖到另一振置顶卡片上，松开即交换顺序 */
-  .fav-drag{
-    border:0;background:none;padding:0 2px;line-height:1;cursor:grab;
-    font-size:13px;color:#c9a769;touch-action:none;user-select:none;-webkit-user-select:none;
-    font-family:inherit;border-radius:4px;letter-spacing:-1px;
+  /* 置顶排序按钮：上移 ▲ / 下移 ▼，一步到位，手机端点按精准 */
+  .fav-movers{display:inline-flex;flex-direction:row;gap:2px;margin-left:2px;vertical-align:middle;}
+  .fav-move{
+    position:relative;border:1px solid transparent;background:rgba(217,164,65,.07);padding:3px 5px;line-height:1;cursor:pointer;
+    font-size:12px;min-width:24px;min-height:24px;color:#a97f2f;touch-action:manipulation;
+    font-family:inherit;border-radius:5px;
   }
-  .fav-drag:hover{color:#a97f2f;background:rgba(217,164,65,.12);}
-  .fav-drag:active{cursor:grabbing;}
-  .fav-drag:focus-visible{outline:2px solid var(--line-strong);outline-offset:1px;}
-  /* 扩大触摸热区，视觉尺寸不变 */
-  .fav-drag::after{content:'';position:absolute;inset:-9px;}
-  .fav-drag{position:relative;}
+  .fav-move::after{content:'';position:absolute;inset:-3px;}   /* 扩大触摸热区，视觉尺寸不变 */
+  .fav-move:hover:not(:disabled){color:#7a5912;background:rgba(217,164,65,.2);border-color:#e6cd96;}
+  .fav-move:active:not(:disabled){background:rgba(217,164,65,.34);}
+  .fav-move:disabled{opacity:.22;cursor:default;background:none;}
+  .fav-move:focus-visible{outline:2px solid var(--line-strong);outline-offset:1px;}
   .card-del.locked{opacity:.75;cursor:not-allowed;}
   .card-del.locked:hover{background:none;color:var(--muted);transform:none;}
   /* 顶部刀账锁定按钮 */
   .btn.lock-on{color:#a97f2f;border-color:#e6cd96;background:rgba(217,164,65,.1);}
-  .card.fav-dragging{opacity:.42;}
-  .card.fav.drop-target{outline:2px dashed #cf9a33;outline-offset:-3px;}
   /* 已置顶：金色描边 + 左侧细条，多振时可以一眼看出哪些在前面 */
   .card.fav{border-color:#e6cd96;box-shadow:inset 0 0 0 1px #f0dfb6, 0 10px 24px -20px rgba(193,154,75,.85);}
   .card.fav::before{
@@ -1668,7 +1666,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.88</div>
+        <div class="brand-sub">HONMARU KEEPER V2.89</div>
       </div>
     </div>
 
@@ -4271,6 +4269,9 @@ function cardHTML(x){
   const draft = ui.edit[x.no];
   const editing = !!draft;
   const v = editing ? draft : x;
+  const favOrder = ui.favOrder || [];
+  const favRank = favOrder.indexOf(x.no);   // 在置顶序列中的位置（仅置顶卡片 >= 0）
+  const favCount = favOrder.length;
   const srcTxt = (v.src || '').trim();
   /* 普刀即使没填经验，只要等级 >1 也能按该等级最低经验算到 Lv199 的距离 */
   const showEst = v.k === 1 || expIsSet(v.exp) || Number(v.lv) > 1;
@@ -4284,10 +4285,16 @@ function cardHTML(x){
 
   const head = '<div class="card-top">' +
       '<span class="card-lead">' +
-        (fav ? '<button class="fav-drag" data-act="favdrag" data-no="' + x.no + '"' +
-                ' title="按住拖动，调整置顶顺序" aria-label="拖动调整置顶顺序">⠿</button>' : '') +
+        (fav ? '<span class="fav-movers">' +
+                '<button class="fav-move" data-act="favup" data-no="' + x.no + '"' +
+                  (favRank <= 0 ? ' disabled' : '') +
+                  ' title="上移一位" aria-label="上移一位">▲</button>' +
+                '<button class="fav-move" data-act="favdown" data-no="' + x.no + '"' +
+                  (favRank < 0 || favRank >= favCount - 1 ? ' disabled' : '') +
+                  ' title="下移一位" aria-label="下移一位">▼</button>' +
+              '</span>' : '') +
         '<button class="fav-btn' + (fav ? ' on' : '') + '" data-act="fav" data-no="' + x.no + '"' +
-          ' title="' + (fav ? '取消置顶' : '收藏置顶（可多振 · 可按 ⠿ 拖动排序）') + '"' +
+          ' title="' + (fav ? '取消置顶 · 用 ▲▼ 调整顺序' : '收藏置顶（可多振 · 置顶后用 ▲▼ 调顺序）') + '"' +
           ' aria-label="' + (fav ? '取消置顶' : '收藏置顶') + '" aria-pressed="' + (fav ? 'true' : 'false') + '">★</button>' +
         '<span class="card-id">No.'+String(x.no).padStart(3,'0')+'</span>' +
       '</span>' +
@@ -4500,22 +4507,19 @@ function favStampMax(d){
     return Number(x.fav) === 1 ? Math.max(m, Number(x.favAt) || 0) : m;
   }, 0);
 }
-/* 拖动置顶卡片：把 srcNo 挪到 dstNo 所在的位置，其余顺次后移。
-   做法是按新的先后顺序，给所有置顶重新分配递增的 favAt，继续沿用原来的排序逻辑。 */
-function moveFav(srcNo, dstNo){
+/* 置顶卡片上移 / 下移一位：和相邻置顶交换，一步到位。
+   dir = -1 上移，dir = +1 下移。交换后整段重排 favAt，避免时间并列导致顺序不稳。 */
+function shiftFav(no, dir){
   const d = curData();
-  if(!d || srcNo === dstNo) return false;
-  const favs = d.tw.filter(function(x){ return Number(x.fav) === 1; });
-  const ids = favs.map(function(x){ return x.no; });
-  let from = ids.indexOf(srcNo), to = ids.indexOf(dstNo);
-  if(from < 0 || to < 0) return false;
-  ids.splice(from, 1);
-  ids.splice(to, 0, srcNo);
+  if(!d) return false;
+  const favs = d.tw.filter(function(x){ return Number(x.fav) === 1; })
+                  .sort(function(a,b){ return (Number(a.favAt)||0) - (Number(b.favAt)||0); });
+  const i = favs.findIndex(function(x){ return x.no === no; });
+  const j = i + dir;
+  if(i < 0 || j < 0 || j >= favs.length) return false;
+  const tmp = favs[i]; favs[i] = favs[j]; favs[j] = tmp;
   const base = Math.min.apply(null, favs.map(function(x){ return Number(x.favAt) || 0; })) || 1;
-  ids.forEach(function(no, i){
-    const row = d.tw.filter(function(x){ return x.no === no; })[0];
-    if(row) row.favAt = base + i;
-  });
+  favs.forEach(function(row, k){ row.favAt = base + k; });
   save();
   renderCatalog();
   return true;
@@ -5359,59 +5363,17 @@ function renderCatalog(){
     return;
   }
   empty.hidden = true;
+  /* 置顶顺序（按 favAt 升序，与卡片显示顺序一致），供 ▲▼ 按钮判断是否在首/末位 */
+  ui.favOrder = d.tw.filter(function(x){ return Number(x.fav) === 1; })
+                    .sort(function(a,b){ return (Number(a.favAt)||0) - (Number(b.favAt)||0); })
+                    .map(function(x){ return x.no; });
   grid.innerHTML = list.map(cardHTML).join('');
 }
 
 function bindGrid(){
   const grid = $('#grid');
 
-  /* ---- 置顶卡片拖拽排序（鼠标 + 触屏）----
-     按住 ⠿ 手柄拖动，经过的置顶卡片高亮，松开时把源卡片插到目标位置。
-     只处理置顶卡片；用 pointer capture 保证手指/鼠标移出卡片也能跟踪。 */
-  let favDrag = null;   /* {no, card, pid} */
-  const clearDropHi = function(){
-    Array.prototype.forEach.call(grid.querySelectorAll('.drop-target'), function(el){ el.classList.remove('drop-target'); });
-  };
-  grid.addEventListener('pointerdown', function(e){
-    const h = e.target.closest('[data-act="favdrag"]');
-    if(!h || e.button > 0) return;
-    const card = h.closest('.card');
-    if(!card || Number(card.dataset.no) !== Number(h.dataset.no)) return;
-    e.preventDefault();
-    favDrag = {no:Number(h.dataset.no), card:card, pid:e.pointerId};
-    try{ h.setPointerCapture(e.pointerId); }catch(err){}
-    card.classList.add('fav-dragging');
-  });
-  grid.addEventListener('pointermove', function(e){
-    if(!favDrag || e.pointerId !== favDrag.pid) return;
-    e.preventDefault();
-    clearDropHi();
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    const tgt = el && el.closest('.card.fav');
-    if(tgt && Number(tgt.dataset.no) !== favDrag.no && !tgt.classList.contains('fav-dragging')){
-      tgt.classList.add('drop-target');
-    }
-  });
-  const endFavDrag = function(e){
-    if(!favDrag || (e && e.pointerId !== favDrag.pid)) return;
-    const src = favDrag.no;
-    const tgt = document.elementFromPoint(e.clientX, e.clientY);
-    const tcard = tgt && tgt.closest('.card.fav');
-    clearDropHi();
-    if(favDrag.card) favDrag.card.classList.remove('fav-dragging');
-    favDrag = null;
-    if(tcard && Number(tcard.dataset.no) !== src){
-      const dst = Number(tcard.dataset.no);
-      if(moveFav(src, dst)) toast('置顶顺序已调整');
-    }
-  };
-  grid.addEventListener('pointerup', endFavDrag);
-  grid.addEventListener('pointercancel', function(e){
-    if(favDrag){
-      if(favDrag.card) favDrag.card.classList.remove('fav-dragging');
-      favDrag = null; clearDropHi();
-    }
-  });
+  /* ---- 置顶排序改用卡片左上角的 ▲ / ▼ 按钮（见下方 click 的 favup / favdown）---- */
 
   grid.addEventListener('click', function(e){
     const noOf = function(el){ return Number(el.closest('.card').dataset.no); };
@@ -5421,6 +5383,8 @@ function bindGrid(){
       const no = noOf(act);
       if(act.dataset.act === 'edit') startEdit(no);
       else if(act.dataset.act === 'fav') toggleFav(no);
+      else if(act.dataset.act === 'favup'){ if(shiftFav(no,-1)) toast('已上移一位'); }
+      else if(act.dataset.act === 'favdown'){ if(shiftFav(no,1)) toast('已下移一位'); }
       else if(act.dataset.act === 'cancel') cancelEdit(no);
       else if(act.dataset.act === 'save') commitEdit(no);
       else if(act.dataset.act === 'del') deleteSword(no);
@@ -10146,6 +10110,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.89 置顶排序改成 ▲▼ 按钮，手机更好点',
+     '<p>置顶卡片左上角的 <b>⠿ 拖拽手柄</b>换成了两个小按钮：<b>▲ 上移一位、▼ 下移一位</b>。点一下就跟紧挨着的那振交换位置，一步到位，不会再出现「想挪到第二个却跑到第一个」的情况。</p>' +
+     '<p>第一张的 ▲、最后一张的 ▼ 会变灰点不动，不会跑出置顶区。手机端直接点按就行，不用再按住拖。顺序照旧自动保存，刷新、导出、云同步都会带着走。</p>',
+     '2026.11'],
     ['V2.88 刀账锁定：锁定后不能再删刀',
      '<p>图鉴顶部多了个锁定按钮：点「🔓 刀账未锁定」二次确认后，就变成「🔒 刀账已锁定」（琥珀色高亮）。锁定期间，<b>任何刀剑都不能删除</b>——卡片「✎ 修改」里的 🗑 会变成 🔒，点了会提示先解锁。</p>' +
      '<p><b>锁定不影响其他操作</b>：照常新增刀剑、改等级 / 经验 / 乱舞、收藏置顶。也就是说可以边锁边继续登记新抽到的刀，只是这些刀也受保护、不能删。要删刀时点顶部按钮「🔓 解锁」即可，解锁不改任何数据，之后还能再锁。</p>' +
