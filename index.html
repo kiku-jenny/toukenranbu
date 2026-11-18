@@ -1858,7 +1858,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.05</div>
+        <div class="brand-sub">HONMARU KEEPER V3.06</div>
       </div>
     </div>
 
@@ -10939,6 +10939,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.06 不再反复催「重新载入」',
+     '<p>如果你一晚被弹了好几次「有新版本 · 重新载入」，是真的：那段时间连发了三个版本，每发一次就弹一次；多开标签页时每个标签还会各弹一次。</p>' +
+     '<p>现在按<b>版本号去重</b>：同一个版本只提示一次，点过或看过就记住，跨标签页、下次打开都不会再催。同时去掉了每次打开强制检查更新的动作，改为浏览器自己按节奏核对，不再反复安装 / 激活。这次修复是<b>静默生效</b>的，不会再弹出提示。</p>',
+     '2026.11'],
     ['V3.05 模板查看列表都对齐了',
      '<p>手机上模板「查看模式」以前用弹性行排：获取方式那一栏填了内容（如「7-4王点」）就会把刀名挤窄，<b>连带刀种、花数整行左移</b>——实测填了获取方式的行比只显示「—」的行左移约 26px，竖着看是锯齿状，不好看。</p>' +
      '<p>现在改成<b>固定列宽网格</b>：编号、刀名、刀种、花数、获取方式、可极化各占固定一列，只有刀名吸收剩余宽度，<b>每一列上下都在同一条竖线上</b>。刀名宽度也留够了，「三日月宗近」「にっかり青江」这些长名照样看得全，只有更长的才省略号。</p>',
@@ -11924,28 +11928,35 @@ function initPetals(){
     try{
       /* updateViaCache:'none'：sw.js 每次打开都绕过 HTTP 缓存核对，
          否则服务端发了新版，浏览器还可能拿 10 分钟前的旧 sw.js，页面就一直不刷新 */
-      navigator.serviceWorker.register('./sw.js', {updateViaCache:'none'}).then(function(reg){
-        try{ reg.update(); }catch(e){}
-      }).catch(function(){});
+      /* 只注册，不额外 reg.update()：浏览器自己会按更新间隔核对 sw.js，
+         反复强制 update 会让 SW 反复 install/activate，进而反复提示「有新版本」。 */
+      navigator.serviceWorker.register('./sw.js', {updateViaCache:'none'}).catch(function(){});
     }catch(e){}
   });
   try{
     navigator.serviceWorker.addEventListener('message', function(ev){
-      if(ev.data && ev.data.type === 'hk-update') showUpdateBar();
+      if(ev.data && ev.data.type === 'hk-update') showUpdateBar(ev.data.ver);
     });
   }catch(e){}
 })();
-let updateBarDone = false;
-function showUpdateBar(){
-  if(updateBarDone) return;
-  updateBarDone = true;
+/* 按「缓存版本」去重：同一个版本只提示一次，跨标签页、跨打开都记得住。
+   SW 的 activate 给所有窗口都发消息，多开时每个页面都会收到；
+   加上版本去重后，只有第一次弹、点过或看过就记住，不再反复催。 */
+function showUpdateBar(ver){
+  const KEY = 'hk_seen_update';
+  let seen = '';
+  try{ seen = localStorage.getItem(KEY) || ''; }catch(e){}
+  if(ver && seen === ver) return;                 /* 这版已经提示过了，不再弹 */
+  try{ if(ver) localStorage.setItem(KEY, ver); }catch(e){}
+  const old = document.querySelector('.upd-bar');
+  if(old && old.parentNode) old.parentNode.removeChild(old);
   const bar = document.createElement('div');
   bar.className = 'upd-bar';
   bar.innerHTML = '<span>有新版本</span><button>重新载入</button>';
   bar.querySelector('button').onclick = function(){ location.reload(); };
   document.body.appendChild(bar);
   requestAnimationFrame(function(){ bar.classList.add('on'); });
-  /* 不点也没关系：下次打开就是新版 */
+  /* 不点也没关系：下次打开就是新版，届时也不会再提示这一版 */
   setTimeout(function(){ bar.classList.remove('on'); }, 9000);
   setTimeout(function(){ if(bar.parentNode) bar.parentNode.removeChild(bar); }, 9600);
 }
