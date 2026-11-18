@@ -621,6 +621,7 @@
     font-size:12.5px;color:var(--sub);transition:.18s;letter-spacing:.03em;white-space:nowrap;
   }
   .btn:hover{border-color:var(--accent);color:var(--accent-deep);background:var(--surface-2);transform:translateY(-1px);}
+  #btnFillFlower[hidden],#btnFillFlowerCalc[hidden]{display:none;}
   .btn.primary{
     background:linear-gradient(120deg,var(--accent-3),var(--accent-deep));color:var(--on-accent);border-color:transparent;
     box-shadow:0 8px 18px -10px rgba(177,83,106,.9);font-weight:700;
@@ -1666,7 +1667,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.89</div>
+        <div class="brand-sub">HONMARU KEEPER V2.90</div>
       </div>
     </div>
 
@@ -1774,7 +1775,7 @@
         <div class="tool-btns">
           <button class="btn primary" id="btnAddSword">＋ 新增刀剑</button>
           <button class="btn" id="btnRosterLock" title="锁定刀账后不能删除任何刀剑">🔓 刀账未锁定</button>
-          <button class="btn" id="btnFillFlower" title="按内置刀帐把空着的花数补上">🌸 补全花数</button>
+          <button class="btn" id="btnFillFlower" title="按内置刀帐把空着的花数补上" hidden>🌸 补全花数</button>
           <button class="btn" id="btnExport">📥 导出</button>
           <button class="btn" id="btnImport">📤 导入</button>
           <button class="btn" id="btnSyncCloud" title="多设备同步：手机和电脑打开同一页面、填同一个同步密钥">☁ 云同步</button>
@@ -2067,7 +2068,7 @@
           <div class="calc-tools">
             <label class="calc-check"><input type="checkbox" id="calcBoost"><span>登记时同步乱舞进度（喂满自动 +1）</span></label>
             <button class="btn calc-addsw" id="btnAddSwordCalc">＋ 图鉴没有？补录一把</button>
-            <button class="btn calc-addsw" id="btnFillFlowerCalc">🌸 补全花数</button>
+            <button class="btn calc-addsw" id="btnFillFlowerCalc" hidden>🌸 补全花数</button>
             <span class="calc-status" id="calcStatus"></span>
           </div>
         </div>
@@ -10110,6 +10111,9 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.90 收起「补全花数」按钮',
+     '<p>图鉴工具栏和活动登记区那两个「🌸 补全花数」按钮先收起来了，界面更清爽。花数该有的功能都还在：新增刀剑、活动登记时仍会<b>自动按刀帐补上花数</b>，乱舞进度、经验、活动统计照常算得准。</p>',
+     '2026.11'],
     ['V2.89 置顶排序改成 ▲▼ 按钮，手机更好点',
      '<p>置顶卡片左上角的 <b>⠿ 拖拽手柄</b>换成了两个小按钮：<b>▲ 上移一位、▼ 下移一位</b>。点一下就跟紧挨着的那振交换位置，一步到位，不会再出现「想挪到第二个却跑到第一个」的情况。</p>' +
      '<p>第一张的 ▲、最后一张的 ▼ 会变灰点不动，不会跑出置顶区。手机端直接点按就行，不用再按住拖。顺序照旧自动保存，刷新、导出、云同步都会带着走。</p>',
