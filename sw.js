@@ -8,7 +8,7 @@
      就会安装新 SW、预缓存新页面；activate 时提示一次「新版本已就绪」。
    - 平时不发任何探测请求，不会误报；不点提示也没关系，下次打开自动就是新版。 */
 
-const CACHE = 'honmaru-cache-v26';
+const CACHE = 'honmaru-cache-v27';
 const PAGE = './';
 
 self.addEventListener('install', function(e){
