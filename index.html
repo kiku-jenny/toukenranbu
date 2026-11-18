@@ -481,6 +481,15 @@
   .sync-note.warn{color:var(--accent-ink);}
   /* 全服刀帐模板面板 */
   .tpl-stat{font-size:12px;color:var(--accent-deep);font-weight:600;margin-bottom:7px;}
+  .tpl-cfg{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;font-size:11.5px;
+    color:var(--sub);background:var(--surface-2);border:1px solid var(--line);border-radius:9px;
+    padding:7px 10px;margin-bottom:8px;}
+  .tpl-cfg b{color:var(--accent-deep);}
+  .tpl-cfg label{display:flex;align-items:center;gap:6px;white-space:nowrap;}
+  .tpl-cfg .input{width:74px;padding:4px 7px;font-size:11.5px;}
+  .tpl-pkcol{text-align:center;white-space:nowrap;}
+  .pk-on{color:#4f8365;font-weight:600;}
+  .pk-off{color:var(--muted-2);}
   .tpl-note{font-size:11.5px;line-height:1.7;color:var(--sub);background:var(--tint-a);
     border:1px solid var(--line);border-radius:9px;padding:8px 10px;margin-bottom:10px;}
   .tpl-table-wrap{max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:9px;}
@@ -1708,7 +1717,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.98</div>
+        <div class="brand-sub">HONMARU KEEPER V2.99</div>
       </div>
     </div>
 
@@ -1795,7 +1804,7 @@
         <div class="p-side">
           <div><b id="normalNum">0</b><small>尚未开放</small></div>
           <div><b id="ranbuMaxNum">0</b><small>乱舞 MAX</small></div>
-          <div><b class="wide"><span id="lv199Num">0</span>/<span id="totalAllNum">0</span></b><small>极199 进度</small></div>
+          <div><b class="wide"><span id="lv199Num">0</span>/<span id="totalAllNum">0</span></b><small id="lvMaxLab">极199 进度</small></div>
         </div>
       </div>
 
@@ -1858,7 +1867,7 @@
           <button class="chip" data-kw="na">未开放</button>
           <button class="chip" data-kw="open">待极化</button>
           <button class="chip ghost" id="btnKBatch">☑ 批量设置</button>
-          <button class="chip ghost" id="btnOpenPool">⚙ 极化开放</button>
+          <button class="chip ghost" id="btnOpenPool" title="全服统一，由作者维护">⚙ 极化开放（查看）</button>
           <button class="chip ghost" id="btnResetData">↺ 恢复初始值</button>
         </div>
       </div>
@@ -2530,7 +2539,7 @@ function lvFromRawExp(type, exp, fl){
   if(!m) return 1;
   const v0 = Math.max(0, Number(exp) || 0);
   if(v0 <= 0) return 1;
-  let lo = 1, hi = 199, ans = 1;
+  let lo = 1, hi = Math.min(POL_MAX(), 199), ans = 1;
   while(lo <= hi){
     const mid = (lo + hi) >> 1;
     if(cumExp(type, mid, fl) <= v0){ ans = mid; lo = mid + 1; }
@@ -2541,7 +2550,7 @@ function lvFromRawExp(type, exp, fl){
 /* 只读卡片上显示的经验：没填时按当前等级的最低累计显示，别摆一个 0 在 Lv99 旁边 */
 function expShown(v){
   if(expIsSet(v.exp)) return Math.max(0, Number(v.exp) || 0);
-  if(Number(v.k) === 1) return cumExp(v.type, clampNum(v.lv, 1, 199, 1), v.fl);
+  if(Number(v.k) === 1) return cumExp(v.type, clampNum(v.lv, 1, POL_MAX(), 1), v.fl);
   return puCum(clampNum(v.lv, 1, 99, 1));
 }
 /* 普刀还差多少：到极 Lv199 总经验 − 普刀累计（填了多少就减多少） */
@@ -2573,7 +2582,7 @@ function puTotalTitle(v){
   const capPu = puMaxTotal(v.type, v.fl);
   const cur = expShown(v);
   const left = Math.max(0, capPu - cur);
-  return '距极199 = 到极 Lv199 共需 ' + fmtNum(capPu) + ' − 已达 ' + fmtNum(cur) +
+  return '距极' + POL_MAX() + ' = 到极 Lv' + POL_MAX() + ' 共需 ' + fmtNum(capPu) + ' − 已达 ' + fmtNum(cur) +
          (expIsSet(v.exp) ? '' : '（未填经验，按 Lv' + v.lv + ' 的最低累计估）') +
          ' = ' + (left ? fmtNum(left) : '0（已满）');
 }
@@ -2588,33 +2597,33 @@ function estHTML(type, exp, fl, opt){
   opt = opt || {};
   const k = opt.k === 1 ? 1 : 0;
   const hasExp = expIsSet(exp);
-  const lvIn = clampNum(opt.lv, 1, k === 1 ? 199 : 99, 1);
+  const lvIn = clampNum(opt.lv, 1, k === 1 ? POL_MAX() : 99, 1);
   let lv, cap, at, tip, head, left = 0;
 
   if(k === 1){
-    cap = cumExp(type, 199, fl);          /* 极化经验条：Lv199 的累计值 */
+    cap = cumExp(type, POL_MAX(), fl);    /* 极化经验条：满级的累计值 */
     if(hasExp){
       at = Math.max(0, Number(exp) || 0);
       lv = lvFromRawExp(type, at, fl);    /* 经验优先，等级跟着经验走 */
       tip = '已极化 · 极化经验 ' + fmtNum(at) + ' → Lv ' + lv +
             (lvIn !== lv ? '（等级栏填的是 Lv' + lvIn + '，以经验为准）' : '') +
-            '（' + barName(m) + '，不扣极化门槛 ' + fmtNum(m.ded) + '），距 Lv199 还需 ' +
+            '（' + barName(m) + '，不扣极化门槛 ' + fmtNum(m.ded) + '），距 Lv' + POL_MAX() + ' 还需 ' +
             fmtNum(Math.max(0, cap - at)) + ' 极化经验';
-    }else if(lvIn >= 199){
-      lv = 199;
+    }else if(lvIn >= POL_MAX()){
+      lv = POL_MAX();
       at = cap;
-      tip = '已极化 · 已在 Lv199（' + barName(m) + ' 经验条满级 ' + fmtNum(cap) + '，不含门槛 ' + fmtNum(m.ded) + '）';
+      tip = '已极化 · 已在 Lv' + POL_MAX() + '（' + barName(m) + ' 经验条满级 ' + fmtNum(cap) + '，不含门槛 ' + fmtNum(m.ded) + '）';
     }else{
       lv = lvIn;
       at = cumExp(type, lv, fl);          /* 该等级的最低极化经验 */
       tip = '已极化 · 未填极化经验，按 Lv ' + lv + ' 所需最低 ' + fmtNum(at) +
-            ' 计（' + barName(m) + '，不扣门槛），距 Lv199 还需 ' +
+            ' 计（' + barName(m) + '，不扣门槛），距 Lv' + POL_MAX() + ' 还需 ' +
             fmtNum(Math.max(0, cap - at)) + '；点右侧 ⇄ 可把最低经验填进去';
     }
     left = Math.max(0, cap - at);
     head = '极化等级';
   }else{
-    cap = cumExp(type, 199, fl);          /* 极化条 Lv199 */
+    cap = cumExp(type, POL_MAX(), fl);    /* 极化条满级 */
     const capPu = cap + m.ded;            /* 到极 Lv199 总经验 */
     const baseCum = puCum(lvIn);
     const cum = hasExp ? Math.max(0, Number(exp) || 0) : baseCum;   /* 普刀累计，可含满级后溢出 */
@@ -2656,7 +2665,7 @@ function applyExpToDraft(no, val, lvVal){
   const draft = ui.edit[no];
   if(!draft) return;
   draft.exp = val;
-  if(lvVal) draft.lv = clampNum(lvVal, 1, draft.k === 1 ? 199 : 99, draft.lv);
+  if(lvVal) draft.lv = clampNum(lvVal, 1, draft.k === 1 ? POL_MAX() : 99, draft.lv);
   const card = document.querySelector('#grid .card[data-no="' + no + '"]');
   if(card){
     const inp = card.querySelector('input[data-f="exp"]');
@@ -2696,7 +2705,7 @@ function openExpCalc(no){
         ' · 普刀：这栏填<b>普刀自己的累计经验</b>（Lv99 = ' + fmtNum(PU_MAX) + '，满级后可继续攒）'),
     body:'<div class="add-grid">' +
         '<label class="fld full"><span>' + (isK ? '极化后等级（1–199）' : '普刀等级（1–99）') + '</span>' +
-          '<input type="number" id="ecLv" min="1" max="' + (isK ? 199 : 99) + '" step="1" value="' + lv0 + '"></label>' +
+          '<input type="number" id="ecLv" min="1" max="' + (isK ? POL_MAX() : 99) + '" step="1" value="' + lv0 + '"></label>' +
         '<label class="fld full"><span>' + expName + (isK ? '（上限 ' + fmtNum(expMax) + '）' : '（Lv99 = ' + fmtNum(PU_MAX) + '，满级后可继续累加）') + '</span>' +
           '<input type="number" id="ecExp" min="0" max="' + expMax + '" step="any" value="' + exp0 + '"></label>' +
         '</div>' +
@@ -2705,7 +2714,7 @@ function openExpCalc(no){
       {text:'取消', cls:'btn', onClick:closeModal},
       {text:'填入', cls:'btn primary', onClick:function(){
         const v = clampFloat($('#ecExp').value, 0, expMax, exp0);
-        const lv = clampNum($('#ecLv').value, 1, isK ? 199 : 99, lv0);
+        const lv = clampNum($('#ecLv').value, 1, isK ? POL_MAX() : 99, lv0);
         applyExpToDraft(no, v, lv);
         closeModal();
         toast(isK ? '已填成 Lv ' + lv + ' · 极化经验 ' + fmtNum(v)
@@ -2736,7 +2745,7 @@ function openExpCalc(no){
   }
   lvEl.oninput = function(){
     if(lvEl.value === '') return;
-    const lv = clampNum(lvEl.value, 1, isK ? 199 : 99, lv0);
+    const lv = clampNum(lvEl.value, 1, isK ? POL_MAX() : 99, lv0);
     if(String(lv) !== lvEl.value) lvEl.value = lv;
     const v = needFor(lv);
     expEl.value = v;
@@ -2775,27 +2784,30 @@ function ranbuTable(fl){
 }
 /* 从乱舞 r 升到 r+1 需要几把 */
 function ranbuNeed(fl, r){
-  if(r < 1 || r >= 10) return 0;
-  return ranbuTable(fl)[r-1] || 0;
+  if(r < 1 || r >= RB_MAX()) return 0;
+  const t = ranbuTable(fl);
+  /* 表里只有 1→10 的九档；上限调高时，多出来的档位沿用最后一档 */
+  return (t[r-1] != null ? t[r-1] : t[t.length-1]) || 0;
 }
-/* 从当前 (r, 已喂 rp) 到乱舞 10 还差几把 */
+/* 从当前 (r, 已喂 rp) 到乱舞满级还差几把 */
 function ranbuRemain(fl, r, rp){
-  if(r >= 10) return 0;
+  if(r >= RB_MAX()) return 0;
   let need = 0;
-  for(let i = r; i < 10; i++) need += ranbuNeed(fl, i);
+  for(let i = r; i < RB_MAX(); i++) need += ranbuNeed(fl, i);
   return Math.max(0, need - (Number(rp) || 0));
 }
-/* 一振从乱舞 1 喂到 10 总共要几把 */
+/* 一振从乱舞 1 喂到满级总共要几把 */
 function ranbuTotal(fl){
-  const t = ranbuTable(fl);
-  return t.reduce(function(a, b){ return a + b; }, 0);
+  let n = 0;
+  for(let i = 1; i < RB_MAX(); i++) n += ranbuNeed(fl, i);
+  return n;
 }
 /* 乱舞 (r, 已喂 rp) 一共吃掉多少把（跨等级累加），用来算一次变动「获得了几振」 */
 function ranbuCleared(fl, r, rp){
-  const rr = clampNum(r, 1, 10, 1);
+  const rr = clampNum(r, 1, RB_MAX(), 1);
   let n = 0;
   for(let i = 1; i < rr; i++) n += ranbuNeed(fl, i) || 0;
-  return n + (rr >= 10 ? 0 : (Number(rp) || 0));
+  return n + (rr >= RB_MAX() ? 0 : (Number(rp) || 0));
 }
 function ranbuGainBetween(fl, r, rp, r2, rp2){
   return ranbuCleared(fl, r2, rp2) - ranbuCleared(fl, r, rp);
@@ -2930,7 +2942,10 @@ function seedTw(ownVal){
 }
 /* 已开放极化的名单：目前 90 振（即已极化的那些），后续官方开放新极化时在页面里勾选即可 */
 function seedOpen(){
-  return RAW.filter(function(r){ return r[3] === 1; }).map(function(r){ return r[0]; });
+  /* 极化开放名单全服一致：取模板 pk；模板还没加载时用内置那份（90 振） */
+  var rows = (typeof TPL !== 'undefined' && TPL && Array.isArray(TPL.rows) && TPL.rows.length)
+    ? TPL.rows : TPL_BUILTIN;
+  return rows.filter(function(t){ return Number(t.pk) === 1; }).map(function(t){ return Number(t.no); });
 }
 function seedRes(){
   return [{id:uid(), date:RES_SEED.date, vals:Object.assign({}, RES_SEED.vals), ts:Date.now()}];
@@ -3084,21 +3099,39 @@ const TPL_BUILTIN = [
 {no:130,name:"藤四郎",type:"短刀",fl:1,src:""},
 {no:131,name:"八八王国吉",type:"太刀",fl:3,src:""}
 ];
+/* pk = 该刀是否已开放极化（全服一致，作者在模板里维护）。
+   内置默认取原 130 振名单里已开放的 90 振；官方开放新极化时由作者勾选并发布。 */
+TPL_BUILTIN.forEach(function(t){
+  const r = RAW_BY_NO[t.no];
+  t.pk = r && Number(r.k) === 1 ? 1 : 0;
+});
+const TPL_BUILTIN_BY_NO = {};
+TPL_BUILTIN.forEach(function(t){ TPL_BUILTIN_BY_NO[t.no] = t; });
 const TPL_AUTHOR_PROOF = 'eee34826910b5e8b61a5b0242a12eab43d380b27f92daa25ff1a932804ca465a';
 const TPL_CACHE_KEY = 'honmaru_tpl_cache_v1';
-let TPL = {ver:1, locked:0, rows:TPL_BUILTIN.slice(), updatedAt:0};
+let TPL = {ver:1, locked:0, openMax:199, ranbuMax:10,
+           rows:TPL_BUILTIN.map(function(t){ return Object.assign({}, t); }), updatedAt:0};
+
+/* 极化等级上限 / 乱舞上限：全服统一配置，作者在模板面板里改（默认 199 / 10）。
+   经验表只覆盖到 Lv199，若把极化上限调到 199 以上，超出部分按 Lv199 的满经验计。 */
+function POL_MAX(){ return clampNum(TPL.openMax, 1, 999, 199); }
+function RB_MAX(){ return clampNum(TPL.ranbuMax, 1, 99, 10); }
 
 function tplNorm(t){
   if(!t || typeof t !== 'object') return null;
   var rows = Array.isArray(t.rows)
     ? t.rows.filter(function(r){ return r && r.no != null; }).map(function(r){
+        var b = TPL_BUILTIN_BY_NO[Number(r.no)];
         return {no:Number(r.no), name:String(r.name == null ? '' : r.name),
                 type:String(r.type || '打刀'), fl:Math.max(0, Math.min(5, Number(r.fl) || 0)),
-                src:String(r.src == null ? '' : r.src)};
+                src:String(r.src == null ? '' : r.src),
+                /* 老模板没有 pk：按内置开放名单兜底，不把大家的开放状态清成 0 */
+                pk: r.pk == null ? (b && b.pk ? 1 : 0) : (Number(r.pk) === 1 ? 1 : 0)};
       })
-    : TPL_BUILTIN.slice();
+    : TPL_BUILTIN.map(function(r){ return Object.assign({}, r); });
   rows.sort(function(a,b){ return a.no - b.no; });
   return {ver:Number(t.ver) || 0, locked:Number(t.locked) === 1 ? 1 : 0,
+          openMax:clampNum(t.openMax, 1, 999, 199), ranbuMax:clampNum(t.ranbuMax, 1, 99, 10),
           rows:rows, updatedAt:Number(t.updatedAt) || 0};
 }
 function tplSaveCache(){ try{ localStorage.setItem(TPL_CACHE_KEY, JSON.stringify(TPL)); }catch(e){} }
@@ -3120,8 +3153,19 @@ function applyTplToData(d){
     var t = byNo[Number(x.no)];
     if(t){ x.name = t.name; x.type = t.type; x.fl = t.fl; x.src = t.src; }
   });
+  /* 极化开放名单也全服一致：直接按模板 pk 重建。
+     已经极化的刀即使模板里关了开放，也留在名单里，避免状态自相矛盾。 */
+  var opens = [];
+  d.tw.forEach(function(x){
+    var t = byNo[Number(x.no)];
+    if((t && Number(t.pk) === 1) || Number(x.k) === 1) opens.push(Number(x.no));
+  });
+  opens.sort(function(a,b){ return a - b; });
+  d.open = opens;
   var seen = Number(d.tplVer) || 0;
-  if(TPL.ver > seen){
+  /* 空账号（一把刀都没记）不跟着模板补刀：新建账号就该是空的，
+     要整本刀帐用「📋 填入刀帐」自己铺。 */
+  if(TPL.ver > seen && d.tw.length){
     var have = {};
     d.tw.forEach(function(x){ have[Number(x.no)] = 1; });
     TPL.rows.forEach(function(t){
@@ -3181,7 +3225,8 @@ const TPL_TYPES = ['短刀','胁差','打刀','太刀','大太刀','枪','薙刀
 
 function tplSourceText(){
   return '内置 ' + TPL_BUILTIN.length + ' 振兜底 · 当前 ' + TPL.rows.length + ' 振 · 版本 v' + TPL.ver +
-         (TPL.locked ? ' · 🔒 已锁定' : ' · 未锁定');
+         (TPL.locked ? ' · 🔒 已锁定' : ' · 未锁定') +
+         ' · 极上限 Lv' + POL_MAX() + ' · 乱舞上限 ' + RB_MAX();
 }
 /* 打开模板面板：默认查看模式 */
 function openTplManager(){
@@ -3191,12 +3236,20 @@ function openTplManager(){
 /* 渲染面板。edit=true 显示可编辑表格；否则只读 */
 function renderTplPanel(edit){
   const rows = edit ? tplEdit.rows : TPL.rows;
+  const openN = rows.filter(function(r){ return Number(r.pk) === 1; }).length;
+  const cfg = '<div class="tpl-cfg">' +
+    (edit
+      ? '<label>极化等级上限 <input class="input" id="tplPmax" type="number" min="1" max="999" step="1" value="' + (tplEdit.openMax || 199) + '"></label>' +
+        '<label>乱舞上限 <input class="input" id="tplRmax" type="number" min="1" max="99" step="1" value="' + (tplEdit.ranbuMax || 10) + '"></label>'
+      : '<span>极化等级上限 <b>' + POL_MAX() + '</b></span>' +
+        '<span>乱舞上限 <b>' + RB_MAX() + '</b></span>') +
+    '<span>已开放极化 <b>' + openN + '</b> 振</span></div>';
   const head =
-    '<div class="tpl-stat">' + esc(tplSourceText()) + '</div>' +
-    '<div class="tpl-note">刀名 / 刀种 / 花数 / 获取方式<b>全服一致</b>，由作者统一维护；' +
-    '「是否拥有 / 极化 / 等级 / 乱舞 / 收藏」是每个账号各自记录，不在模板里。</div>';
+    '<div class="tpl-stat">' + esc(tplSourceText()) + '</div>' + cfg +
+    '<div class="tpl-note">刀名 / 刀种 / 花数 / 获取方式 / <b>是否开放极化</b> / 极化与乱舞上限<b>全服一致</b>，由作者统一维护；' +
+    '「是否拥有 / 已极化 / 等级 / 乱舞 / 收藏」是每个账号各自记录，不在模板里。</div>';
   let table = '<div class="tpl-table-wrap"><table class="tpl-table"><thead><tr>' +
-    (edit ? '<th></th>' : '') + '<th>编号</th><th>刀名</th><th>刀种</th><th>花数</th><th>获取方式</th>' +
+    (edit ? '<th></th>' : '') + '<th>编号</th><th>刀名</th><th>刀种</th><th>花数</th><th>获取方式</th><th class="tpl-pkcol">可极化</th>' +
     (edit ? '<th></th>' : '') + '</tr></thead><tbody>';
   rows.forEach(function(r, i){
     table += '<tr>' +
@@ -3212,6 +3265,9 @@ function renderTplPanel(edit){
           '</select></td>' +
           '<td><input class="input tpl-in" data-tf="src" data-i="' + i + '" value="' + esc(r.src) + '" maxlength="32" placeholder="留空"></td>'
         : '<td>' + esc(r.name) + '</td><td>' + esc(r.type) + '</td><td>' + (r.fl || '未知') + '</td><td>' + (esc(r.src) || '—') + '</td>') +
+      (edit
+        ? '<td class="tpl-pkcol"><input type="checkbox" class="tpl-in" data-tf="pk" data-i="' + i + '"' + (Number(r.pk) === 1 ? ' checked' : '') + ' title="勾上=该刀已开放极化"></td>'
+        : '<td class="tpl-pkcol">' + (Number(r.pk) === 1 ? '<span class="pk-on">✔ 已开放</span>' : '<span class="pk-off">—</span>') + '</td>') +
       (edit ? '<td><button class="icon-btn danger tpl-del" data-i="' + i + '" title="从模板移除">🗑</button></td>' : '') +
       '</tr>';
   });
@@ -3236,7 +3292,7 @@ function renderTplPanel(edit){
         '<button class="btn primary" id="tplPublish">⬆ 发布到云端（全服生效）</button>' +
         '<button class="btn" id="tplReloadEdit">↺ 放弃改动</button>' +
       '</div>' +
-      '<div class="tpl-note" style="margin-top:8px;">锁定后模板不可再改；发布需作者口令且模板未锁定。发布后所有账号打开时自动同步静态字段，版本 +1。</div>';
+      '<div class="tpl-note" style="margin-top:8px;">锁定后模板不可再改；发布需作者口令且模板未锁定。发布后所有账号打开时自动同步刀名 / 刀种 / 花数 / 获取方式 / 是否开放极化，版本 +1。极化上限经验表只覆盖到 Lv199，调到 199 以上时超出部分按 Lv199 的满经验计。</div>';
     openModal({
       title:'📖 全服刀帐模板 · 作者管理',
       sub:'编辑 / 新增 / 删除 / 锁定 / 发布',
@@ -3247,7 +3303,7 @@ function renderTplPanel(edit){
   }else{
     openModal({
       title:'📖 全服刀帐模板',
-      sub:'全服一致的刀名 / 刀种 / 花数 / 获取方式',
+      sub:'全服一致的刀名 / 刀种 / 花数 / 获取方式 / 是否开放极化',
       body:head + table,
       actions:[
         {text:'作者管理', cls:'btn', onClick:function(){ tplEdit = tplNorm(TPL); renderTplPanel(true); }},
@@ -3263,9 +3319,14 @@ function bindTplEdit(){
     el.onchange = function(){
       const i = Number(el.dataset.i), f = el.dataset.tf;
       if(!tplEdit.rows[i]) return;
+      if(f === 'pk'){ tplEdit.rows[i].pk = el.checked ? 1 : 0; return; }
       tplEdit.rows[i][f] = (f === 'fl') ? Number(el.value) : el.value;
     };
   });
+  const pmax = $('#tplPmax');
+  if(pmax) pmax.onchange = function(){ tplEdit.openMax = clampNum(pmax.value, 1, 999, 199); };
+  const rmax = $('#tplRmax');
+  if(rmax) rmax.onchange = function(){ tplEdit.ranbuMax = clampNum(rmax.value, 1, 99, 10); };
   Array.prototype.forEach.call(document.querySelectorAll('.tpl-del'), function(b){
     b.onclick = function(){
       if(!tplAuthed){ toast('🔒 请先填作者口令并点「验证」解锁', true); return; }
@@ -3300,7 +3361,7 @@ function bindTplEdit(){
   if(add) add.onclick = function(){
     if(!tplAuthed){ toast('🔒 请先填作者口令并点「验证」解锁', true); return; }
     let maxNo = 0; tplEdit.rows.forEach(function(r){ if(r.no > maxNo) maxNo = r.no; });
-    tplEdit.rows.push({no:maxNo + 1, name:'新刀', type:'打刀', fl:1, src:''});
+    tplEdit.rows.push({no:maxNo + 1, name:'新刀', type:'打刀', fl:1, src:'', pk:0});
     tplEdit.rows.sort(function(a,b){ return a.no - b.no; });
     renderTplPanel(true);
   };
@@ -3321,9 +3382,12 @@ function bindTplEdit(){
     tplEdit.rows.forEach(function(r){ if(seen[r.no]) dup = true; seen[r.no] = 1; });
     if(dup){ toast('有重复编号，请检查', true); return; }
     const payload = {ver:(Number(TPL.ver) || 0) + 1, locked:0,
+                     openMax:clampNum(tplEdit.openMax, 1, 999, 199),
+                     ranbuMax:clampNum(tplEdit.ranbuMax, 1, 99, 10),
                      rows:tplEdit.rows.map(function(r){
                        return {no:Number(r.no), name:String(r.name||''), type:String(r.type||'打刀'),
-                               fl:Number(r.fl)||0, src:String(r.src||'')};
+                               fl:Number(r.fl)||0, src:String(r.src||''),
+                               pk:Number(r.pk) === 1 ? 1 : 0};
                      }), updatedAt:Date.now()};
     pub.disabled = true; pub.textContent = '发布中…';
     try{
@@ -3460,8 +3524,8 @@ function normLogs(arr){
       if(!c) return;
       if(c.f === 'ranbu'){
         if(kind !== 'ranbu' && kind !== 'sword') return;   // 编辑保存里改乱舞也会带这条
-        const r = clampNum(c.r, 1, 10, 1);
-        const r2 = clampNum(c.r2, r, 10, r);
+        const r = clampNum(c.r, 1, RB_MAX(), 1);
+        const r2 = clampNum(c.r2, r, RB_MAX(), r);
         changes.push({f:'ranbu', r:r, rp:clampNum(c.rp, 0, 999, 0),
                       r2:r2, rp2:clampNum(c.rp2, 0, 999, 0), n:clampNum(c.n, 0, 999, 0),
                       n2:clampNum(c.n2, 0, 999, 0),
@@ -3542,7 +3606,7 @@ function fixPlaceholderExp(d){
     if(Number(x.k) !== 1) return;
     const e = Number(x.exp) || 0;
     if(e <= 0) return;
-    if(e < 588 || Math.abs(lvFromRawExp(x.type, e, x.fl) - clampNum(x.lv, 1, 199, 1)) > 10) x.exp = 0;
+    if(e < 588 || Math.abs(lvFromRawExp(x.type, e, x.fl) - clampNum(x.lv, 1, POL_MAX(), 1)) > 10) x.exp = 0;
   });
   d.expFix233 = 1;
 }
@@ -3550,7 +3614,7 @@ function fixPlaceholderExp(d){
 function normRow(o, dft){
   const base = dft || {no:Number(o && o.no) || 0, name:'未命名', type:'打刀', k:0, r:1, lv:1, exp:0, src:''};
   const kk = Number(o && o.k) === 1 ? 1 : 0;
-  const lv = clampNum(o && o.lv, 1, kk === 1 ? 199 : 99, base.lv);
+  const lv = clampNum(o && o.lv, 1, kk === 1 ? POL_MAX() : 99, base.lv);
   /* 经验一律不超过 RES_MAX；普刀满级（1,927,800）之后还能继续攒，所以不再按 PU_MAX 截断 */
   const ex = clampFloat(o && o.exp, 0, RES_MAX, base.exp);
   return {
@@ -3558,7 +3622,7 @@ function normRow(o, dft){
     name: String((o && o.name) || base.name).trim().slice(0, 20) || base.name,
     type: TYPES.indexOf(o && o.type) >= 0 ? o.type : base.type,
     k: kk,
-    r: clampNum(o && o.r, 1, 10, base.r),
+    r: clampNum(o && o.r, 1, RB_MAX(), base.r),
     lv: lv,
     exp: ex,
     src: String((o && o.src) || '').slice(0, 24),
@@ -3633,7 +3697,7 @@ function normalize(d){
     d.expLvFix = 1;
   }
   out.forEach(function(x){
-    if(x.r >= 10){ x.r = 10; x.rp = 0; return; }
+    if(x.r >= RB_MAX()){ x.r = RB_MAX(); x.rp = 0; return; }
     const cap = (typeof ranbuNeed === 'function') ? ranbuNeed(x.fl, x.r) : 0;
     /* 花数未知（0）时算不出上限，先保留已填的进度，别清掉 */
     if(cap) x.rp = clampNum(x.rp, 0, cap, 0);
@@ -3652,17 +3716,6 @@ function normalize(d){
     d.open = d.open.map(Number).filter(function(no){ return valid[no]; });
     // 已极化的必然已开放，做一次并集，避免历史数据不一致
     d.tw.forEach(function(x){ if(x.k === 1 && d.open.indexOf(x.no) < 0) d.open.push(x.no); });
-  }
-  /* V2.25：旧版会把新增的刀默认算成「已开放极化」，这里一次性纠正回未开放。
-     只保留内置开放名单里的刀，以及确实已经极化的刀；之后新增的刀不再自动开放。 */
-  if(!d.openFix){
-    const base = {};
-    (typeof seedOpen === 'function' ? seedOpen() : []).forEach(function(no){ base[Number(no)] = 1; });
-    d.open = d.open.filter(function(no){
-      const row = d.tw.filter(function(x){ return x.no === no; })[0];
-      return base[no] || (row && row.k === 1);
-    });
-    d.openFix = 1;
   }
   if(!Array.isArray(d.res)) d.res = seedRes();
   /* 搜索历史：老存档没有就补空数组，并钳制到最近 10 条 */
@@ -4514,7 +4567,7 @@ function polarLvOf(x){
   if(!x) return 1;
   if(Number(x.k) === 1){
     if(expIsSet(x.exp)) return lvFromRawExp(x.type, Math.max(0, Number(x.exp) || 0), x.fl);
-    return clampNum(x.lv, 1, 199, 1);
+    return clampNum(x.lv, 1, POL_MAX(), 1);
   }
   const m = expProfile(x.type, x.fl);
   if(!m) return clampNum(x.lv, 1, 99, 1);
@@ -4529,7 +4582,7 @@ function polarExpOf(x){
   if(!m) return Math.max(0, Number(x.exp) || 0);
   if(Number(x.k) === 1){
     return expIsSet(x.exp) ? Math.max(0, Number(x.exp) || 0)
-                           : cumExp(x.type, clampNum(x.lv, 1, 199, 1), x.fl);
+                           : cumExp(x.type, clampNum(x.lv, 1, POL_MAX(), 1), x.fl);
   }
   const e = expIsSet(x.exp) ? Math.max(0, Number(x.exp) || 0) : puCum(clampNum(x.lv, 1, 99, 1));
   return Math.max(0, e - m.ded);          /* 极化条上的经验（门槛以下按 0） */
@@ -4546,8 +4599,8 @@ function filteredRows(){
     if(ui.kiwame === '0' && x.k !== 0) return false;
     if(ui.kiwame === 'na' && os.has(x.no)) return false;
     if(ui.kiwame === 'open' && (!os.has(x.no) || x.k === 1)) return false;
-    if(ui.ranbu === '10' && x.r !== 10) return false;
-    if(ui.ranbu === 'under' && x.r >= 10) return false;
+    if(ui.ranbu === '10' && Number(x.r) !== RB_MAX()) return false;
+    if(ui.ranbu === 'under' && Number(x.r) >= RB_MAX()) return false;
     if(ui.level === 'ge100' && polarLvOf(x) < 100) return false;
     if(ui.level === 'lt100' && polarLvOf(x) >= 100) return false;
     if(ui.q){
@@ -4594,8 +4647,8 @@ function renderStats(){
   if(!d){ return; }
   const total = d.tw.length;
   const kw = d.tw.filter(function(x){ return x.k === 1; }).length;
-  const rb = d.tw.filter(function(x){ return x.r === 10; }).length;
-  const maxed = d.tw.filter(function(x){ return x.k === 1 && x.lv >= 199; }).length;
+  const rb = d.tw.filter(function(x){ return x.r >= RB_MAX(); }).length;
+  const maxed = d.tw.filter(function(x){ return x.k === 1 && x.lv >= POL_MAX(); }).length;
   const open = Array.isArray(d.open) ? d.open.length : 0;
   const left = kw < open ? open - kw : 0;          // 已开放但还没极化
   const rate = open ? Math.round(kw / open * 100) : 0;
@@ -4605,6 +4658,7 @@ function renderStats(){
   $('#normalNum').textContent = total - open;
   $('#ranbuMaxNum').textContent = rb;
   const lv199 = $('#lv199Num'); if(lv199) lv199.textContent = maxed;
+  const lvLab = $('#lvMaxLab'); if(lvLab) lvLab.textContent = '极' + POL_MAX() + ' 进度';
   const totalAll = $('#totalAllNum'); if(totalAll) totalAll.textContent = total;
   $('#progressFill').style.width = rate + '%';
   $('#ringTxt').textContent = rate + '%';
@@ -4614,7 +4668,7 @@ function renderStats(){
   $('#progressHint').textContent = !total
     ? '这个账号还没有刀剑，先「＋ 新增刀剑」或从刀帐填入'
     : (!open
-      ? '还没有设置极化开放名单，点「极化开放」开始'
+      ? '极化开放名单由全服模板统一下发，稍等模板同步完成'
       : (left === 0
         ? '已开放的 ' + open + ' 振全部极化 · 另有 ' + (total - open) + ' 振尚未开放'
         : '已极化 ' + kw + ' 振，已开放里还有 ' + left + ' 振在等你去修行'));
@@ -4745,7 +4799,7 @@ function cardHTML(x){
   /* 普刀即使没填经验，只要等级 >1 也能按该等级最低经验算到 Lv199 的距离 */
   const showEst = v.k === 1 || expIsSet(v.exp) || Number(v.lv) > 1;
   const fl = clampNum(v.fl, 0, 6, 0);
-  const r = clampNum(v.r, 1, 10, 1);
+  const r = clampNum(v.r, 1, RB_MAX(), 1);
   const rp = clampNum(v.rp, 0, ranbuNeed(fl, r) || 999, 0);
   const needNext = ranbuNeed(fl, r);
   const remain = ranbuRemain(fl, r, rp);
@@ -4780,7 +4834,7 @@ function cardHTML(x){
   if(!editing){
     /* 乱舞这一栏直接给「乱舞 n→n+1」和剩余数量，不再显示 x/y 进度 */
     const rbLeft = Math.max(0, (needNext || 0) - rp);
-    const rbLine = (r >= 10)
+    const rbLine = (r >= RB_MAX())
       ? '<span>乱舞</span><b title="已乱舞 MAX">10 ✓</b>'
       : (!fl
           ? '<span>乱舞</span><b title="花数未设，算不出升乱舞 ' + (r+1) + ' 要几把">' + r + '</b>'
@@ -4793,11 +4847,11 @@ function cardHTML(x){
           (open ? '' : '<i class="na-tag">未开放</i>')+'</b>' +
         rbLine +
         '<span title="从当前乱舞喂到 10 还需多少把">满乱舞</span><b class="rb-need">' +
-          (!fl ? '先设花数' : (r >= 10 ? '已满' : '还差 ' + remain + ' 把')) + '</b>' +
+          (!fl ? '先设花数' : (r >= RB_MAX() ? '已满' : '还差 ' + remain + ' 把')) + '</b>' +
         '<span>等级</span><b>Lv '+v.lv+'</b>' +
         (v.k===1
           ? '<span>极化经验</span><b class="ro-exp" title="'+esc(expTitle(v))+'">'+fmtNum(expShown(v))+'</b>'
-          : '<span title="'+esc(puTotalTitle(v))+'">距极199</span><b class="ro-exp" title="'+esc(puTotalTitle(v))+'">'+
+          : '<span title="'+esc(puTotalTitle(v))+'">距极'+POL_MAX()+'</span><b class="ro-exp" title="'+esc(puTotalTitle(v))+'">'+
               (puLeftExp(v) ? fmtNum(puLeftExp(v)) : '已满')+'</b>') +
         '<span>获取方式</span><b class="ro-src" title="'+esc(srcTxt)+'">'+(srcTxt?esc(srcTxt):'—')+'</b>' +
       '</div>' +
@@ -4807,8 +4861,8 @@ function cardHTML(x){
   }
 
   const opts = [];
-  for(let i=1;i<=10;i++){
-    opts.push('<option value="'+i+'"'+(r===i?' selected':'')+'>'+(i===10?'10 ✓':i)+'</option>');
+  for(let i=1;i<=RB_MAX();i++){
+    opts.push('<option value="'+i+'"'+(r===i?' selected':'')+'>'+(i===RB_MAX()?i+' ✓':i)+'</option>');
   }
   const flOpts = ['<option value="0"'+(fl===0?' selected':'')+'>未知</option>']
     .concat([1,2,3,4,5,6].map(function(f){
@@ -4831,7 +4885,7 @@ function cardHTML(x){
         '<option value="0"'+(!owned?' selected':'')+'>未拥有</option>' +
       '</select></label>' +
     '</div>' +
-    (open ? '' : '<div class="lock-tip">该刀尚未开放极化 · 可在「⚙ 极化开放」里开启</div>') +
+    (open ? '' : '<div class="lock-tip">该刀尚未开放极化 · 名单由全服模板统一维护（⚙ 极化开放 可查看）</div>') +
     '<div class="card-grid2 name-row">' +
       '<label class="fld"><span>名称</span><input type="text" maxlength="20" data-no="'+x.no+'" data-f="name" value="'+esc(v.name)+'" placeholder="刀剑名称"></label>' +
       '<label class="fld"><span>刀种</span><select data-no="'+x.no+'" data-f="type">'+typeOpts+'</select></label>' +
@@ -4839,9 +4893,9 @@ function cardHTML(x){
     '<div class="card-grid2">' +
       '<label class="fld"><span>乱舞</span><select data-no="'+x.no+'" data-f="r">'+opts.join('')+'</select></label>' +
       '<label class="fld"><span title="填还差几把才能升到下一级乱舞；填 0 表示下一把就升">' +
-        (r >= 10 ? '乱舞已满' : '升乱舞 ' + (r+1) + ' 还需') + '</span>' +
-        '<input type="number" min="0" max="' + (r >= 10 ? 0 : (needNext || 0)) + '" step="1" data-no="'+x.no+'" data-f="rp" value="' +
-        (r >= 10 ? 0 : Math.max(0, (needNext || 0) - rp)) + '"' + (r >= 10 ? ' disabled' : '') + '></label>' +
+        (r >= RB_MAX() ? '乱舞已满' : '升乱舞 ' + (r+1) + ' 还需') + '</span>' +
+        '<input type="number" min="0" max="' + (r >= RB_MAX() ? 0 : (needNext || 0)) + '" step="1" data-no="'+x.no+'" data-f="rp" value="' +
+        (r >= RB_MAX() ? 0 : Math.max(0, (needNext || 0) - rp)) + '"' + (r >= RB_MAX() ? ' disabled' : '') + '></label>' +
     '</div>' +
     '<div class="rb-tip" data-rbtip="1">' + ranbuTipHTML(fl, r, rp) + '</div>' +
     '<div class="card-grid2">' +
@@ -4867,7 +4921,7 @@ function cardHTML(x){
 /* 编辑态里的乱舞提示 */
 function ranbuTipHTML(fl, r, rp){
   if(!fl) return '<b>先选「花数」</b>，才能按花数算出乱舞各级要喂多少把';
-  if(r >= 10) return '已乱舞 MAX · 满级共需 ' + ranbuTotal(fl) + ' 把';
+  if(r >= RB_MAX()) return '已乱舞 MAX · 满级共需 ' + ranbuTotal(fl) + ' 把';
   const n = ranbuNeed(fl, r);
   const fed = Number(rp) || 0;
   const left = Math.max(0, n - fed);
@@ -4909,10 +4963,10 @@ function focusCard(no){
 function readField(o, el){
   const f = el.dataset.f;
   if(f === 'r'){
-    o.r = clampNum(el.value, 1, 10, o.r);
+    o.r = clampNum(el.value, 1, RB_MAX(), o.r);
     el.value = o.r;
   }else if(f === 'lv'){
-    o.lv = clampNum(el.value, 1, o.k === 1 ? 199 : 99, o.lv);
+    o.lv = clampNum(el.value, 1, o.k === 1 ? POL_MAX() : 99, o.lv);
     el.value = o.lv;
   }else if(f === 'exp'){
     o.exp = clampFloat(el.value, 0, RES_MAX, o.exp);
@@ -4945,17 +4999,17 @@ function readField(o, el){
 /* 编辑态：花数 / 乱舞 / 进度 变化后刷新提示与上限 */
 function refreshRanbu(card, draft){
   if(!card) return;
-  if(draft.r >= 10) draft.rp = 0;
+  if(draft.r >= RB_MAX()) draft.rp = 0;
   const cap = ranbuNeed(draft.fl, draft.r);
   if(draft.rp > cap) draft.rp = cap;
   const inp = card.querySelector('[data-f="rp"]');
   if(inp){
-    inp.value = draft.r >= 10 ? 0 : Math.max(0, (cap || 0) - draft.rp);   /* 显示「还差几把」 */
+    inp.value = draft.r >= RB_MAX() ? 0 : Math.max(0, (cap || 0) - draft.rp);   /* 显示「还差几把」 */
     inp.max = String(cap || 0);
-    inp.disabled = draft.r >= 10;
+    inp.disabled = draft.r >= RB_MAX();
     const lb = inp.parentNode.querySelector('span');
     if(lb){
-      lb.textContent = draft.r >= 10 ? '乱舞已满' : '升乱舞 ' + (draft.r + 1) + ' 还需';
+      lb.textContent = draft.r >= RB_MAX() ? '乱舞已满' : '升乱舞 ' + (draft.r + 1) + ' 还需';
       lb.title = '填还差几把才能升到下一级乱舞；填 0 表示下一把就升';
     }
   }
@@ -5047,9 +5101,9 @@ function commitEdit(no){
     type: TYPES.indexOf(draft.type) >= 0 ? draft.type : row.type,
     fl: clampNum(draft.fl, 0, 6, row.fl || 0),
     k: kk,
-    r: clampNum(draft.r, 1, 10, row.r),
+    r: clampNum(draft.r, 1, RB_MAX(), row.r),
     rp: clampNum(draft.rp, 0, 999, row.rp || 0),
-    lv: clampNum(draft.lv, 1, kk === 1 ? 199 : 99, row.lv),
+    lv: clampNum(draft.lv, 1, kk === 1 ? POL_MAX() : 99, row.lv),
     exp: clampFloat(draft.exp, 0, RES_MAX, row.exp),
     src: (draft.src || '').trim().slice(0, 24),
     note: (draft.note || '').trim().slice(0, 60),
@@ -5066,7 +5120,7 @@ function commitEdit(no){
     next.rp -= need;
     next.r += 1;
   }
-  if(next.r >= 10){ next.r = 10; next.rp = 0; }
+  if(next.r >= RB_MAX()){ next.r = RB_MAX(); next.rp = 0; }
   const changes = [];
   /* 乱舞等级和进度合成一条记录：日志里要能看出「乱舞 5→6」和这次一共喂了几把（+N 振） */
   const rbChanged = Number(next.r) !== Number(before.r) || Number(next.rp) !== Number(before.rp);
@@ -5074,7 +5128,7 @@ function commitEdit(no){
     changes.push({
       f:'ranbu', r:before.r, rp:before.rp, r2:next.r, rp2:next.rp,
       n: ranbuNeed(before.fl, before.r) || 0,
-      n2: next.r >= 10 ? 0 : (ranbuNeed(next.fl, next.r) || 0),
+      n2: next.r >= RB_MAX() ? 0 : (ranbuNeed(next.fl, next.r) || 0),
       gain: ranbuGainBetween(next.fl, before.r, before.rp, next.r, next.rp)
     });
   }
@@ -5135,7 +5189,7 @@ const BATCH_MODES = {
   },
   r: {
     title: '批量设置乱舞',
-    get: function(x){ return clampNum(x.r, 1, 10, 1); },
+    get: function(x){ return clampNum(x.r, 1, RB_MAX(), 1); },
     txt: function(v){ return '乱舞 ' + v; },
     opts: null,
     sub: '选好等级再点「应用」，只改等级 / 进度不同的那些。'
@@ -5175,7 +5229,7 @@ function openBatch(mode){
         })
       : [{text:'应用', cls:'btn primary', onClick:function(){
           const sel = $('#obR');
-          applyBatch(mode, clampNum(sel && sel.value, 1, 10, 10));
+          applyBatch(mode, clampNum(sel && sel.value, 1, RB_MAX(), 10));
         }}]
   );
   openModal({
@@ -5258,12 +5312,12 @@ function applyBatch(mode, val){
       if(expA !== conv.exp) changes.push({f:'exp', from:expA, to:conv.exp});
       row.k = val; row.lv = conv.lv; row.exp = conv.exp;
     }else{
-      const rA = clampNum(row.r, 1, 10, 1), rpA = clampNum(row.rp, 0, 999, 0);
+      const rA = clampNum(row.r, 1, RB_MAX(), 1), rpA = clampNum(row.rp, 0, 999, 0);
       const rp = clearRp ? 0 : Math.min(rpA, ranbuNeed(row.fl, val) || 0);
       if(rA === val && rpA === rp) return;
       changes = [{f:'ranbu', r:rA, rp:rpA, r2:val, rp2:rp,
                   n: ranbuNeed(row.fl, rA) || 0,
-                  n2: val >= 10 ? 0 : (ranbuNeed(row.fl, val) || 0),
+                  n2: val >= RB_MAX() ? 0 : (ranbuNeed(row.fl, val) || 0),
                   gain: ranbuGainBetween(row.fl, rA, rpA, val, rp)}];
       row.r = val; row.rp = rp;
     }
@@ -5554,13 +5608,13 @@ function openAddSword(){
         '</select></label>' +
         '<label class="fld"><span>极化</span><select id="aswK"><option value="0">普</option><option value="1">极</option></select></label>' +
         '<label class="fld"><span>拥有状态</span><select id="aswOwn"><option value="0" selected>未拥有</option><option value="1">已拥有</option></select></label>' +
-        '<label class="fld"><span>乱舞</span><input type="number" id="aswR" min="1" max="10" step="1" value="1"></label>' +
+        '<label class="fld"><span>乱舞</span><input type="number" id="aswR" min="1" max="'+RB_MAX()+'" step="1" value="1"></label>' +
         '<label class="fld"><span>等级</span><input type="number" id="aswLv" min="1" max="199" step="1" title="普刀上限 99，极化刀上限 199" value="1"></label>' +
         '<label class="fld"><span>极化经验</span><input type="number" id="aswExp" min="0" max="999999999" step="any" value="0" title="普刀填普刀累计经验，极化刀填极化经验；留空按等级算"></label>' +
         '<label class="fld"><span>获取方式</span><input type="text" id="aswSrc" maxlength="24" placeholder="如 8-4王点"></label>' +
         '<label class="fld"><span id="aswRpLbl" title="填还差几把才能升到下一级乱舞；填 0 表示下一把就升">升乱舞 2 还需</span><input type="number" id="aswRp" min="0" max="1" step="1" value="1"></label>' +
       '</div>' +
-      '<p class="calc-form-tip">新增的刀默认<b>极化未开放</b>，之后在「⚙ 极化开放」里勾选才能点「极」；本次直接填「极」会自动加入名单。</p>',
+      '<p class="calc-form-tip">新增的刀默认<b>极化未开放</b>：是否开放由全服刀帐模板统一维护，作者发布后所有账号同步；本次直接填「极」的刀会连开放状态一起记下。</p>',
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
       {text:'保存并入库', cls:'btn primary', onClick:function(){
@@ -5614,8 +5668,8 @@ function openAddSword(){
           name: name.slice(0, 20),
           type: TYPES.indexOf($('#aswType').value) >= 0 ? $('#aswType').value : '打刀',
           k: k,
-          r: clampNum($('#aswR').value, 1, 10, 1),
-          lv: clampNum($('#aswLv').value, 1, k === 1 ? 199 : 99, 1),
+          r: clampNum($('#aswR').value, 1, RB_MAX(), 1),
+          lv: clampNum($('#aswLv').value, 1, k === 1 ? POL_MAX() : 99, 1),
           exp: clampFloat($('#aswExp').value, 0, RES_MAX, 0),
           src: ($('#aswSrc').value || '').trim().slice(0, 24),
           fl: clampNum($('#aswFl').value, 0, 6, 0),
@@ -5647,13 +5701,13 @@ function openAddSword(){
   const syncAswRp = function(){
     const lbl = $('#aswRpLbl'), inp = $('#aswRp');
     if(!lbl || !inp) return;
-    const rr = clampNum($('#aswR').value, 1, 10, 1);
+    const rr = clampNum($('#aswR').value, 1, RB_MAX(), 1);
     const ff = clampNum($('#aswFl').value, 0, 6, 0);
     const cap = ranbuNeed(ff, rr) || 0;
-    lbl.textContent = rr >= 10 ? '乱舞已满' : '升乱舞 ' + (rr + 1) + ' 还需';
+    lbl.textContent = rr >= RB_MAX() ? '乱舞已满' : '升乱舞 ' + (rr + 1) + ' 还需';
     inp.max = String(cap || 0);
-    inp.disabled = rr >= 10;
-    if(rr >= 10) inp.value = 0;
+    inp.disabled = rr >= RB_MAX();
+    if(rr >= RB_MAX()) inp.value = 0;
     else if(inp.value === '' || Number(inp.value) > cap) inp.value = cap;
   };
   ['aswR', 'aswFl'].forEach(function(id){
@@ -5902,7 +5956,7 @@ function bindGrid(){
     const card = b.closest('.card');
     card.classList.toggle('kw', draft.k === 1);
     /* 等级上限：普 99 / 极 199，切换时同步输入框与已有数值 */
-    const capLv = draft.k === 1 ? 199 : 99;
+    const capLv = draft.k === 1 ? POL_MAX() : 99;
     const lvInp = card.querySelector('input[data-f="lv"]');
     if(lvInp){
       lvInp.max = capLv;
@@ -5975,7 +6029,7 @@ function bindGrid(){
     }else{
       const raw = String(el.value).trim();
       const prevLv = draft.lv;
-      draft.lv = clampNum(el.value, 1, draft.k === 1 ? 199 : 99, draft.lv);
+      draft.lv = clampNum(el.value, 1, draft.k === 1 ? POL_MAX() : 99, draft.lv);
       /* 改等级就把经验改成该等级对应值：普/极各按自己的经验条，没填过经验（0）也一样写。
          等级没变（比如重复输入 99）且已有经验比该等级最低值多，说明那是满级后攒的溢出经验，保留不动。 */
       /* 等级没变（重复输入同一个数）且已有经验比该等级折算值多，说明那是满级后攒的，先保住；
@@ -6385,8 +6439,8 @@ function logFlat(l){
       const rp = Number(c.rp) || 0, rp2 = Number(c.rp2) || 0;
       const nA = Number(c.n) || 0, nB = Number(c.n2) || nA;
       const g = ranbuChangeGain(c);
-      return '乱舞 ' + r + (r2 === r ? '' : '→' + r2) + ' ' + (r >= 10 ? 'MAX' : rp + '/' + (nA || '?')) +
-             '→' + (r2 >= 10 ? 'MAX' : rp2 + '/' + (nB || '?')) +
+      return '乱舞 ' + r + (r2 === r ? '' : '→' + r2) + ' ' + (r >= RB_MAX() ? 'MAX' : rp + '/' + (nA || '?')) +
+             '→' + (r2 >= RB_MAX() ? 'MAX' : rp2 + '/' + (nB || '?')) +
              ' ' + (g < 0 ? '变动 ' : '获得 ') + fmtNum(g) + ' 振';
     }
     if(c.f === 'res'){
@@ -6410,8 +6464,8 @@ function logChangeHTML(c, kind){
     /* 批量设置可以把乱舞往下改，往下的用灰底「10 → 5」，不跟升级混在一起 */
     const down = r2 < r || (r2 === r && rp2 < rp);
     const head = r2 === r ? ('乱舞 ' + r) : ('乱舞 ' + r + (down ? ' → ' : '→') + r2);
-    const from = r >= 10 ? 'MAX' : (rp + '/' + (nA || '?'));
-    const to = r2 >= 10 ? 'MAX' : (rp2 + '/' + (nB || '?'));
+    const from = r >= RB_MAX() ? 'MAX' : (rp + '/' + (nA || '?'));
+    const to = r2 >= RB_MAX() ? 'MAX' : (rp2 + '/' + (nB || '?'));
     return '<span class="chg chg-rb' + (down ? ' down' : '') + '">' + (kind === 'ranbu' ? '' : '<em>喂刀</em> ') +
            head + ' · ' + from + ' → ' + to + (!down && r2 > r ? ' 🎉' : '') + '</span>';
   }
@@ -7457,8 +7511,8 @@ function renderDaily(){
           const rr = Number(rv);
           return (rr ? (ranbuNeed(fl, rr) || '?') : '?');
         };
-        const fromTxt = (ar !== '?' && Number(ar) >= 10) ? 'MAX' : (rpA + '/' + needOf(ar, a.n));
-        const sub = (br !== '?' && Number(br) >= 10) ? 'MAX'
+        const fromTxt = (ar !== '?' && Number(ar) >= RB_MAX()) ? 'MAX' : (rpA + '/' + needOf(ar, a.n));
+        const sub = (br !== '?' && Number(br) >= RB_MAX()) ? 'MAX'
           : (fromTxt + ' → ' + rpB + '/' + needOf(br, b.n));
         rbTxt = '<span class="day-rb">' + head + '<em>' + sub + '</em></span>';
       }
@@ -7519,7 +7573,7 @@ function logEditForm(l){
     if(c.f === 'ranbu'){
       const r = Number(c.r) || 1, r2 = Number(c.r2) || r;
       const rp = Number(c.rp) || 0, rp2 = Number(c.rp2) || 0;
-      return '原 乱舞 ' + r + ' ' + (r >= 10 ? 'MAX' : rp) + ' → ' + r2 + ' ' + (r2 >= 10 ? 'MAX' : rp2);
+      return '原 乱舞 ' + r + ' ' + (r >= RB_MAX() ? 'MAX' : rp) + ' → ' + r2 + ' ' + (r2 >= RB_MAX() ? 'MAX' : rp2);
     }
     if(c.f === 'res') return '原 ' + fmtNum(c.from) + ' → ' + fmtNum(c.to);
     return '原 ' + logVal(c.f, c.from) + ' → ' + logVal(c.f, c.to);
@@ -7538,7 +7592,7 @@ function logEditForm(l){
       const rp2 = (c.rp2 === undefined || c.rp2 === null) ? 0 : Number(c.rp2);
       return '<div class="le-row">' +
         '<span class="le-k">乱舞</span>' +
-        '<label class="le-in2"><span>等级</span><input class="input" type="number" inputmode="numeric" min="1" max="10" id="le_' + i + '_r" value="' + r2 + '"></label>' +
+        '<label class="le-in2"><span>等级</span><input class="input" type="number" inputmode="numeric" min="1" max="'+RB_MAX()+'" id="le_' + i + '_r" value="' + r2 + '"></label>' +
         '<label class="le-in2"><span>进度</span><input class="input" type="number" inputmode="numeric" min="0" max="999" id="le_' + i + '_rp" value="' + rp2 + '"></label>' +
         '<span class="le-old">' + esc(oldTxt(c)) + '</span>' +
       '</div>';
@@ -7603,8 +7657,8 @@ function applyLogFieldToRow(row, c){
   if(!row) return;
   if(c.f === 'lv') row.lv = clampNum(c.to, 1, 199, row.lv);
   else if(c.f === 'exp') row.exp = clampFloat(c.to, 0, RES_MAX, row.exp);
-  else if(c.f === 'ranbu'){ row.r = clampNum(c.r2, 1, 10, row.r); row.rp = clampNum(c.rp2, 0, 999, row.rp || 0); }
-  else if(c.f === 'r') row.r = clampNum(c.to, 1, 10, row.r);
+  else if(c.f === 'ranbu'){ row.r = clampNum(c.r2, 1, RB_MAX(), row.r); row.rp = clampNum(c.rp2, 0, 999, row.rp || 0); }
+  else if(c.f === 'r') row.r = clampNum(c.to, 1, RB_MAX(), row.r);
   else if(c.f === 'rp') row.rp = clampNum(c.to, 0, 999, row.rp || 0);
   else if(c.f === 'own') row.own = Number(c.to) === 0 ? 0 : 1;
   else if(c.f === 'k') row.k = Number(c.to) === 1 ? 1 : 0;
@@ -7646,10 +7700,10 @@ function logRelinkNext(l, c){
       if(y.f === 'ranbu'){
         const r = Number(c.r2) || Number(y.r) || 1;
         let rp = (c.rp2 === undefined || c.rp2 === null) ? (Number(y.rp) || 0) : Number(c.rp2);
-        if(r >= 10) rp = 0;
+        if(r >= RB_MAX()) rp = 0;
         y.r = r; y.rp = rp;
-        y.n = r >= 10 ? 0 : (ranbuNeed(fl, r) || 0);
-        y.gain = ranbuGainBetween(fl, r, rp, Number(y.r2) || r, Number(y.r2) >= 10 ? 0 : (Number(y.rp2) || 0));
+        y.n = r >= RB_MAX() ? 0 : (ranbuNeed(fl, r) || 0);
+        y.gain = ranbuGainBetween(fl, r, rp, Number(y.r2) || r, Number(y.r2) >= RB_MAX() ? 0 : (Number(y.rp2) || 0));
       }
       return;
     }
@@ -7668,13 +7722,13 @@ function saveLogEdit(id){
     if(c.f === 'roster' || c.f === 'plv') return o;
     if(c.f === 'ranbu'){
       const er = $('#le_' + i + '_r'), ep = $('#le_' + i + '_rp');
-      const r2 = clampNum(er ? er.value : c.r2, 1, 10, Number(c.r2) || 1);
+      const r2 = clampNum(er ? er.value : c.r2, 1, RB_MAX(), Number(c.r2) || 1);
       let rp2 = clampNum(ep ? ep.value : c.rp2, 0, 999, Number(c.rp2) || 0);
-      if(r2 >= 10) rp2 = 0;
+      if(r2 >= RB_MAX()) rp2 = 0;
       o.r2 = r2;
       o.rp2 = rp2;
-      o.n2 = r2 >= 10 ? 0 : (ranbuNeed(fl, r2) || 0);
-      o.gain = ranbuGainBetween(fl, clampNum(c.r, 1, 10, 1), clampNum(c.rp, 0, 999, 0), r2, rp2);
+      o.n2 = r2 >= RB_MAX() ? 0 : (ranbuNeed(fl, r2) || 0);
+      o.gain = ranbuGainBetween(fl, clampNum(c.r, 1, RB_MAX(), 1), clampNum(c.rp, 0, 999, 0), r2, rp2);
       return o;
     }
     const el = $('#le_' + i);
@@ -7686,7 +7740,7 @@ function saveLogEdit(id){
     else if(c.f === 'src') o.to = String(el.value || '').trim().slice(0, 24);
     else if(c.f === 'exp') o.to = clampFloat(el.value, 0, RES_MAX, Number(c.to) || 0);
     else if(c.f === 'lv') o.to = clampNum(el.value, 1, 199, Number(c.to) || 1);
-    else if(c.f === 'r') o.to = clampNum(el.value, 1, 10, Number(c.to) || 1);
+    else if(c.f === 'r') o.to = clampNum(el.value, 1, RB_MAX(), Number(c.to) || 1);
     else if(c.f === 'rp') o.to = clampNum(el.value, 0, 999, Number(c.to) || 0);
     else if(c.f === 'fl') o.to = clampNum(el.value, 0, 6, Number(c.to) || 0);
     else if(c.f === 'res') o.to = clampNum(el.value, 0, RES_MAX, Number(c.to) || 0);
@@ -8360,7 +8414,7 @@ function syncSwordMeta(no, name, fl){
   const d = curData();
   const row = rowOf(no);
   if(!d || !row) return;
-  const before = {name:row.name, fl:clampNum(row.fl, 0, 6, 0), r:clampNum(row.r, 1, 10, 1)};
+  const before = {name:row.name, fl:clampNum(row.fl, 0, 6, 0), r:clampNum(row.r, 1, RB_MAX(), 1)};
   const changes = [];
   if(name !== before.name) changes.push({f:'name', from:before.name, to:name});
   if(fl !== before.fl) changes.push({f:'fl', from:before.fl, to:fl});
@@ -8376,7 +8430,7 @@ function syncSwordMeta(no, name, fl){
     row.r += 1;
     carry++;
   }
-  if(row.r >= 10){ row.r = 10; row.rp = 0; }
+  if(row.r >= RB_MAX()){ row.r = 10; row.rp = 0; }
   if(carry) changes.push({f:'r', from:before.r, to:row.r});
   if(!Array.isArray(d.logs)) d.logs = [];
   const act = curAct();
@@ -8662,9 +8716,9 @@ function applyRanbuGain(no, act, ses){
   const d = curData();
   const x = rowOf(no);
   if(!d || !x) return '';
-  let r = clampNum(x.r, 1, 10, 1);
+  let r = clampNum(x.r, 1, RB_MAX(), 1);
   let rp = clampNum(x.rp, 0, 999, 0);
-  if(r >= 10) return ' · 乱舞已满';
+  if(r >= RB_MAX()) return ' · 乱舞已满';
   const fl = clampNum(x.fl, 0, 6, 0);
   const need = ranbuNeed(fl, r);
   if(!need) return ' · 花数未设，未记进度';
@@ -8674,14 +8728,14 @@ function applyRanbuGain(no, act, ses){
     rp -= ranbuNeed(fl, r);
     r += 1;
   }
-  if(r >= 10){ r = 10; rp = 0; }
+  if(r >= RB_MAX()){ r = 10; rp = 0; }
   x.r = r;
   x.rp = rp;
   pushLog({
     kind:'ranbu', no:no, name:x.name, act:(act && act.name) || '',
     ses:(ses && ses.name) || '', src:'活动',
     changes:[{f:'ranbu', r:fromR, rp:fromRp, r2:r, rp2:rp, n:need,
-              n2: r >= 10 ? 0 : (ranbuNeed(fl, r) || 0), gain:1}]
+              n2: r >= RB_MAX() ? 0 : (ranbuNeed(fl, r) || 0), gain:1}]
   });
   renderStats(); renderFilters();
   if(r !== fromR){
@@ -10456,10 +10510,10 @@ function applyPayload(obj){
         if(row.fav && Number(o.favAt) > 0) row.favAt = Number(o.favAt);
         if(!row.fav) row.favAt = 0;
       }
-      if(o.r !== undefined) row.r = clampNum(o.r, 1, 10, row.r);
+      if(o.r !== undefined) row.r = clampNum(o.r, 1, RB_MAX(), row.r);
       if(o.fl !== undefined) row.fl = clampNum(o.fl, 0, 6, row.fl || 0);
       if(o.rp !== undefined) row.rp = clampNum(o.rp, 0, 999, row.rp || 0);
-      if(o.lv !== undefined) row.lv = clampNum(o.lv, 1, row.k === 1 ? 199 : 99, row.lv);
+      if(o.lv !== undefined) row.lv = clampNum(o.lv, 1, row.k === 1 ? POL_MAX() : 99, row.lv);
       if(o.exp !== undefined){
         let ev = clampFloat(o.exp, 0, RES_MAX, row.exp);
         if(legacyExp && Number(row.k) !== 1){
@@ -10643,6 +10697,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.99 极化开放与上限改为全服统一',
+     '<p>「哪些刀已开放极化」以前是每个账号各存一份，新开放一振要每个人自己去勾。现在它进了<b>全服刀帐模板</b>：作者在「📖 刀帐模板 → 作者管理」里勾选每振的<b>可极化</b>，发布后所有人打开自动同步，卡片上的「极」立刻可用。</p>' +
+     '<p>同一处还能改两个上限：<b>极化等级上限</b>（默认 <b>199</b>）和<b>乱舞上限</b>（默认 <b>10</b>）。改完发布，顶部「极199 进度」、卡片「距极199」、乱舞进度与筛选都按新上限算。经验表只覆盖到 Lv199，若把极化上限调到 199 以上，超出部分按 Lv199 的满经验计。</p>' +
+     '<p>原来的「⚙ 极化开放」改成<b>只读查看</b>（能搜、能看哪些已开放），不再让人各自勾选；已极化的刀即使模板里关了开放也会保留，状态不会丢。顺带修好：<b>新建的空账号不会再被模板自动补满 131 振</b>，要整本刀帐仍用「📋 填入刀帐」。</p>',
+     '2026.11'],
     ['V2.98 刀帐数量统一为 131 振',
      '<p>之前「📋 填入刀帐」的标题和按钮还写着 <b>130 振</b>，是旧文案没跟着改，实际铺出来本来就是 131 振。现在标题、按钮、提示里的数字都<b>直接读模板条数</b>，以后增补新刀不会再对不上。</p>' +
      '<p>另外修好两处小问题：<b>新增刀剑的检索池</b>以前只查内置 130 振，第 131 振「八八王国吉」搜不到、会被当成新刀重复加入，现在整份模板都能搜到并按编号反填；<b>老存档迁移</b>时若本来就有第 131 振，不会再重复生成一条。</p>',
@@ -11071,6 +11130,7 @@ function openNotice(){
    极化开放名单（后续开放新极化时在这里更新上限）
    ========================================================= */
 function openOpenPool(){
+  /* 极化开放名单全服一致：只能查看，改动要作者在「刀帐模板 · 作者管理」里改并发布 */
   const d = curData();
   if(!d){ toast('请先新建账号', true); return; }
   const sel = new Set(Array.isArray(d.open) ? d.open : []);
@@ -11079,11 +11139,10 @@ function openOpenPool(){
 
   const rows = d.tw.slice().sort(function(a,b){ return a.no - b.no; }).map(function(x){
     const lock = !!fixed[x.no];
-    if(lock) sel.add(x.no);
+    const on = sel.has(x.no);
     return '<label class="pool-item' + (lock ? ' locked' : '') + '" data-no="' + x.no + '" data-name="' +
         esc((x.name + ' ' + x.no + ' ' + x.type).toLowerCase()) + '">' +
-      '<input type="checkbox" data-no="' + x.no + '"' + (sel.has(x.no) ? ' checked' : '') +
-        (lock ? ' disabled' : '') + '>' +
+      '<input type="checkbox" data-no="' + x.no + '"' + (on ? ' checked' : '') + ' disabled>' +
       '<span class="pi-no">' + String(x.no).padStart(3,'0') + '</span>' +
       '<span class="pi-name">' + esc(x.name) + '</span>' +
       (lock ? '<i class="pi-lock">已极化</i>' : '') +
@@ -11091,58 +11150,32 @@ function openOpenPool(){
   }).join('');
 
   openModal({
-    title:'⚙ 极化开放名单',
-    sub:'极化的开放数量随游戏版本更新。目前开放 ' + sel.size + ' 振；官方开放新的极化后，在这里勾上对应刀剑，卡片里的「极」按钮会立即解锁。',
+    title:'⚙ 极化开放（全服统一）',
+    sub:'目前开放 ' + sel.size + ' 振 · 极化上限 Lv' + POL_MAX() + ' · 乱舞上限 ' + RB_MAX() +
+        '。这份名单全服一致，由作者在「📖 刀帐模板 → 作者管理」里勾选「可极化」并发布，所有账号下次打开自动同步。',
     body:
       '<div class="pool-bar">' +
         '<input class="input" id="poolSearch" placeholder="搜索刀名 / 编号 / 刀种" style="margin:0;">' +
-        '<button class="chip ghost" id="poolAll">全选</button>' +
-        '<button class="chip ghost" id="poolNone">全清</button>' +
         '<button class="chip ghost" id="poolOnly">只看未开放</button>' +
       '</div>' +
-      '<div class="pool-tip">已极化的刀剑会保持勾选且不可取消；取消开放只影响能否再选「极」，不会改动已有数据。</div>' +
+      '<div class="pool-tip">这里只能查看。已极化的刀会自动保持开放；新开放的刀由作者发布后，卡片里的「极」按钮立刻可用，不需要每个人自己勾。</div>' +
       '<div class="pool-list" id="poolList">' + rows + '</div>' +
       '<div class="pool-count" id="poolCount"></div>',
-    actions:[
-      {text:'取消', cls:'btn', onClick:closeModal},
-      {text:'保存名单', cls:'btn primary', onClick:function(){
-        const list = Array.prototype.slice.call(document.querySelectorAll('#poolList input[type="checkbox"]'));
-        // 以 sel 为准（搜索过滤不会丢失已勾选项）
-        const next = Array.from(sel).filter(function(no){
-          return d.tw.some(function(x){ return x.no === no; });
-        }).sort(function(a,b){ return a - b; });
-        d.open = next;
-        save(); closeModal();
-        renderCatalog(); renderSidebar();
-        toast('极化开放名单已更新 · 共 ' + next.length + ' 振');
-      }}
-    ]
+    actions:[{text:'知道了', cls:'btn primary', onClick:closeModal}]
   });
 
-  const updateCount = function(){
-    const n = sel.size, t = d.tw.length;
-    const box = $('#poolCount');
-    if(box) box.innerHTML = '已开放 <b>' + n + '</b> / ' + t + ' 振 · 未开放 <b>' + (t - n) + '</b> 振';
-  };
-  updateCount();
+  const total = d.tw.length, n = sel.size;
+  const box = $('#poolCount');
+  if(box) box.innerHTML = '已开放 <b>' + n + '</b> / ' + total + ' 振 · 未开放 <b>' + (total - n) + '</b> 振';
 
   const list = $('#poolList');
-  list.addEventListener('change', function(e){
-    const cb = e.target.closest('input[type="checkbox"]');
-    if(!cb || cb.disabled) return;
-    const no = Number(cb.dataset.no);
-    if(cb.checked) sel.add(no); else sel.delete(no);
-    updateCount();
-  });
-
   let onlyOpen = false;
   const applyFilter = function(){
     const q = ($('#poolSearch').value || '').trim().toLowerCase();
     Array.prototype.forEach.call(list.children, function(it){
-      const no = Number(it.dataset.no);
-      const on = sel.has(no);
+      const on = sel.has(Number(it.dataset.no));
       let show = q ? it.dataset.name.indexOf(q) >= 0 : true;
-      if(onlyOpen && on) show = false;        // 只看未开放：已勾选（含已极化）全部隐藏
+      if(onlyOpen && on) show = false;
       it.hidden = !show;
     });
   };
@@ -11152,23 +11185,6 @@ function openOpenPool(){
     this.classList.toggle('on', onlyOpen);
     this.textContent = onlyOpen ? '✓ 只看未开放' : '只看未开放';
     applyFilter();
-  };
-
-  $('#poolAll').onclick = function(){
-    Array.prototype.forEach.call(list.children, function(it){
-      if(it.hidden || it.classList.contains('locked')) return;
-      const cb = it.querySelector('input');
-      cb.checked = true; sel.add(Number(it.dataset.no));
-    });
-    updateCount();
-  };
-  $('#poolNone').onclick = function(){
-    Array.prototype.forEach.call(list.children, function(it){
-      if(it.hidden || it.classList.contains('locked')) return;
-      const cb = it.querySelector('input');
-      cb.checked = false; sel.delete(Number(it.dataset.no));
-    });
-    updateCount();
   };
 }
 
