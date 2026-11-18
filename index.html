@@ -1708,7 +1708,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.96</div>
+        <div class="brand-sub">HONMARU KEEPER V2.97</div>
       </div>
     </div>
 
@@ -3159,7 +3159,11 @@ async function tplBoot(){
 function applyTplToAll(){
   try{
     Object.keys(S.data).forEach(function(k){ applyTplToData(S.data[k]); });
-    save();
+    /* 模板应用不是「用户改动」，绝不能因此把本机标成 dirty。
+       否则每次打开都会 save() → 标记有改动 → 下次拉取判成冲突，反复弹「两边都改过」。 */
+    const prev = syncApplying;
+    syncApplying = true;
+    try{ save(); }finally{ syncApplying = prev; }
     renderAll();
   }catch(e){}
 }
@@ -9539,6 +9543,31 @@ async function cloudApply(obj, ts){
     renderAll();
   }finally{ syncApplying = false; }
 }
+/* 判断两份账号数据是不是「实质相同」：只比用户真正关心的内容，
+   忽略 tplVer / savedAt / 日志时间戳这类会自然漂移或由程序改写的字段，
+   用来避免「内容其实一致、却被判成两边都改过」的反复弹窗。 */
+function dataFingerprint(d){
+  if(!d) return '';
+  try{
+    const tw = (Array.isArray(d.tw) ? d.tw : []).map(function(x){
+      return [Number(x.no), String(x.name || ''), String(x.type || ''), Number(x.fl) || 0,
+              Number(x.k) || 0, Number(x.r) || 0, Number(x.rp) || 0, Number(x.lv) || 0,
+              Number(x.exp) || 0, String(x.src || ''), Number(x.own) || 0,
+              Number(x.fav) || 0, String(x.note || '')];
+    }).sort(function(a,b){ return a[0] - b[0]; });
+    const logs = (Array.isArray(d.logs) ? d.logs : []).length;
+    const recs = (Array.isArray(d.records) ? d.records : []).length;
+    const res  = (Array.isArray(d.res) ? d.res : []).length;
+    const open = (Array.isArray(d.open) ? d.open.slice().sort(function(a,b){ return a-b; }) : []);
+    const acts = (d.calc && Array.isArray(d.calc.acts)) ? d.calc.acts.length : 0;
+    return JSON.stringify({tw:tw, logs:logs, recs:recs, res:res, open:open, acts:acts});
+  }catch(e){ return ''; }
+}
+function sameSwordData(a, b){
+  const fa = dataFingerprint(a), fb = dataFingerprint(b);
+  return !!fa && fa === fb;
+}
+
 async function cloudPull(opts){
   opts = opts || {};
   if(!cloudCfgValid() || (syncBusy && !opts.force)) return false;
@@ -9597,6 +9626,16 @@ async function cloudPull(opts){
       new Date(updatedAt).getTime() > new Date(syncState.lastSyncAt).getTime();
     if(opts.force || newer){
       if(!opts.force && syncState.dirty && syncState.lastSyncAt){
+        /* 关键：dirty 可能只是「启动时应用模板」之类的误标，本机内容其实和云端一模一样。
+           这时不该弹「两边都改过」吓人——比对实际内容，一致就直接对齐，不打扰。 */
+        if(sameSwordData(obj.data, curData())){
+          syncState.lastSyncAt = updatedAt || new Date().toISOString();
+          syncState.remoteAt = updatedAt || '';
+          syncState.dirty = false;
+          saveSyncState();
+          setSyncStatus('ok', '已同步 · ' + fmtClock(syncState.lastSyncAt));
+          return true;
+        }
         pendingCloud = {obj:obj, ts:updatedAt};
         setSyncStatus('conflict', '云端和本机都有改动');
         openCloudConflict();
@@ -10592,6 +10631,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.97 修好云同步反复弹「两边都改过」',
+     '<p>之前每次打开都可能弹「两边都改过」，其实数据根本没冲突。原因有两个：一是<b>打开时应用全服模板</b>会被误判成「本机有改动」，二是<b>只按时间戳判断</b>，手机与服务器时间有偏差就会一直认为云端更新。</p>' +
+     '<p>现在<b>先比对实际内容</b>：本机和云端数据一致时就当已同步，不再打扰；只有内容真的不同才提示你选以哪边为准。手动改过的数据仍会照常提示，不会漏。</p>',
+     '2026.11'],
     ['V2.96 模板管理加上操作提示',
      '<p>修好作者管理面板「点了没反应」：以前在弹窗里点按钮时，提示被弹窗挡住看不见。现在提示会浮在最上层，并加了<b>分步引导</b>（填口令 → 验证 → 解锁）和解锁状态高亮。</p>' +
      '<p>未解锁时下方按钮会<b>变淡</b>，点了会明确提示「请先填作者口令并点验证」，不会再让人摸不着头脑。</p>',
