@@ -603,6 +603,17 @@
   .tpl-no{color:var(--muted);width:46px;}
   .tpl-dragcol{color:var(--muted-3);width:18px;cursor:default;}
   .tpl-in{width:100%;font-size:11.5px;padding:4px 6px;min-width:56px;}
+  .tpl-in.ro{background:var(--surface-2);color:var(--sub);cursor:not-allowed;}
+  #viewTpl .tpl-table td.tpl-c-name{position:relative;}
+  .tpl-lock{position:absolute;right:8px;top:50%;transform:translateY(-50%);
+    font-size:9px;color:var(--muted-2);letter-spacing:.04em;pointer-events:none;}
+  #viewTpl .tpl-table td.tpl-c-name .tpl-in.ro{padding-right:30px;}
+  @media (max-width:640px){
+    #viewTpl .tpl-table td.tpl-c-name .tpl-lock{top:auto;bottom:11px;transform:none;right:11px;}
+  }
+  .fld.ro input{background:var(--surface-2);color:var(--sub);cursor:not-allowed;}
+  .fld.ro>span{color:var(--muted);}
+  .fld-ro{font-size:10.5px;line-height:1.7;color:var(--muted);margin-top:5px;}
   .tpl-pwd{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap;}
   .tpl-pwd .input{flex:1;min-width:130px;}
   .tpl-authflag{font-size:11.5px;color:var(--muted);}
@@ -1819,7 +1830,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.01</div>
+        <div class="brand-sub">HONMARU KEEPER V3.02</div>
       </div>
     </div>
 
@@ -3391,11 +3402,14 @@ function renderTplPanel(edit){
     (edit ? '<th></th>' : '') + '<th>编号</th><th>刀名</th><th>刀种</th><th>花数</th><th>获取方式</th><th class="tpl-pkcol">可极化</th>' +
     (edit ? '<th></th>' : '') + '</tr></thead><tbody>';
   rows.forEach(function(r, i){
+    const builtin = !!TPL_BUILTIN_BY_NO[Number(r.no)];
     table += '<tr data-hay="' + esc((r.no + ' ' + r.name + ' ' + r.type).toLowerCase()) + '">' +
       (edit ? '<td class="tpl-dragcol">⠿</td>' : '') +
       '<td class="tpl-no tpl-c-no">' + r.no + '</td>' +
       (edit
-        ? '<td class="tpl-c-name"><input class="input tpl-in" data-tf="name" data-i="' + i + '" value="' + esc(r.name) + '" maxlength="24"></td>' +
+        ? '<td class="tpl-c-name"><input class="input tpl-in' + (builtin ? ' ro' : '') + '" data-tf="name" data-i="' + i + '" value="' + esc(r.name) + '" maxlength="24"' +
+            (builtin ? ' readonly title="内置刀帐刀名固定，不可修改"' : '') + '>' +
+            (builtin ? '<span class="tpl-lock">固定</span>' : '') + '</td>' +
           '<td class="tpl-c-type"><select class="select tpl-in" data-tf="type" data-i="' + i + '">' +
             TPL_TYPES.map(function(t){ return '<option' + (t === r.type ? ' selected' : '') + '>' + t + '</option>'; }).join('') +
           '</select></td>' +
@@ -3434,7 +3448,7 @@ function renderTplPanel(edit){
       '</div>' +
       '<details class="tpl-note-d"' + (narrow ? '' : ' open') + ' style="margin-top:8px;">' +
         '<summary>ⓘ 发布与上限说明</summary>' +
-        '<div class="tpl-note">锁定后模板不可再改；发布需作者口令且模板未锁定。发布后所有账号打开时自动同步刀名 / 刀种 / 花数 / 获取方式 / 是否开放极化，版本 +1。极化上限经验表只覆盖到 Lv199，调到 199 以上时超出部分按 Lv199 的满经验计。</div>' +
+        '<div class="tpl-note">内置刀帐的<b>刀名已锁定</b>（全服统一，任何人不能改），只有你自己「＋ 新增一振」加进来的刀可以改名。锁定后模板不可再改；发布需作者口令且模板未锁定。发布后所有账号打开时自动同步刀名 / 刀种 / 花数 / 获取方式 / 是否开放极化，版本 +1。极化上限经验表只覆盖到 Lv199，调到 199 以上时超出部分按 Lv199 的满经验计。</div>' +
       '</details>';
   }
 
@@ -5021,6 +5035,7 @@ function cardHTML(x){
   const typeOpts = TYPES.map(function(t){
     return '<option value="'+t+'"'+(v.type===t?' selected':'')+'>'+t+'</option>';
   }).join('');
+  const nameLock = isTplSword(x.no);
   return '<div class="card kw-edit' + (v.k===1?' kw':'') + (owned?'':' unowned') + (fav?' fav':'') + ' editing" data-no="'+x.no+'">' + head +
     '<div class="card-ctrl">' +
       '<div class="seg" data-no="'+x.no+'">' +
@@ -5037,9 +5052,12 @@ function cardHTML(x){
     '</div>' +
     (open ? '' : '<div class="lock-tip">该刀尚未开放极化 · 名单由全服模板统一维护（⚙ 极化开放 可查看）</div>') +
     '<div class="card-grid2 name-row">' +
-      '<label class="fld"><span>名称</span><input type="text" maxlength="20" data-no="'+x.no+'" data-f="name" value="'+esc(v.name)+'" placeholder="刀剑名称"></label>' +
+      '<label class="fld' + (nameLock ? ' ro' : '') + '"><span>名称' + (nameLock ? '（固定）' : '') + '</span>' +
+        '<input type="text" maxlength="20" data-no="'+x.no+'" data-f="name" value="'+esc(v.name)+'" placeholder="刀剑名称"' +
+        (nameLock ? ' readonly title="刀名随全服刀帐统一维护，不能修改"' : '') + '></label>' +
       '<label class="fld"><span>刀种</span><select data-no="'+x.no+'" data-f="type">'+typeOpts+'</select></label>' +
     '</div>' +
+    (nameLock ? '<div class="fld-ro">刀名与全服刀帐一致，不能改；备注 / 获取方式 / 等级 / 乱舞 仍可自己记。</div>' : '') +
     '<div class="card-grid2">' +
       '<label class="fld"><span>乱舞</span><select data-no="'+x.no+'" data-f="r">'+opts.join('')+'</select></label>' +
       '<label class="fld"><span title="填还差几把才能升到下一级乱舞；填 0 表示下一把就升">' +
@@ -5244,6 +5262,9 @@ function commitEdit(no){
     const els = card.querySelectorAll('[data-f]');
     Array.prototype.forEach.call(els, function(el){ readField(draft, el); });
   }
+  /* 刀帐内的刀名锁定：就算绕过只读改了值，也一律以全服刀帐为准 */
+  const trow = tplRowByNo(no);
+  if(trow) draft.name = trow.name;
   const before = {name:row.name, type:row.type, fl:row.fl || 0, k:row.k, r:row.r, rp:row.rp || 0, lv:row.lv, exp:row.exp, src:row.src || '', note:row.note || '', own:(Number(row.own)===0?0:1)};
   const kk = draft.k === 1 ? 1 : 0;
   const next = {
@@ -5641,6 +5662,11 @@ function tplRowByNo(no){
   const rows = (typeof TPL !== 'undefined' && TPL && Array.isArray(TPL.rows) && TPL.rows.length) ? TPL.rows : TPL_BUILTIN;
   for(let i = 0; i < rows.length; i++){ if(Number(rows[i].no) === n) return rows[i]; }
   return null;
+}
+/* 这振是不是「刀帐内」的刀（刀名全服统一，不能自己改） */
+function isTplSword(no){
+  const n = Number(no) || 0;
+  return !!tplRowByNo(n) || !!TPL_BUILTIN_BY_NO[n];
 }
 function rosterPool(){
   const d = curData();
@@ -10847,6 +10873,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.02 刀帐里的刀名锁定，不能改',
+     '<p>刀帐内的刀名<b>全服统一</b>，以前在卡片「✎ 修改」或者模板作者管理里都能改，改完还会被下次同步覆盖回去，白忙一场。现在这些刀名<b>锁定为只读</b>：账号卡片里「名称」灰底显示、后面标「（固定）」；作者管理里内置 131 振的刀名同样灰底并标「固定」。</p>' +
+     '<p><b>自己新增的刀不算</b>：图鉴里手动加的、模板里「＋ 新增一振」加的刀，刀名照旧可以改。其它字段不受影响 —— 刀种、花数、获取方式、可极化、等级、乱舞、备注都还是能自己改。</p>',
+     '2026.11'],
     ['V3.01 手机端改刀帐改得更顺手',
      '<p>作者管理在手机上以前还是横向宽表：一屏只看得到<b>编号 / 刀名 / 刀种</b>，花数、获取方式、可极化、删除都要左右拖才露出来。现在手机（≤640px）自动换成<b>竖向卡片</b>，每振一张卡：编号在左上、删除在右上，刀名一行，刀种和花数并排，获取方式、可极化各占一行，<b>全部在屏幕内，不用横拖</b>。</p>' +
      '<p>查看模式也跟着变紧凑：一行显示「编号 · 刀名 · 刀种 · 花数 · 获取 · ✔」，长刀名自动省略号，131 振扫起来快很多。表格上方加了<b>搜索框</b>（刀名 / 编号 / 刀种），改某一振时先搜再改，不用从头滚到尾。</p>' +
