@@ -1830,7 +1830,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.02</div>
+        <div class="brand-sub">HONMARU KEEPER V3.03</div>
       </div>
     </div>
 
@@ -5051,13 +5051,14 @@ function cardHTML(x){
       '</select></label>' +
     '</div>' +
     (open ? '' : '<div class="lock-tip">该刀尚未开放极化 · 名单由全服模板统一维护（⚙ 极化开放 可查看）</div>') +
-    '<div class="card-grid2 name-row">' +
-      '<label class="fld' + (nameLock ? ' ro' : '') + '"><span>名称' + (nameLock ? '（固定）' : '') + '</span>' +
-        '<input type="text" maxlength="20" data-no="'+x.no+'" data-f="name" value="'+esc(v.name)+'" placeholder="刀剑名称"' +
-        (nameLock ? ' readonly title="刀名随全服刀帐统一维护，不能修改"' : '') + '></label>' +
-      '<label class="fld"><span>刀种</span><select data-no="'+x.no+'" data-f="type">'+typeOpts+'</select></label>' +
-    '</div>' +
-    (nameLock ? '<div class="fld-ro">刀名与全服刀帐一致，不能改；备注 / 获取方式 / 等级 / 乱舞 仍可自己记。</div>' : '') +
+    (nameLock
+      ? '<div class="fld-ro">刀名全服统一，不可改。</div>' +
+        '<label class="fld"><span>刀种</span><select data-no="'+x.no+'" data-f="type">'+typeOpts+'</select></label>'
+      : '<div class="card-grid2 name-row">' +
+          '<label class="fld"><span>名称</span>' +
+            '<input type="text" maxlength="20" data-no="'+x.no+'" data-f="name" value="'+esc(v.name)+'" placeholder="刀剑名称"></label>' +
+          '<label class="fld"><span>刀种</span><select data-no="'+x.no+'" data-f="type">'+typeOpts+'</select></label>' +
+        '</div>') +
     '<div class="card-grid2">' +
       '<label class="fld"><span>乱舞</span><select data-no="'+x.no+'" data-f="r">'+opts.join('')+'</select></label>' +
       '<label class="fld"><span title="填还差几把才能升到下一级乱舞；填 0 表示下一把就升">' +
@@ -5067,8 +5068,8 @@ function cardHTML(x){
     '</div>' +
     '<div class="rb-tip" data-rbtip="1">' + ranbuTipHTML(fl, r, rp) + '</div>' +
     '<div class="card-grid2">' +
-      '<label class="fld"><span>等级</span><input type="number" min="1" max="'+(v.k===1?199:99)+'" step="1" ' +
-        'title="'+(v.k===1?'极化刀上限 199':'普刀上限 99')+'" data-no="'+x.no+'" data-f="lv" value="'+v.lv+'"></label>' +
+      '<label class="fld"><span>等级</span><input type="number" min="1" max="'+(v.k===1?POL_MAX():99)+'" step="1" ' +
+        'title="'+(v.k===1?'极化刀上限 '+POL_MAX():'普刀上限 99')+'" data-no="'+x.no+'" data-f="lv" value="'+v.lv+'"></label>' +
       '<label class="fld"><span title="'+esc(expTitle(v))+'">'+(v.k===1?'极化经验':'普刀累计')+'</span>' +
         '<input type="number" min="0" max="999999999" step="any" data-no="'+x.no+'" data-f="exp" value="'+v.exp+'"' +
           ' placeholder="'+(v.k===1?'填极化经验':'填普刀累计经验')+'"></label>' +
@@ -5282,10 +5283,10 @@ function commitEdit(no){
   };
   /* 已极化且填了经验：等级以经验为准，保存前再校正一次，避免手填等级与经验对不上 */
   if(next.k === 1 && expIsSet(next.exp)){
-    next.lv = clampNum(lvFromRawExp(next.type, next.exp, next.fl), 1, 199, next.lv);
+    next.lv = clampNum(lvFromRawExp(next.type, next.exp, next.fl), 1, POL_MAX(), next.lv);
   }
   /* 进度喂满自动进位，最多到乱舞 10 */
-  while(next.r < 10 && next.rp >= (ranbuNeed(next.fl, next.r) || 0)){
+  while(next.r < RB_MAX() && next.rp >= (ranbuNeed(next.fl, next.r) || 0)){
     const need = ranbuNeed(next.fl, next.r);
     if(!need) break;
     next.rp -= need;
@@ -8436,16 +8437,18 @@ function calcDropsHTML(ses){
       '</span></div>' +
     rows.map(function(no){
       const t = swordType(no);
+      const canRename = !isTplSword(no);
+      const editTip = canRename ? '点这里改名称 / 花数，同步到图鉴' : '点这里改花数，同步到图鉴';
       return '<div class="calc-drop-item">' +
         '<span class="calc-drop-no">No.' + String(no).padStart(3, '0') + '</span>' +
-        '<span class="calc-drop-name" data-cedit="' + no + '" title="点这里改名称 / 花数，同步到图鉴">' + esc(swordName(no)) + '</span>' +
+        '<span class="calc-drop-name" data-cedit="' + no + '" title="' + editTip + '">' + esc(swordName(no)) + '</span>' +
         (t ? '<span class="calc-drop-type">' + esc(t) + '</span>' : '') +
         '<span class="calc-drop-flower">' + flowerLabel(no) + '</span>' +
         '<span class="calc-drop-ctrl">' +
           (closed ? '' : '<button class="calc-drop-undo" data-cminus="' + no + '">－</button>') +
           '<span class="calc-drop-count">× ' + st.drops[no] + '</span>' +
           (closed ? '' : '<button class="calc-drop-undo" data-cplus="' + no + '">＋</button>') +
-          '<button class="calc-drop-edit" data-cedit="' + no + '" title="改名称 / 花数并同步到图鉴">✎</button>' +
+          '<button class="calc-drop-edit" data-cedit="' + no + '" title="' + editTip + '">✎</button>' +
         '</span>' +
         '</div>';
     }).join('') +
@@ -8563,26 +8566,31 @@ function openSwordMeta(no){
   if(!d) return;
   if(!row){ openSwordRestore(no); return; }
   const fl = clampNum(row.fl, 0, 6, 0);
+  const nameLock = isTplSword(no);
   openModal({
-    title:'✎ 同步到图鉴',
-    sub:'这里改的是图鉴里的「' + row.name + '」：名称、花数保存后，图鉴卡片、筛选和乱舞进度都会跟着更新。',
+    title: nameLock ? '✎ 同步花数到图鉴' : '✎ 同步到图鉴',
+    sub: nameLock
+      ? '「' + row.name + '」的刀名随全服刀帐统一，这里只改花数；图鉴卡片和乱舞进度会跟着更新。'
+      : '这里改的是图鉴里的「' + row.name + '」：名称、花数保存后，图鉴卡片、筛选和乱舞进度都会跟着更新。',
     body:'<div class="add-grid">' +
         '<label class="fld"><span>编号</span><input type="text" value="No.' + String(no).padStart(3, '0') + '" disabled></label>' +
         '<label class="fld"><span>花数</span><select id="smFl">' + flOptions(fl) + '</select></label>' +
-        '<label class="fld full"><span>名称</span><input type="text" id="smName" maxlength="20" value="' + esc(row.name) + '"></label>' +
+        (nameLock ? '' :
+          '<label class="fld full"><span>名称</span><input type="text" id="smName" maxlength="20" value="' + esc(row.name) + '"></label>') +
         '</div>' +
         '<p class="calc-form-tip">花数决定每一级乱舞要喂多少把；改小以后进度超过上限会自动进位，改大则进度不变。</p>',
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
       {text:'保存并同步', cls:'btn primary', onClick:function(){
-        const name = (($('#smName').value || '').trim().slice(0, 20)) || row.name;
+        const nameEl = $('#smName');
+        const name = nameLock || !nameEl ? row.name : ((nameEl.value || '').trim().slice(0, 20) || row.name);
         const nfl = clampNum($('#smFl').value, 0, 6, row.fl || 0);
         syncSwordMeta(no, name, nfl);
         closeModal();
       }}
     ]
   });
-  setTimeout(function(){ const el = $('#smName'); if(el){ el.focus(); el.select(); } }, 60);
+  if(!nameLock) setTimeout(function(){ const el = $('#smName'); if(el){ el.focus(); el.select(); } }, 60);
 }
 
 /* 把名称 / 花数写回图鉴，并补一条变动记录 */
@@ -8599,14 +8607,14 @@ function syncSwordMeta(no, name, fl){
   row.fl = fl;
   /* 花数变了，进度上限跟着变，超出的部分自动进位 */
   let carry = 0;
-  while(row.r < 10){
+  while(row.r < RB_MAX()){
     const need = ranbuNeed(row.fl, row.r);
     if(!need || clampNum(row.rp, 0, 999, 0) < need) break;
     row.rp = clampNum(row.rp, 0, 999, 0) - need;
     row.r += 1;
     carry++;
   }
-  if(row.r >= RB_MAX()){ row.r = 10; row.rp = 0; }
+  if(row.r >= RB_MAX()){ row.r = RB_MAX(); row.rp = 0; }
   if(carry) changes.push({f:'r', from:before.r, to:row.r});
   if(!Array.isArray(d.logs)) d.logs = [];
   const act = curAct();
@@ -8900,11 +8908,11 @@ function applyRanbuGain(no, act, ses){
   if(!need) return ' · 花数未设，未记进度';
   const fromR = r, fromRp = rp;
   rp += 1;
-  while(r < 10 && rp >= ranbuNeed(fl, r)){
+  while(r < RB_MAX() && rp >= ranbuNeed(fl, r)){
     rp -= ranbuNeed(fl, r);
     r += 1;
   }
-  if(r >= RB_MAX()){ r = 10; rp = 0; }
+  if(r >= RB_MAX()){ r = RB_MAX(); rp = 0; }
   x.r = r;
   x.rp = rp;
   pushLog({
@@ -10873,6 +10881,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.03 固定刀名不再显示名称栏',
+     '<p>刀名既然全服统一，卡片「✎ 修改」里那个改不了的「名称（固定）」只读框就<b>直接去掉</b>了——刀名在卡片头部已经有，编辑时不再占一行位置。原位置只留一句小字「刀名全服统一，不可改」，<b>刀种</b>独占一行，下拉也更宽。</p>' +
+     '<p>掉落计算里点刀名「✎」也一起改了：固定刀弹窗只显示<b>编号 + 花数</b>，不再出现名称输入，免得有人以为能改；自己新增的刀照旧可以改名称。</p>' +
+     '<p>顺带把两处漏改的上限接上模板设置：<b>乱舞进位</b>（喂满自动升级、快捷 +1）和<b>极化等级</b>换算不再写死 10 / 199，改过「乱舞上限 / 极化上限」后立刻按新值算。</p>',
+     '2026.11'],
     ['V3.02 刀帐里的刀名锁定，不能改',
      '<p>刀帐内的刀名<b>全服统一</b>，以前在卡片「✎ 修改」或者模板作者管理里都能改，改完还会被下次同步覆盖回去，白忙一场。现在这些刀名<b>锁定为只读</b>：账号卡片里「名称」灰底显示、后面标「（固定）」；作者管理里内置 131 振的刀名同样灰底并标「固定」。</p>' +
      '<p><b>自己新增的刀不算</b>：图鉴里手动加的、模板里「＋ 新增一振」加的刀，刀名照旧可以改。其它字段不受影响 —— 刀种、花数、获取方式、可极化、等级、乱舞、备注都还是能自己改。</p>',
