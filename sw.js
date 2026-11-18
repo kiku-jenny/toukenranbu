@@ -62,7 +62,8 @@ async function serve(req){
 }
 
 function notifyUpdate(){
+  /* 带上版本号，页面端据此按版本去重：同一版本只提示一次 */
   self.clients.matchAll({type:'window'}).then(function(list){
-    list.forEach(function(c){ c.postMessage({type:'hk-update'}); });
+    list.forEach(function(c){ c.postMessage({type:'hk-update', ver:CACHE}); });
   });
 }
