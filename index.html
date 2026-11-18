@@ -596,13 +596,28 @@
   .tpl-note-d .tpl-note{margin-bottom:0;}
   .tpl-table-wrap{max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:9px;}
   .tpl-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+  /* 桌面：固定列宽，各列上下对齐 */
+  .tpl-table.editable{table-layout:fixed;}
+  .tpl-col-drag{width:24px;}
+  .tpl-col-no{width:46px;}
+  .tpl-col-type{width:92px;}
+  .tpl-col-fl{width:66px;}
+  .tpl-col-src{width:186px;}
+  .tpl-col-pk{width:74px;}
+  .tpl-col-del{width:40px;}
   .tpl-table th{position:sticky;top:0;background:var(--surface-2);color:var(--muted);
     text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap;z-index:1;border-bottom:1px solid var(--line);}
+  .tpl-table th.tpl-th-drag,.tpl-table th.tpl-th-del,
+  .tpl-table th.tpl-th-no,.tpl-table th.tpl-th-fl,.tpl-table th.tpl-pkcol{text-align:center;}
   .tpl-table td{padding:4px 8px;border-bottom:1px solid var(--line);vertical-align:middle;}
   .tpl-table tr:last-child td{border-bottom:0;}
   .tpl-no{color:var(--muted);width:46px;}
+  .tpl-table td.tpl-no{text-align:center;font-variant-numeric:tabular-nums;}
+  .tpl-table td.tpl-c-fl{text-align:center;}
+  .tpl-table td.tpl-c-fl .tpl-in{text-align:center;text-align-last:center;padding-left:2px;padding-right:2px;}
+  .tpl-table td.tpl-c-del{text-align:center;padding-left:2px;padding-right:2px;}
   .tpl-dragcol{color:var(--muted-3);width:18px;cursor:default;}
-  .tpl-in{width:100%;font-size:11.5px;padding:4px 6px;min-width:56px;}
+  .tpl-in{width:100%;box-sizing:border-box;height:30px;font-size:11.5px;padding:3px 6px;min-width:0;}
   .tpl-in.ro{background:var(--surface-2);color:var(--sub);cursor:not-allowed;}
   #viewTpl .tpl-table td.tpl-c-name{position:relative;}
   .tpl-lock{position:absolute;right:8px;top:50%;transform:translateY(-50%);
@@ -920,6 +935,10 @@
     font-size:11px;padding:3px 2px;color:var(--ink);outline:none;
   }
   .mini-sel select:focus{border-color:var(--accent);}
+  .mini-ro{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);letter-spacing:.06em;flex:0 0 auto;min-width:0;}
+  .mini-ro b{flex:0 0 auto;min-width:52px;text-align:center;border:1px solid var(--line);border-radius:7px;background:var(--surface-2);
+    font-size:11px;font-weight:500;color:var(--sub);padding:3px 7px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .card-grid2{display:grid;grid-template-columns:1fr 1.35fr;gap:7px;}
   .card-grid2.name-row{grid-template-columns:1.3fr 1fr;}
   .fld{display:block;margin-top:7px;}
@@ -1806,7 +1825,11 @@
     .ro b.ro-exp{font-size:10px;letter-spacing:-.03em;}
     .card-ctrl{flex-wrap:wrap;gap:8px;}
     .mini-sel{flex:0 1 auto;margin-left:auto;white-space:nowrap;}
-    .mini-sel select{flex:0 0 auto;min-width:76px;}
+    .mini-sel select{flex:0 0 auto;min-width:68px;}
+    .mini-ro{flex:0 0 auto;margin-left:6px;white-space:nowrap;}
+    .mini-ro b{flex:0 0 auto;min-width:0;padding:3px 6px;text-align:center;}
+    /* 窄卡片放不下三个控件：极/普 + 花数一行，状态单独占满一行 */
+    .card-ctrl>.mini-sel:last-child{flex:1 1 100%;margin-left:0;}
     .tool-btns{margin-left:0;width:100%;}
     .page-head h1{font-size:18px;}
     .ring{width:56px;height:56px;flex-basis:56px;}
@@ -1830,7 +1853,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.03</div>
+        <div class="brand-sub">HONMARU KEEPER V3.04</div>
       </div>
     </div>
 
@@ -3081,10 +3104,11 @@ const FLOWER = [5,5,3,3,3,1,5,3,5,2,5,2,4,2,2,1,1,1,1,1,1,1,1,1,1,1,5,4,3,4,1,3,
 
 
 /* =========================================================
-   刀帐模板（全服一致）：编号 / 刀名 / 刀种 / 花数 / 获取方式
+   刀帐模板（全服一致）：编号 / 刀名 / 刀种 / 花数 / 可极化
    ---------------------------------------------------------
-   这四项全服一致，由作者一人维护、发布到公共库；每个人的「拥有 / 极化 /
-   等级 / 经验 / 乱舞 / 收藏」是账号私有数据，不进模板。
+   这几项全服一致，由作者一人维护、发布到公共库；获取方式只在新增刀时取模板
+   默认值，之后由各账号自己写；「拥有 / 极化 / 等级 / 经验 / 乱舞 / 收藏」是
+   账号私有数据，不进模板。
    TPL_BUILTIN 是内置 131 振兜底：离线、或云端还没发布模板时用。 */
 const TPL_BUILTIN = [
 {no:1,name:"童子切安綱",type:"太刀",fl:5,src:""},
@@ -3271,7 +3295,8 @@ function applyTplToData(d){
   TPL.rows.forEach(function(t){ byNo[t.no] = t; });
   d.tw.forEach(function(x){
     var t = byNo[Number(x.no)];
-    if(t){ x.name = t.name; x.type = t.type; x.fl = t.fl; x.src = t.src; }
+    /* 刀名 / 刀种 / 花数全服统一；获取方式留给每个账号自己记，同步时不覆盖 */
+    if(t){ x.name = t.name; x.type = t.type; x.fl = t.fl; }
   });
   /* 极化开放名单也全服一致：直接按模板 pk 重建。
      已经极化的刀即使模板里关了开放，也留在名单里，避免状态自相矛盾。 */
@@ -3371,7 +3396,7 @@ function renderTplPanel(edit){
     '<div class="tpl-hd">' +
       '<div class="tpl-hd-txt"><p>' + (edit
           ? '作者管理 · 改完点「⬆ 发布到云端」才会全服生效'
-          : '查看模式 · 刀名 / 刀种 / 花数 / 获取方式 / 可极化 / 上限都由作者统一维护') + '</p></div>' +
+          : '查看模式 · 刀名 / 刀种 / 花数 / 可极化 / 上限由作者统一维护；获取方式各账号可自己改') + '</p></div>' +
       '<div class="tpl-hd-acts">' +
         (edit
           ? '<button class="btn" id="tplBackView">← 返回查看</button>'
@@ -3390,17 +3415,28 @@ function renderTplPanel(edit){
     '<div class="tpl-stat">' + esc(tplSourceText()) + '</div>' + cfg +
     '<details class="tpl-note-d"' + (narrow ? '' : ' open') + '>' +
       '<summary>ⓘ 哪些字段全服一致</summary>' +
-      '<div class="tpl-note">刀名 / 刀种 / 花数 / 获取方式 / <b>是否开放极化</b> / 极化与乱舞上限<b>全服一致</b>，由作者统一维护；' +
-      '「是否拥有 / 已极化 / 等级 / 乱舞 / 收藏」是每个账号各自记录，不在模板里。</div>' +
+      '<div class="tpl-note">刀名 / 刀种 / 花数 / <b>是否开放极化</b> / 极化与乱舞上限<b>全服一致</b>，由作者统一维护；' +
+      '这里的<b>获取方式</b>只是新增刀时的默认值，每个账号可以自己改、保存后不会被同步覆盖。' +
+      '「是否拥有 / 已极化 / 等级 / 乱舞 / 收藏」也是每个账号各自记录，不在模板里。</div>' +
     '</details>';
   const searchBar =
     '<div class="tpl-search">' +
       '<input class="input" id="tplSearch" type="search" placeholder="搜索刀名 / 编号 / 刀种" autocomplete="off">' +
       '<span class="tpl-search-n" id="tplSearchN"></span>' +
     '</div>';
-  let table = searchBar + '<div class="tpl-table-wrap"><table class="tpl-table ' + (edit ? 'editable' : 'readonly') + '"><thead><tr>' +
-    (edit ? '<th></th>' : '') + '<th>编号</th><th>刀名</th><th>刀种</th><th>花数</th><th>获取方式</th><th class="tpl-pkcol">可极化</th>' +
-    (edit ? '<th></th>' : '') + '</tr></thead><tbody>';
+  /* 固定列宽：桌面端每行的编号 / 刀种 / 花数 / 可极化 / 删除都在同一条竖线上，
+     刀名与获取方式分掉剩下的宽度 */
+  const colgroup = '<colgroup>' +
+    (edit ? '<col class="tpl-col-drag">' : '') +
+    '<col class="tpl-col-no"><col class="tpl-col-name"><col class="tpl-col-type">' +
+    '<col class="tpl-col-fl"><col class="tpl-col-src"><col class="tpl-col-pk">' +
+    (edit ? '<col class="tpl-col-del">' : '') +
+    '</colgroup>';
+  let table = searchBar + '<div class="tpl-table-wrap"><table class="tpl-table ' + (edit ? 'editable' : 'readonly') + '">' + colgroup + '<thead><tr>' +
+    (edit ? '<th class="tpl-th-drag"></th>' : '') +
+    '<th class="tpl-th-no">编号</th><th class="tpl-th-name">刀名</th><th class="tpl-th-type">刀种</th>' +
+    '<th class="tpl-th-fl">花数</th><th class="tpl-th-src">获取方式</th><th class="tpl-pkcol">可极化</th>' +
+    (edit ? '<th class="tpl-th-del"></th>' : '') + '</tr></thead><tbody>';
   rows.forEach(function(r, i){
     const builtin = !!TPL_BUILTIN_BY_NO[Number(r.no)];
     table += '<tr data-hay="' + esc((r.no + ' ' + r.name + ' ' + r.type).toLowerCase()) + '">' +
@@ -3448,7 +3484,7 @@ function renderTplPanel(edit){
       '</div>' +
       '<details class="tpl-note-d"' + (narrow ? '' : ' open') + ' style="margin-top:8px;">' +
         '<summary>ⓘ 发布与上限说明</summary>' +
-        '<div class="tpl-note">内置刀帐的<b>刀名已锁定</b>（全服统一，任何人不能改），只有你自己「＋ 新增一振」加进来的刀可以改名。锁定后模板不可再改；发布需作者口令且模板未锁定。发布后所有账号打开时自动同步刀名 / 刀种 / 花数 / 获取方式 / 是否开放极化，版本 +1。极化上限经验表只覆盖到 Lv199，调到 199 以上时超出部分按 Lv199 的满经验计。</div>' +
+        '<div class="tpl-note">内置刀帐的<b>刀名已锁定</b>（全服统一，任何人不能改），只有你自己「＋ 新增一振」加进来的刀可以改名。锁定后模板不可再改；发布需作者口令且模板未锁定。发布后所有账号打开时自动同步刀名 / 刀种 / 花数 / 是否开放极化，版本 +1；<b>获取方式只在新增刀时作为默认值</b>，不会覆盖别人已经写好的。极化上限经验表只覆盖到 Lv199，调到 199 以上时超出部分按 Lv199 的满经验计。</div>' +
       '</details>';
   }
 
@@ -5036,6 +5072,16 @@ function cardHTML(x){
     return '<option value="'+t+'"'+(v.type===t?' selected':'')+'>'+t+'</option>';
   }).join('');
   const nameLock = isTplSword(x.no);
+  /* 刀种 / 花数来自全服模板：模板里有的刀一律只读；纯本地新增的刀不受限 */
+  const tplLock = !!tplRowByNo(x.no);
+  const flTxt = fl ? (fl + ' 花') : '未知';
+  const typeHTML = tplLock
+    ? '<label class="fld ro"><span>刀种</span>' +
+        '<input type="text" value="' + esc(v.type) + '" readonly title="刀种随全服刀帐统一，不能修改"></label>'
+    : '<label class="fld"><span>刀种</span><select data-no="'+x.no+'" data-f="type">'+typeOpts+'</select></label>';
+  const lockTip = tplLock
+    ? (nameLock ? '刀名、刀种、花数全服统一' : '刀种、花数全服统一')
+    : '';
   return '<div class="card kw-edit' + (v.k===1?' kw':'') + (owned?'':' unowned') + (fav?' fav':'') + ' editing" data-no="'+x.no+'">' + head +
     '<div class="card-ctrl">' +
       '<div class="seg" data-no="'+x.no+'">' +
@@ -5044,7 +5090,9 @@ function cardHTML(x){
           : '<button class="seg-b locked" data-k="1" disabled title="该刀尚未开放极化">极</button>') +
         '<button class="seg-b'+(v.k===0?' active':'')+'" data-k="0" title="未极化">普</button>' +
       '</div>' +
-      '<label class="mini-sel">花数<select data-no="'+x.no+'" data-f="fl">'+flOpts+'</select></label>' +
+      (tplLock
+        ? '<span class="mini-ro" title="花数 ' + flTxt + ' · 随全服刀帐统一，不能修改"><b>' + flTxt + '</b></span>'
+        : '<label class="mini-sel">花数<select data-no="'+x.no+'" data-f="fl">'+flOpts+'</select></label>') +
       '<label class="mini-sel">状态<select data-no="'+x.no+'" data-f="own">' +
         '<option value="1"'+(owned?' selected':'')+'>已拥有</option>' +
         '<option value="0"'+(!owned?' selected':'')+'>未拥有</option>' +
@@ -5052,13 +5100,13 @@ function cardHTML(x){
     '</div>' +
     (open ? '' : '<div class="lock-tip">该刀尚未开放极化 · 名单由全服模板统一维护（⚙ 极化开放 可查看）</div>') +
     (nameLock
-      ? '<div class="fld-ro">刀名全服统一，不可改。</div>' +
-        '<label class="fld"><span>刀种</span><select data-no="'+x.no+'" data-f="type">'+typeOpts+'</select></label>'
+      ? (lockTip ? '<div class="fld-ro">' + lockTip + '</div>' : '') + typeHTML
       : '<div class="card-grid2 name-row">' +
           '<label class="fld"><span>名称</span>' +
             '<input type="text" maxlength="20" data-no="'+x.no+'" data-f="name" value="'+esc(v.name)+'" placeholder="刀剑名称"></label>' +
-          '<label class="fld"><span>刀种</span><select data-no="'+x.no+'" data-f="type">'+typeOpts+'</select></label>' +
-        '</div>') +
+          typeHTML +
+        '</div>' +
+        (lockTip ? '<div class="fld-ro">' + lockTip + '</div>' : '')) +
     '<div class="card-grid2">' +
       '<label class="fld"><span>乱舞</span><select data-no="'+x.no+'" data-f="r">'+opts.join('')+'</select></label>' +
       '<label class="fld"><span title="填还差几把才能升到下一级乱舞；填 0 表示下一把就升">' +
@@ -5075,7 +5123,7 @@ function cardHTML(x){
           ' placeholder="'+(v.k===1?'填极化经验':'填普刀累计经验')+'"></label>' +
     '</div>' +
     '<div data-pre="1">' + (showEst ? estHTML(v.type, v.exp, v.fl, {k:v.k, lv:v.lv, no:x.no, editable:true}) : '') + '</div>' +
-    '<label class="fld"><span>获取方式</span><input type="text" maxlength="24" data-no="'+x.no+'" data-f="src" value="'+esc(srcTxt)+'" placeholder="如 7-4王点"></label>' +
+    '<label class="fld"><span title="只给自己记，改了会保存下来；全服模板同步时不会覆盖">获取方式（自己记）</span><input type="text" maxlength="24" data-no="'+x.no+'" data-f="src" value="'+esc(srcTxt)+'" placeholder="如 7-4王点"></label>' +
     '<label class="fld"><span title="只给自己看的标注，不进全服模板，可点卡片名下方查看">备注（自己记）</span><input type="text" maxlength="60" data-no="'+x.no+'" data-f="note" value="'+esc(v.note || '')+'" placeholder="如 主力队 / 待练 / 等材料"></label>' +
     '<div class="card-actions">' +
       '<button class="card-btn ghost" data-act="cancel">取消</button>' +
@@ -5263,9 +5311,14 @@ function commitEdit(no){
     const els = card.querySelectorAll('[data-f]');
     Array.prototype.forEach.call(els, function(el){ readField(draft, el); });
   }
-  /* 刀帐内的刀名锁定：就算绕过只读改了值，也一律以全服刀帐为准 */
+  /* 刀帐内的刀名锁定：就算绕过只读改了值，也一律以全服刀帐为准；
+     刀种 / 花数同理，模板里有的刀不接受本地改动 */
   const trow = tplRowByNo(no);
-  if(trow) draft.name = trow.name;
+  if(trow){
+    draft.name = trow.name;
+    draft.type = trow.type;
+    draft.fl = trow.fl;
+  }
   const before = {name:row.name, type:row.type, fl:row.fl || 0, k:row.k, r:row.r, rp:row.rp || 0, lv:row.lv, exp:row.exp, src:row.src || '', note:row.note || '', own:(Number(row.own)===0?0:1)};
   const kk = draft.k === 1 ? 1 : 0;
   const next = {
@@ -10881,6 +10934,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.04 花数 · 刀种只读，获取方式自己记',
+     '<p>刀帐卡片「✎ 修改」里，<b>花数</b>和<b>刀种</b>都改成只读了：花数只剩一个「N 花」小框，刀种是一行灰字，跟刀名一样来自全服刀帐模板，不用再自己填。状态、极化、等级、经验、乱舞、获取方式、备注照旧能改；模板里没有的纯本地刀不受影响。</p>' +
+     '<p><b>获取方式改成自己记</b>：以前它和刀名一起被模板覆盖，改完下次同步就没了。现在保存后会一直留着，刷新、云同步、作者发布新模板都不会动它；模板里填的获取方式只作为「新增一振」时的默认值。</p>' +
+     '<p>作者管理表格也重新排过：<b>固定列宽</b>，编号、刀种、花数、可极化、删除各占一条竖线，输入框统一 30px 高、同行高度一致；手机上刀种与花数两列等宽，不再一大一小。</p>',
+     '2026.11'],
     ['V3.03 固定刀名不再显示名称栏',
      '<p>刀名既然全服统一，卡片「✎ 修改」里那个改不了的「名称（固定）」只读框就<b>直接去掉</b>了——刀名在卡片头部已经有，编辑时不再占一行位置。原位置只留一句小字「刀名全服统一，不可改」，<b>刀种</b>独占一行，下拉也更宽。</p>' +
      '<p>掉落计算里点刀名「✎」也一起改了：固定刀弹窗只显示<b>编号 + 花数</b>，不再出现名称输入，免得有人以为能改；自己新增的刀照旧可以改名称。</p>' +
@@ -11313,7 +11371,7 @@ function openNotice(){
     ['开放更多极化后怎么改','<p>点图鉴里极化筛选行的「⚙ 极化开放」：搜刀名、勾上刚开放的刀，保存即可，卡片里的「极」立刻解锁，进度环会按新的上限重新计算。已极化的刀会保持勾选、不能取消。</p>','小贴士'],
     ['V1.4 新增变动记录','<p>图鉴每次保存都会自动写一条日志，记下刀剑名称、改了哪个字段、从多少变成多少，以及精确到秒的时间。可翻页、可搜索。</p>','2026.11'],
     ['修改 / 保存两步走','<p>卡片默认只读，点「✎ 修改」才会展开控件，改完点「保存」写入并锁定；点「取消」则原样丢弃。没有改动就保存不会产生日志。</p>','小贴士'],
-    ['可编辑的字段','<p>名称、刀种、极化（极 / 普）、乱舞（1-10）、等级（1-999）、总经验（0-999,999,999，支持小数）、获取方式（最多 24 字）。编辑时顶栏统计不动，保存后才更新。</p>','说明'],
+    ['可编辑的字段','<p>极化（极 / 普）、乱舞（1-10）、等级、总经验（0-999,999,999，支持小数）、获取方式（最多 24 字）、备注。名称、刀种、花数随全服刀帐模板，只读。编辑时顶栏统计不动，保存后才更新。</p>','说明'],
     ['排班计划已移除','<p>按你的要求删掉了「排班计划」模块，侧栏现在是图鉴、资源记录、活动记录三块，界面更清爽。</p>','变更'],
     ['乱舞写成 10 就是 MAX','<p>表格里的「✓」统一按乱舞 10 录入，下拉框显示为「10 ✓」；筛选里可以直接挑「乱舞 MAX」。</p>','小贴士'],
     ['资源记录会自动算增长','<p>木炭、玉钢、冷却材、砥石、小判五项，每次保存都会和上一条对比，红色是增加、绿色是减少，还能看到从第一条到现在的累计变化。</p>','小贴士'],
@@ -11541,7 +11599,7 @@ function vsBind(){
 function resetData(){
   openModal({
     title:'恢复初始值',
-    sub:'会把图鉴还原成表格里的 130 振初始数据：极化、乱舞、等级、总经验、获取方式、刀剑名称全部恢复，130 振之外的刀也会一并清掉；极化开放名单恢复为 90 振。',
+    sub:'会按全服模板重铺 131 振：极化、乱舞、等级、总经验、获取方式全部恢复成初始值，模板之外的刀也会一并清掉；极化开放名单按模板重置。',
     body:'<p style="font-size:12px;color:var(--sub);margin:0;">资源记录、活动记录、变动记录都不受影响。此操作无法撤销。</p>',
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
