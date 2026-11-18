@@ -479,8 +479,24 @@
   .sync-note:hover{color:var(--accent-deep);}
   .sync-note.ok{color:#4f8a63;}
   .sync-note.warn{color:var(--accent-ink);}
+  .sync-note.on{color:var(--accent-deep);font-weight:600;background:var(--tint-a);
+    border-radius:8px;padding:5px 0;}
   /* 全服刀帐模板面板 */
   .tpl-stat{font-size:12px;color:var(--accent-deep);font-weight:600;margin-bottom:7px;}
+  .tpl-hd{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;}
+  .tpl-hd-txt h2{margin:0 0 5px;font-size:16.5px;letter-spacing:.08em;color:var(--accent-deep);}
+  .tpl-hd-txt p{margin:0;font-size:11.5px;color:var(--sub);line-height:1.6;}
+  .tpl-hd-acts{display:flex;gap:8px;flex-shrink:0;}
+  #viewTpl .tpl-table-wrap{max-height:calc(100vh - 400px);min-height:220px;}
+  #viewTpl .tpl-table{min-width:600px;}
+  #viewTpl .tpl-table td{white-space:nowrap;}
+  #viewTpl .tpl-table td .input,#viewTpl .tpl-table td .select{min-width:0;}
+  @media (max-width:640px){
+    .tpl-hd{flex-direction:column;}
+    .tpl-hd-acts{width:100%;}
+    .tpl-hd-acts .btn{flex:1;}
+    #viewTpl .tpl-table-wrap{max-height:none;min-height:0;}
+  }
   .tpl-cfg{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;font-size:11.5px;
     color:var(--sub);background:var(--surface-2);border:1px solid var(--line);border-radius:9px;
     padding:7px 10px;margin-bottom:8px;}
@@ -1717,7 +1733,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.99</div>
+        <div class="brand-sub">HONMARU KEEPER V3.00</div>
       </div>
     </div>
 
@@ -2139,6 +2155,13 @@
         </div>
 
         <div id="calcHistory"></div>
+      </div>
+    </section>
+
+    <!-- ========== 全服刀帐模板 ========== -->
+    <section id="viewTpl" class="view" hidden>
+      <div class="panel">
+        <div id="tplPage"></div>
       </div>
     </section>
 
@@ -3219,6 +3242,7 @@ async function tplAuthorProof(secret){
 
 /* ===================== 全服刀帐模板 · 作者管理界面 ===================== */
 let tplEdit = null;        /* 管理模式下的可编辑副本 {ver,locked,rows} */
+let tplMode = false;      /* 全服模板页当前是不是编辑模式 */
 let tplAuthed = false;     /* 本次会话是否已用作者口令解锁 */
 let tplProofCache = '';     /* 本会话验证通过后的写凭证（只存内存，不落盘、不进代码） */
 const TPL_TYPES = ['短刀','胁差','打刀','太刀','大太刀','枪','薙刀','剑'];
@@ -3232,11 +3256,26 @@ function tplSourceText(){
 function openTplManager(){
   tplEdit = null;
   renderTplPanel(false);
+  switchTab('tpl');
 }
 /* 渲染面板。edit=true 显示可编辑表格；否则只读 */
 function renderTplPanel(edit){
+  tplMode = !!edit;
   const rows = edit ? tplEdit.rows : TPL.rows;
+  const page = $('#tplPage');
+  if(!page) return;
   const openN = rows.filter(function(r){ return Number(r.pk) === 1; }).length;
+  const bar =
+    '<div class="tpl-hd">' +
+      '<div class="tpl-hd-txt"><p>' + (edit
+          ? '作者管理 · 改完点「⬆ 发布到云端」才会全服生效'
+          : '查看模式 · 刀名 / 刀种 / 花数 / 获取方式 / 可极化 / 上限都由作者统一维护') + '</p></div>' +
+      '<div class="tpl-hd-acts">' +
+        (edit
+          ? '<button class="btn" id="tplBackView">← 返回查看</button>'
+          : '<button class="btn primary" id="tplEnterEdit">作者管理</button>') +
+      '</div>' +
+    '</div>';
   const cfg = '<div class="tpl-cfg">' +
     (edit
       ? '<label>极化等级上限 <input class="input" id="tplPmax" type="number" min="1" max="999" step="1" value="' + (tplEdit.openMax || 199) + '"></label>' +
@@ -3273,8 +3312,9 @@ function renderTplPanel(edit){
   });
   table += '</tbody></table></div>';
 
+  let foot = '';
   if(edit){
-    const foot =
+    foot =
       '<div class="tpl-guide' + (tplAuthed ? ' ok' : '') + '" id="tplGuide">' +
         (tplAuthed
           ? '✅ <b>已解锁</b>：现在可以编辑表格、新增 / 删除、锁定、发布。改完点「⬆ 发布到云端」才会全服生效。'
@@ -3293,24 +3333,14 @@ function renderTplPanel(edit){
         '<button class="btn" id="tplReloadEdit">↺ 放弃改动</button>' +
       '</div>' +
       '<div class="tpl-note" style="margin-top:8px;">锁定后模板不可再改；发布需作者口令且模板未锁定。发布后所有账号打开时自动同步刀名 / 刀种 / 花数 / 获取方式 / 是否开放极化，版本 +1。极化上限经验表只覆盖到 Lv199，调到 199 以上时超出部分按 Lv199 的满经验计。</div>';
-    openModal({
-      title:'📖 全服刀帐模板 · 作者管理',
-      sub:'编辑 / 新增 / 删除 / 锁定 / 发布',
-      body:head + table + foot,
-      actions:[{text:'返回查看', cls:'btn', onClick:function(){ renderTplPanel(false); }}]
-    });
-    bindTplEdit();
-  }else{
-    openModal({
-      title:'📖 全服刀帐模板',
-      sub:'全服一致的刀名 / 刀种 / 花数 / 获取方式 / 是否开放极化',
-      body:head + table,
-      actions:[
-        {text:'作者管理', cls:'btn', onClick:function(){ tplEdit = tplNorm(TPL); renderTplPanel(true); }},
-        {text:'关闭', cls:'btn primary', onClick:closeModal}
-      ]
-    });
   }
+
+  page.innerHTML = bar + '<div class="tpl-body">' + head + table + foot + '</div>';
+  const back = $('#tplBackView');
+  if(back) back.onclick = function(){ tplEdit = null; renderTplPanel(false); };
+  const enter = $('#tplEnterEdit');
+  if(enter) enter.onclick = function(){ tplEdit = tplNorm(TPL); renderTplPanel(true); };
+  if(edit) bindTplEdit();
 }
 
 function bindTplEdit(){
@@ -10697,6 +10727,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.00 刀帐模板改成整页，不再弹窗',
+     '<p>「📖 刀帐模板」和里面的「作者管理」以前都套在弹窗里，131 行表格在手机上只能挤在一个小框里滑。现在改成<b>独立整页</b>：从侧栏「📖 刀帐模板」进入，页面标题变成「刀帐 / 全服模板」，表格高度跟着屏幕走，手机上就是正常页面滚动。</p>' +
+     '<p>查看模式右上角点「作者管理」切到编辑态，左上「← 返回查看」切回去；口令验证、新增 / 删除、可极化勾选、两个上限、锁定、发布都还在原来的位置，只是不再盖在弹窗上。侧栏入口在模板页会高亮，点别的菜单直接离开。</p>',
+     '2026.11'],
     ['V2.99 极化开放与上限改为全服统一',
      '<p>「哪些刀已开放极化」以前是每个账号各存一份，新开放一振要每个人自己去勾。现在它进了<b>全服刀帐模板</b>：作者在「📖 刀帐模板 → 作者管理」里勾选每振的<b>可极化</b>，发布后所有人打开自动同步，卡片上的「极」立刻可用。</p>' +
      '<p>同一处还能改两个上限：<b>极化等级上限</b>（默认 <b>199</b>）和<b>乱舞上限</b>（默认 <b>10</b>）。改完发布，顶部「极199 进度」、卡片「距极199」、乱舞进度与筛选都按新上限算。经验表只覆盖到 Lv199，若把极化上限调到 199 以上，超出部分按 Lv199 的满经验计。</p>' +
@@ -11223,7 +11257,8 @@ const TITLES = {
   logs:['刀剑','变动记录'],
   daily:['本丸','每日统计'],
   resources:['本丸','资源记录'],
-  records:['本丸','活动记录']
+  records:['本丸','活动记录'],
+  tpl:['刀帐','全服模板']
 };
 function renderAll(){
   renderSidebar();
@@ -11246,6 +11281,8 @@ function switchTab(tab){
   $('#viewDaily').hidden = tab !== 'daily';
   $('#viewResources').hidden = tab !== 'resources';
   $('#viewRecords').hidden = tab !== 'records';
+  $('#viewTpl').hidden = tab !== 'tpl';
+  const tplEntryEl = $('#tplEntry'); if(tplEntryEl) tplEntryEl.classList.toggle('on', tab === 'tpl');
   $('#pageTitle').innerHTML = '<span>'+TITLES[tab][0]+'</span>'+TITLES[tab][1];
   renderAll();
   $('#sidebar').classList.remove('open');
