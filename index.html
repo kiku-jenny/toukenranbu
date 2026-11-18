@@ -1677,7 +1677,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.92</div>
+        <div class="brand-sub">HONMARU KEEPER V2.93</div>
       </div>
     </div>
 
@@ -3181,6 +3181,19 @@ function normalize(d){
       if(!(Number(x.fl) > 0) && seedFl) x.fl = seedFl;
     });
     d.flFix = 1;
+  }
+  /* 有等级但没填经验的刀：一次性把经验反填成「该等级对应的最低经验」。
+     以前这类刀的存储值是 0，只是卡片上临时估算成最低值显示；升级时日志 / 每日统计
+     就拿 0 当起点，把从 1 级攒到当前等级的经验全算成这一次涨的。反填后起点真实，
+     后续升级按等级对应的最低经验计算。普刀用 puCum、极化用 cumExp，和 expShown
+     的估算口径一致，所以反填前后卡片显示的数字不变。只补 Lv>1 的，Lv1 的最低成本就是 0。 */
+  if(!d.expLvFix){
+    out.forEach(function(x){
+      if(Number(x.lv) > 1 && !(Number(x.exp) >= EXP_MIN_VALID)){
+        x.exp = expForLv(x.type, x.lv, x.fl, x.k);
+      }
+    });
+    d.expLvFix = 1;
   }
   out.forEach(function(x){
     if(x.r >= 10){ x.r = 10; x.rp = 0; return; }
@@ -10133,6 +10146,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.93 有等级没经验的刀，经验补齐',
+     '<p>以前有些刀<b>填了等级、经验却空着</b>：卡片上看着有个估算经验，但那只是临时算出来显示的，实际并没存。这样一来，下次升级时日志和每日统计会拿 <b>0</b> 当起点，把「从 1 级攒到现在」的经验全记成这一次涨的，数字虚高。</p>' +
+     '<p>现在打开页面会把这类刀的经验<b>一次性补成该等级对应的最低经验</b>（普刀按普刀条、极化按极化条，和卡片上显示的一致，数字不会跳）。之后升级，日志里的经验变动和每日统计就都从真实值起算了。已经填过经验的刀不受影响。</p>',
+     '2026.11'],
     ['V2.92 修好反复提示「有新版本」',
      '<p>之前有的页面隔一会就冒出「有新版本 · 重新载入」——其实并没有更新，是离线缓存的<b>更新探测误判</b>：它拿压缩后的页面大小跟本地缓存比对，两边口径不一样，就一直以为换了新版。</p>' +
      '<p>现在改成只在<b>真正发了新版本</b>时才提示一次，平时不会再莫名弹出。看到提示点「重新载入」即可；不点也没关系，下次打开自动就是新版。</p>',
