@@ -479,6 +479,24 @@
   .sync-note:hover{color:var(--accent-deep);}
   .sync-note.ok{color:#4f8a63;}
   .sync-note.warn{color:var(--accent-ink);}
+  /* 全服刀帐模板面板 */
+  .tpl-stat{font-size:12px;color:var(--accent-deep);font-weight:600;margin-bottom:7px;}
+  .tpl-note{font-size:11.5px;line-height:1.7;color:var(--sub);background:var(--tint-a);
+    border:1px solid var(--line);border-radius:9px;padding:8px 10px;margin-bottom:10px;}
+  .tpl-table-wrap{max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:9px;}
+  .tpl-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+  .tpl-table th{position:sticky;top:0;background:var(--surface-2);color:var(--muted);
+    text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap;z-index:1;border-bottom:1px solid var(--line);}
+  .tpl-table td{padding:4px 8px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  .tpl-table tr:last-child td{border-bottom:0;}
+  .tpl-no{color:var(--muted);width:46px;}
+  .tpl-dragcol{color:var(--muted-3);width:18px;cursor:default;}
+  .tpl-in{width:100%;font-size:11.5px;padding:4px 6px;min-width:56px;}
+  .tpl-pwd{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap;}
+  .tpl-pwd .input{flex:1;min-width:130px;}
+  .tpl-authflag{font-size:11.5px;color:var(--muted);}
+  .tpl-acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .tpl-acts .btn{font-size:11.5px;padding:6px 11px;}
   .modal-foot{flex-wrap:wrap;}
   .cloud-status{font-size:11.5px;line-height:1.8;color:var(--sub);background:var(--tint-a);
     border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:12px;}
@@ -1677,7 +1695,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.93</div>
+        <div class="brand-sub">HONMARU KEEPER V2.94</div>
       </div>
     </div>
 
@@ -1721,6 +1739,7 @@
       </div>
       <div class="side-note" id="storageNote"><span id="storageText">数据仅保存在本机浏览器</span><button class="storage-backup" id="btnStorageBackup" hidden>导出备份</button></div>
       <div class="sync-note" id="syncNote" title="点此设置多设备同步">☁ 云同步：未开启</div>
+      <div class="sync-note" id="tplEntry" title="查看全服刀帐模板 / 作者管理">📖 刀帐模板</div>
     </div>
     </div>
   </aside>
@@ -2886,10 +2905,14 @@ function idbGet(key){
 const ui = {tab:'catalog', q:'', type:'', own:'', kiwame:'', ranbu:'', level:'', filterOpen:false, sort:'no', favSort:false, edit:{}, logQ:'', logKind:'', logDate:'', logPage:1, day:'', dayMode:'day', dayFrom:'', dayTo:'', dayLvSort:'lv', dayPageLv:1, dayPageRb:1};
 
 function uid(){ return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
-function seedTw(){
-  return RAW.map(function(r){
-    return {no:r[0], name:r[1], type:r[2], k:r[3], r:r[4], lv:r[5], exp:r[6], src:r[7],
-            fl:(FLOWER[r[0]-1] || 0), rp:0, own:1};
+function seedTw(ownVal){
+  /* 以全服模板为准生成初始图鉴（含第 131 振）；个人默认值沿用内置 RAW，
+     RAW 里没有的新刀用一套保守默认（未极化 / 乱舞1 / Lv1 / 经验0）。 */
+  var own = ownVal === undefined ? 1 : ownVal;
+  return TPL_BUILTIN.map(function(t){
+    var r = RAW.filter(function(z){ return z[0] === t.no; })[0];
+    return {no:t.no, name:t.name, type:t.type, k:r ? r[3] : 0, r:r ? r[4] : 1,
+            lv:r ? r[5] : 1, exp:r ? r[6] : 0, src:t.src, fl:t.fl, rp:0, own:own};
   });
 }
 /* 已开放极化的名单：目前 90 振（即已极化的那些），后续官方开放新极化时在页面里勾选即可 */
@@ -2908,15 +2931,391 @@ const CALC_ACTS = [
 ];
 const FLOWER = [5,5,3,3,3,1,5,3,5,2,5,2,4,2,2,1,1,1,1,1,1,1,1,1,1,1,5,4,3,4,1,3,3,2,1,2,3,4,4,4,2,1,2,2,2,3,2,2,3,2,2,2,2,2,2,3,2,1,3,5,4,3,4,3,3,4,3,3,1,2,1,3,1,3,2,3,2,2,3,4,2,2,1,2,2,2,2,5,4,2,2,4,1,2,3,2,5,2,4,4,5,5,3,3,3,3,3,4,1,3,2,2,3,2,1,3,5,3,3,4,1,4,2,2,2,3,3,4,3,1];
 
+
+/* =========================================================
+   刀帐模板（全服一致）：编号 / 刀名 / 刀种 / 花数 / 获取方式
+   ---------------------------------------------------------
+   这四项全服一致，由作者一人维护、发布到公共库；每个人的「拥有 / 极化 /
+   等级 / 经验 / 乱舞 / 收藏」是账号私有数据，不进模板。
+   TPL_BUILTIN 是内置 131 振兜底：离线、或云端还没发布模板时用。 */
+const TPL_BUILTIN = [
+{no:1,name:"童子切安綱",type:"太刀",fl:5,src:""},
+{no:2,name:"三日月宗近",type:"太刀",fl:5,src:""},
+{no:3,name:"小狐丸",type:"太刀",fl:3,src:""},
+{no:4,name:"石切丸",type:"大太刀",fl:3,src:""},
+{no:5,name:"岩融",type:"薙刀",fl:3,src:""},
+{no:6,name:"今剣",type:"短刀",fl:1,src:""},
+{no:7,name:"大典太光世",type:"太刀",fl:5,src:""},
+{no:8,name:"騒速剣",type:"太刀",fl:3,src:""},
+{no:9,name:"数珠丸恒次",type:"太刀",fl:5,src:"7-4王点"},
+{no:10,name:"にっかり青江",type:"胁差",fl:2,src:""},
+{no:11,name:"鬼丸国綱",type:"太刀",fl:5,src:"5-1王点"},
+{no:12,name:"鳴狐",type:"打刀",fl:2,src:""},
+{no:13,name:"一期一振",type:"太刀",fl:4,src:""},
+{no:14,name:"鯰尾藤四郎",type:"胁差",fl:2,src:""},
+{no:15,name:"骨喰藤四郎",type:"胁差",fl:2,src:""},
+{no:16,name:"平野藤四郎",type:"短刀",fl:1,src:""},
+{no:17,name:"厚藤四郎",type:"短刀",fl:1,src:""},
+{no:18,name:"後藤藤四郎",type:"短刀",fl:1,src:""},
+{no:19,name:"信濃藤四郎",type:"短刀",fl:1,src:""},
+{no:20,name:"前田藤四郎",type:"短刀",fl:1,src:""},
+{no:21,name:"秋田藤四郎",type:"短刀",fl:1,src:""},
+{no:22,name:"博多藤四郎",type:"短刀",fl:1,src:""},
+{no:23,name:"乱藤四郎",type:"短刀",fl:1,src:""},
+{no:24,name:"五虎退",type:"短刀",fl:1,src:""},
+{no:25,name:"薬研藤四郎",type:"短刀",fl:1,src:""},
+{no:26,name:"包丁藤四郎",type:"短刀",fl:1,src:""},
+{no:27,name:"大包平",type:"太刀",fl:5,src:""},
+{no:28,name:"鶯丸",type:"太刀",fl:4,src:""},
+{no:29,name:"明石国行",type:"太刀",fl:3,src:""},
+{no:30,name:"蛍丸",type:"大太刀",fl:4,src:""},
+{no:31,name:"愛染国俊",type:"短刀",fl:1,src:""},
+{no:32,name:"千子村正",type:"打刀",fl:3,src:""},
+{no:33,name:"蜻蛉切",type:"枪",fl:3,src:""},
+{no:34,name:"物吉貞宗",type:"胁差",fl:2,src:""},
+{no:35,name:"太鼓鐘貞宗",type:"短刀",fl:1,src:""},
+{no:36,name:"亀甲貞宗",type:"打刀",fl:2,src:""},
+{no:37,name:"燭台切光忠",type:"太刀",fl:3,src:""},
+{no:38,name:"大般若長光",type:"太刀",fl:4,src:""},
+{no:39,name:"小竜景光",type:"太刀",fl:4,src:""},
+{no:40,name:"江雪左文字",type:"太刀",fl:4,src:""},
+{no:41,name:"宗三左文字",type:"打刀",fl:2,src:""},
+{no:42,name:"小夜左文字",type:"短刀",fl:1,src:""},
+{no:43,name:"加州清光",type:"打刀",fl:2,src:""},
+{no:44,name:"大和守安定",type:"打刀",fl:2,src:""},
+{no:45,name:"歌仙兼定",type:"打刀",fl:2,src:""},
+{no:46,name:"和泉守兼定",type:"打刀",fl:3,src:""},
+{no:47,name:"陸奥守吉行",type:"打刀",fl:2,src:""},
+{no:48,name:"山姥切国広",type:"打刀",fl:2,src:""},
+{no:49,name:"山伏国広",type:"太刀",fl:3,src:""},
+{no:50,name:"堀川国広",type:"胁差",fl:2,src:""},
+{no:51,name:"蜂須賀虎徹",type:"打刀",fl:2,src:""},
+{no:52,name:"浦島虎徹",type:"胁差",fl:2,src:""},
+{no:53,name:"長曽祢虎徹",type:"打刀",fl:2,src:""},
+{no:54,name:"髭切",type:"太刀",fl:2,src:""},
+{no:55,name:"膝丸",type:"太刀",fl:2,src:""},
+{no:56,name:"大倶利伽羅",type:"打刀",fl:3,src:""},
+{no:57,name:"へし切長谷部",type:"打刀",fl:2,src:""},
+{no:58,name:"不動行光",type:"短刀",fl:1,src:""},
+{no:59,name:"獅子王",type:"太刀",fl:3,src:""},
+{no:60,name:"小烏丸",type:"太刀",fl:5,src:""},
+{no:61,name:"抜丸",type:"太刀",fl:4,src:""},
+{no:62,name:"同田貫正国",type:"打刀",fl:3,src:""},
+{no:63,name:"鶴丸国永",type:"太刀",fl:4,src:""},
+{no:64,name:"太郎太刀",type:"大太刀",fl:3,src:""},
+{no:65,name:"次郎太刀",type:"大太刀",fl:3,src:""},
+{no:66,name:"日本号",type:"枪",fl:4,src:""},
+{no:67,name:"御手杵",type:"枪",fl:3,src:""},
+{no:68,name:"巴形薙刀",type:"薙刀",fl:3,src:""},
+{no:69,name:"毛利藤四郎",type:"短刀",fl:1,src:""},
+{no:70,name:"籠手切江",type:"胁差",fl:2,src:""},
+{no:71,name:"謙信景光",type:"短刀",fl:1,src:""},
+{no:72,name:"小豆長光",type:"太刀",fl:3,src:""},
+{no:73,name:"日向正宗",type:"短刀",fl:1,src:"2-2/8-2王点"},
+{no:74,name:"静形薙刀",type:"薙刀",fl:3,src:""},
+{no:75,name:"南泉一文字",type:"打刀",fl:2,src:"6-4/8-3王点"},
+{no:76,name:"千代金丸",type:"太刀",fl:3,src:""},
+{no:77,name:"山姥切長義",type:"打刀",fl:2,src:""},
+{no:78,name:"豊前江",type:"打刀",fl:2,src:"3-1/8-3/8-4王点"},
+{no:79,name:"祢々切丸",type:"大太刀",fl:3,src:""},
+{no:80,name:"白山吉光",type:"剑",fl:4,src:""},
+{no:81,name:"南海太郎朝尊",type:"打刀",fl:2,src:""},
+{no:82,name:"肥前忠広",type:"胁差",fl:2,src:""},
+{no:83,name:"北谷菜切",type:"短刀",fl:1,src:""},
+{no:84,name:"桑名江",type:"打刀",fl:2,src:"8-4王点"},
+{no:85,name:"水心子正秀",type:"打刀",fl:2,src:""},
+{no:86,name:"源清麿",type:"打刀",fl:2,src:""},
+{no:87,name:"松井江",type:"打刀",fl:2,src:"8-3王点"},
+{no:88,name:"山鳥毛",type:"太刀",fl:5,src:"8-4王点"},
+{no:89,name:"古今伝授の太刀",type:"太刀",fl:4,src:""},
+{no:90,name:"地蔵行平",type:"打刀",fl:2,src:""},
+{no:91,name:"治金丸",type:"胁差",fl:2,src:""},
+{no:92,name:"日光一文字",type:"太刀",fl:4,src:"7-3/8-4王点"},
+{no:93,name:"太閤左文字",type:"短刀",fl:1,src:""},
+{no:94,name:"五月雨江",type:"打刀",fl:2,src:""},
+{no:95,name:"大千鳥十文字槍",type:"枪",fl:3,src:""},
+{no:96,name:"泛塵",type:"胁差",fl:2,src:""},
+{no:97,name:"一文字則宗",type:"太刀",fl:5,src:""},
+{no:98,name:"村雲江",type:"打刀",fl:2,src:""},
+{no:99,name:"姫鶴一文字",type:"太刀",fl:4,src:"8-1王点"},
+{no:100,name:"福島光忠",type:"太刀",fl:4,src:""},
+{no:101,name:"七星剣",type:"剑",fl:5,src:""},
+{no:102,name:"丙子椒林剣",type:"剑",fl:5,src:""},
+{no:103,name:"稲葉江",type:"打刀",fl:3,src:""},
+{no:104,name:"笹貫",type:"太刀",fl:3,src:""},
+{no:105,name:"人間無骨",type:"枪",fl:3,src:""},
+{no:106,name:"八丁念仏",type:"太刀",fl:3,src:""},
+{no:107,name:"石田正宗",type:"打刀",fl:3,src:""},
+{no:108,name:"実休光忠",type:"太刀",fl:4,src:""},
+{no:109,name:"京極正宗",type:"短刀",fl:1,src:""},
+{no:110,name:"孫六兼元",type:"打刀",fl:3,src:""},
+{no:111,name:"後家兼光",type:"打刀",fl:2,src:""},
+{no:112,name:"火車切",type:"胁差",fl:2,src:""},
+{no:113,name:"富田江",type:"打刀",fl:3,src:""},
+{no:114,name:"大慶直胤",type:"打刀",fl:2,src:""},
+{no:115,name:"九鬼正宗",type:"短刀",fl:1,src:""},
+{no:116,name:"雲生",type:"太刀",fl:3,src:""},
+{no:117,name:"道誉一文字",type:"太刀",fl:5,src:""},
+{no:118,name:"雲次",type:"太刀",fl:3,src:""},
+{no:119,name:"面影",type:"太刀",fl:3,src:""},
+{no:120,name:"古備前信房",type:"太刀",fl:4,src:""},
+{no:121,name:"倶利伽羅江",type:"短刀",fl:1,src:""},
+{no:122,name:"三郎国宗",type:"太刀",fl:4,src:""},
+{no:123,name:"安宅切",type:"打刀",fl:2,src:""},
+{no:124,name:"二筋樋貞宗",type:"打刀",fl:2,src:""},
+{no:125,name:"雲重",type:"打刀",fl:2,src:""},
+{no:126,name:"柏太刀",type:"大太刀",fl:3,src:""},
+{no:127,name:"波平行安",type:"太刀",fl:3,src:""},
+{no:128,name:"狐崎為次",type:"太刀",fl:4,src:""},
+{no:129,name:"桃太郎祐定",type:"大太刀",fl:3,src:""},
+{no:130,name:"藤四郎",type:"短刀",fl:1,src:""},
+{no:131,name:"八八王国吉",type:"太刀",fl:3,src:""}
+];
+const TPL_AUTHOR_PROOF = 'eee34826910b5e8b61a5b0242a12eab43d380b27f92daa25ff1a932804ca465a';
+const TPL_CACHE_KEY = 'honmaru_tpl_cache_v1';
+let TPL = {ver:1, locked:0, rows:TPL_BUILTIN.slice(), updatedAt:0};
+
+function tplNorm(t){
+  if(!t || typeof t !== 'object') return null;
+  var rows = Array.isArray(t.rows)
+    ? t.rows.filter(function(r){ return r && r.no != null; }).map(function(r){
+        return {no:Number(r.no), name:String(r.name == null ? '' : r.name),
+                type:String(r.type || '打刀'), fl:Math.max(0, Math.min(5, Number(r.fl) || 0)),
+                src:String(r.src == null ? '' : r.src)};
+      })
+    : TPL_BUILTIN.slice();
+  rows.sort(function(a,b){ return a.no - b.no; });
+  return {ver:Number(t.ver) || 0, locked:Number(t.locked) === 1 ? 1 : 0,
+          rows:rows, updatedAt:Number(t.updatedAt) || 0};
+}
+function tplSaveCache(){ try{ localStorage.setItem(TPL_CACHE_KEY, JSON.stringify(TPL)); }catch(e){} }
+function tplLoadCache(){
+  try{
+    var raw = localStorage.getItem(TPL_CACHE_KEY);
+    if(raw){ var t = tplNorm(JSON.parse(raw)); if(t) TPL = t; }
+  }catch(e){}
+}
+/* 把模板字段覆盖到账号数据：name/type/fl/src 以模板为准（全服一致）。
+   账号自己加的刀（模板里没有，如未来新刀）个人数据一律保留。
+   补齐新刀只在「模板版本升高」时做一次：账号删过的刀不会被无条件补回来；
+   作者发布了更高版本的模板（新增了刀）才补入那批新刀，默认未拥有。 */
+function applyTplToData(d){
+  if(!d || !Array.isArray(d.tw)) return;
+  var byNo = {};
+  TPL.rows.forEach(function(t){ byNo[t.no] = t; });
+  d.tw.forEach(function(x){
+    var t = byNo[Number(x.no)];
+    if(t){ x.name = t.name; x.type = t.type; x.fl = t.fl; x.src = t.src; }
+  });
+  var seen = Number(d.tplVer) || 0;
+  if(TPL.ver > seen){
+    var have = {};
+    d.tw.forEach(function(x){ have[Number(x.no)] = 1; });
+    TPL.rows.forEach(function(t){
+      if(!have[t.no]){
+        d.tw.push({no:t.no, name:t.name, type:t.type, k:0, r:1, lv:1, exp:0,
+                   src:t.src, fl:t.fl, rp:0, own:0, fav:0, favAt:0});
+      }
+    });
+    d.tw.sort(function(a,b){ return a.no - b.no; });
+    d.tplVer = TPL.ver;
+  }
+}
+/* 云端模板走作者公共库（全服一致），不跟账号的个人库 */
+async function tplRpc(fn, body){
+  var u = String(DEFAULT_SYNC.url || '').replace(/\/+$/, '');
+  var ak = String(DEFAULT_SYNC.anon || '');
+  var r = await fetch(u + '/rest/v1/rpc/' + fn, {method:'POST',
+    headers:{'apikey':ak, 'Authorization':'Bearer ' + ak, 'Content-Type':'application/json'},
+    body:JSON.stringify(body || {})});
+  var txt = ''; try{ txt = await r.text(); }catch(e){}
+  if(!r.ok){ var e = new Error('HTTP ' + r.status + ' ' + (txt || '').slice(0,120)); e.status = r.status; throw e; }
+  return txt ? JSON.parse(txt) : null;
+}
+async function tplBoot(){
+  tplLoadCache();
+  try{
+    var res = await tplRpc('honmaru_tpl_get', {});
+    if(res && res.ok && res.data){
+      var t = tplNorm(typeof res.data === 'string' ? JSON.parse(res.data) : res.data);
+      if(t && t.ver > TPL.ver){ TPL = t; tplSaveCache(); }
+    }
+  }catch(e){}
+  applyTplToAll();
+}
+function applyTplToAll(){
+  try{
+    Object.keys(S.data).forEach(function(k){ applyTplToData(S.data[k]); });
+    save();
+    renderAll();
+  }catch(e){}
+}
+async function tplAuthorProof(secret){
+  var h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('honmaru-tpl:' + secret));
+  return Array.from(new Uint8Array(h)).map(function(x){ return x.toString(16).padStart(2,'0'); }).join('');
+}
+
+
+/* ===================== 全服刀帐模板 · 作者管理界面 ===================== */
+let tplEdit = null;        /* 管理模式下的可编辑副本 {ver,locked,rows} */
+let tplAuthed = false;     /* 本次会话是否已用作者口令解锁 */
+let tplProofCache = '';     /* 本会话验证通过后的写凭证（只存内存，不落盘、不进代码） */
+const TPL_TYPES = ['短刀','胁差','打刀','太刀','大太刀','枪','薙刀','剑'];
+
+function tplSourceText(){
+  return '内置 ' + TPL_BUILTIN.length + ' 振兜底 · 当前 ' + TPL.rows.length + ' 振 · 版本 v' + TPL.ver +
+         (TPL.locked ? ' · 🔒 已锁定' : ' · 未锁定');
+}
+/* 打开模板面板：默认查看模式 */
+function openTplManager(){
+  tplEdit = null;
+  renderTplPanel(false);
+}
+/* 渲染面板。edit=true 显示可编辑表格；否则只读 */
+function renderTplPanel(edit){
+  const rows = edit ? tplEdit.rows : TPL.rows;
+  const head =
+    '<div class="tpl-stat">' + esc(tplSourceText()) + '</div>' +
+    '<div class="tpl-note">刀名 / 刀种 / 花数 / 获取方式<b>全服一致</b>，由作者统一维护；' +
+    '「是否拥有 / 极化 / 等级 / 乱舞 / 收藏」是每个账号各自记录，不在模板里。</div>';
+  let table = '<div class="tpl-table-wrap"><table class="tpl-table"><thead><tr>' +
+    (edit ? '<th></th>' : '') + '<th>编号</th><th>刀名</th><th>刀种</th><th>花数</th><th>获取方式</th>' +
+    (edit ? '<th></th>' : '') + '</tr></thead><tbody>';
+  rows.forEach(function(r, i){
+    table += '<tr>' +
+      (edit ? '<td class="tpl-dragcol">⠿</td>' : '') +
+      '<td class="tpl-no">' + r.no + '</td>' +
+      (edit
+        ? '<td><input class="input tpl-in" data-tf="name" data-i="' + i + '" value="' + esc(r.name) + '" maxlength="24"></td>' +
+          '<td><select class="select tpl-in" data-tf="type" data-i="' + i + '">' +
+            TPL_TYPES.map(function(t){ return '<option' + (t === r.type ? ' selected' : '') + '>' + t + '</option>'; }).join('') +
+          '</select></td>' +
+          '<td><select class="select tpl-in" data-tf="fl" data-i="' + i + '">' +
+            [0,1,2,3,4,5].map(function(n){ return '<option value="' + n + '"' + (n === r.fl ? ' selected' : '') + '>' + (n === 0 ? '未知' : n) + '</option>'; }).join('') +
+          '</select></td>' +
+          '<td><input class="input tpl-in" data-tf="src" data-i="' + i + '" value="' + esc(r.src) + '" maxlength="32" placeholder="留空"></td>'
+        : '<td>' + esc(r.name) + '</td><td>' + esc(r.type) + '</td><td>' + (r.fl || '未知') + '</td><td>' + (esc(r.src) || '—') + '</td>') +
+      (edit ? '<td><button class="icon-btn danger tpl-del" data-i="' + i + '" title="从模板移除">🗑</button></td>' : '') +
+      '</tr>';
+  });
+  table += '</tbody></table></div>';
+
+  if(edit){
+    const foot =
+      '<div class="tpl-pwd">' +
+        '<input class="input" id="tplSecret" type="password" placeholder="作者口令" autocomplete="off">' +
+        '<button class="btn" id="tplVerify">验证</button>' +
+        '<span class="tpl-authflag" id="tplAuthFlag">' + (tplAuthed ? '✅ 已解锁编辑' : '🔒 未解锁') + '</span>' +
+      '</div>' +
+      '<div class="tpl-acts">' +
+        '<button class="btn" id="tplAdd">＋ 新增一振</button>' +
+        '<button class="btn" id="tplLock">' + (tplEdit.locked ? '🔓 解锁模板' : '🔒 锁定模板') + '</button>' +
+        '<button class="btn primary" id="tplPublish">⬆ 发布到云端（全服生效）</button>' +
+        '<button class="btn" id="tplReloadEdit">↺ 放弃改动</button>' +
+      '</div>' +
+      '<div class="tpl-note" style="margin-top:8px;">锁定后模板不可再改；发布需作者口令且模板未锁定。发布后所有账号打开时自动同步静态字段，版本 +1。</div>';
+    openModal({
+      title:'📖 全服刀帐模板 · 作者管理',
+      sub:'编辑 / 新增 / 删除 / 锁定 / 发布',
+      body:head + table + foot,
+      actions:[{text:'返回查看', cls:'btn', onClick:function(){ renderTplPanel(false); }}]
+    });
+    bindTplEdit();
+  }else{
+    openModal({
+      title:'📖 全服刀帐模板',
+      sub:'全服一致的刀名 / 刀种 / 花数 / 获取方式',
+      body:head + table,
+      actions:[
+        {text:'作者管理', cls:'btn', onClick:function(){ tplEdit = tplNorm(TPL); renderTplPanel(true); }},
+        {text:'关闭', cls:'btn primary', onClick:closeModal}
+      ]
+    });
+  }
+}
+
+function bindTplEdit(){
+  /* 字段改动写回 tplEdit */
+  Array.prototype.forEach.call(document.querySelectorAll('.tpl-in'), function(el){
+    el.onchange = function(){
+      const i = Number(el.dataset.i), f = el.dataset.tf;
+      if(!tplEdit.rows[i]) return;
+      tplEdit.rows[i][f] = (f === 'fl') ? Number(el.value) : el.value;
+    };
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.tpl-del'), function(b){
+    b.onclick = function(){
+      if(!tplAuthed){ toast('先用作者口令解锁', true); return; }
+      const i = Number(b.dataset.i);
+      tplEdit.rows.splice(i, 1);
+      renderTplPanel(true);
+    };
+  });
+  const v = $('#tplVerify');
+  if(v) v.onclick = async function(){
+    const sec = ($('#tplSecret') ? $('#tplSecret').value : '').trim();
+    if(!sec){ toast('请输入作者口令', true); return; }
+    const proof = await tplAuthorProof(sec);
+    if(proof === TPL_AUTHOR_PROOF){ tplAuthed = true; tplProofCache = proof; toast('编辑已解锁'); }
+    else { tplAuthed = false; tplProofCache = ''; toast('口令不正确', true); }
+    const flag = $('#tplAuthFlag'); if(flag) flag.textContent = tplAuthed ? '✅ 已解锁编辑' : '🔒 未解锁';
+  };
+  const add = $('#tplAdd');
+  if(add) add.onclick = function(){
+    if(!tplAuthed){ toast('先用作者口令解锁', true); return; }
+    let maxNo = 0; tplEdit.rows.forEach(function(r){ if(r.no > maxNo) maxNo = r.no; });
+    tplEdit.rows.push({no:maxNo + 1, name:'新刀', type:'打刀', fl:1, src:''});
+    tplEdit.rows.sort(function(a,b){ return a.no - b.no; });
+    renderTplPanel(true);
+  };
+  const lk = $('#tplLock');
+  if(lk) lk.onclick = function(){
+    if(!tplAuthed){ toast('先用作者口令解锁', true); return; }
+    tplEdit.locked = tplEdit.locked ? 0 : 1;
+    renderTplPanel(true);
+    toast(tplEdit.locked ? '已标记为锁定，记得发布' : '已标记为解锁，记得发布');
+  };
+  const pub = $('#tplPublish');
+  if(pub) pub.onclick = async function(){
+    if(!tplAuthed || !tplProofCache){ toast('先用作者口令解锁', true); return; }
+    if(tplEdit.locked){ toast('模板已锁定，先解锁再发布', true); return; }
+    const proof = tplProofCache;
+    /* 校验编号唯一 */
+    const seen = {}; let dup = false;
+    tplEdit.rows.forEach(function(r){ if(seen[r.no]) dup = true; seen[r.no] = 1; });
+    if(dup){ toast('有重复编号，请检查', true); return; }
+    const payload = {ver:(Number(TPL.ver) || 0) + 1, locked:0,
+                     rows:tplEdit.rows.map(function(r){
+                       return {no:Number(r.no), name:String(r.name||''), type:String(r.type||'打刀'),
+                               fl:Number(r.fl)||0, src:String(r.src||'')};
+                     }), updatedAt:Date.now()};
+    pub.disabled = true; pub.textContent = '发布中…';
+    try{
+      const res = await tplRpc('honmaru_tpl_put', {p_data:JSON.stringify(payload), p_proof:proof});
+      if(res && res.ok){
+        TPL = tplNorm(payload); tplSaveCache(); applyTplToAll();
+        toast('已发布，全服 ' + TPL.rows.length + ' 振 · 版本 v' + TPL.ver);
+        renderTplPanel(false);
+      }else{
+        toast('发布失败：' + ((res && res.err) || '未知'), true);
+      }
+    }catch(e){
+      toast('发布失败：' + ((e && e.message) || '网络错误'), true);
+    }finally{ pub.disabled = false; pub.textContent = '⬆ 发布到云端（全服生效）'; }
+  };
+  const rel = $('#tplReloadEdit');
+  if(rel) rel.onclick = function(){ tplEdit = tplNorm(TPL); renderTplPanel(true); };
+}
+
 /* 初次打开（本机还没有存档）时带的初始图鉴：保留原有 130 振的资料 */
 function seedData(){
   return {ver:6, roster:1, tw:seedTw(), open:seedOpen(), res:seedRes(), records:[], logs:[],
-          searchHist:[], logSearchHist:[], rosterLock:{on:0, at:0, n:0}, calc:seedCalc()};
+          searchHist:[], logSearchHist:[], rosterLock:{on:0, at:0, n:0}, tplVer:TPL.ver, calc:seedCalc()};
 }
 /* 新建的账号从零开始：图鉴、资源、活动、变动记录全空 */
 function blankData(){
   return {ver:6, roster:1, tw:[], open:[], res:[], records:[], logs:[],
-          searchHist:[], logSearchHist:[], rosterLock:{on:0, at:0, n:0},
+          searchHist:[], logSearchHist:[], rosterLock:{on:0, at:0, n:0}, tplVer:TPL.ver,
           calc:{acts:[], cur:'', curS:'', boost:true, lvlSync:true}};
 }
 /* 变动日志：{id, kind, no, name, act, ses, src, date, changes:[{f, ...}], ts}
@@ -3203,6 +3602,10 @@ function normalize(d){
     else if(Number(x.fl) > 0) x.rp = 0;
   });
   d.tw = out;
+  /* 应用全服刀帐模板：name/type/fl/src 以模板为准；仅当模板版本升高时补齐新刀。
+     老账号 tplVer 缺省为 0，会在首次迁移时补上第 131 振并打上版本标记。 */
+  applyTplToData(d);
+  if(!Number(d.tplVer)) d.tplVer = TPL.ver;
   if(!Array.isArray(d.open) || !d.open.length){
     d.open = d.tw.filter(function(x){ return x.k === 1; }).map(function(x){ return x.no; });
   }else{
@@ -10146,6 +10549,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.94 全服刀帐模板（刀名/花数/刀种/获取方式）',
+     '<p>刀帐里的<b>刀名、花数、刀种、获取方式</b>现在是<b>全服统一的一份模板</b>，由作者一人维护；你账号里的「是否拥有 / 极化 / 等级 / 经验 / 乱舞 / 收藏」仍然各自独立，互不影响。内置模板已从 130 振补齐到 <b>131 振</b>（新增八八王国吉，桃太郎改名桃太郎祐定），老账号打开时会自动对齐、个人数据全部保留。</p>' +
+     '<p>作者可在侧栏底部「📖 刀帐模板 → 作者管理」里<b>编辑 / 新增 / 删除 / 锁定</b>并用口令发布到公共库；发布后所有账号下次打开自动同步。模板<b>锁定后不可再改</b>，别人没有口令也改不了。SQL 没跑之前应用照常用内置 131 振，不受影响。</p>',
+     '2026.11'],
     ['V2.93 有等级没经验的刀，经验补齐',
      '<p>以前有些刀<b>填了等级、经验却空着</b>：卡片上看着有个估算经验，但那只是临时算出来显示的，实际并没存。这样一来，下次升级时日志和每日统计会拿 <b>0</b> 当起点，把「从 1 级攒到现在」的经验全记成这一次涨的，数字虚高。</p>' +
      '<p>现在打开页面会把这类刀的经验<b>一次性补成该等级对应的最低经验</b>（普刀按普刀条、极化按极化条，和卡片上显示的一致，数字不会跳）。之后升级，日志里的经验变动和每日统计就都从真实值起算了。已经填过经验的刀不受影响。</p>',
@@ -10926,6 +11333,7 @@ function initEvents(){
   };
   const bCloud = $('#btnSyncCloud'); if(bCloud) bCloud.onclick = openSyncEntry;
   const nSync = $('#syncNote'); if(nSync) nSync.onclick = openSyncEntry;
+  const tplE = $('#tplEntry'); if(tplE) tplE.onclick = openTplManager;
   $('#btnImport').onclick = function(){ $('#fileInput').click(); };
   $('#fileInput').onchange = function(){
     const f = this.files[0]; if(!f) return;
@@ -11101,6 +11509,7 @@ function initPetals(){
   switchTab('catalog');
   vsBind();   /* 图鉴页右侧常驻滚动条（到顶 / 到底 / 可拖） */
   restoreFromIDB();   /* 本机存储被拦时，看看浏览器数据库里有没有上次的存档 */
+  tplBoot();     /* 拉取全服刀帐模板（公共库），覆盖静态字段；离线用内置兜底 */
   cloudBoot();   /* 已启用云同步时：先拉云端，再允许自动上传 */
 })();
 
