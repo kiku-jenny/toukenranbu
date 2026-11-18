@@ -677,6 +677,16 @@
 
   /* ---------- 图鉴网格 ---------- */
   .grid-meta{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted);letter-spacing:.06em;margin:14px 0 10px;gap:10px;flex-wrap:wrap;}
+  .meta-right{display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  /* 置顶排序模式开关：平时收起 ▲▼，点它才显示，避免误触 */
+  .fav-sort-toggle{
+    border:1px solid var(--line);background:var(--surface);color:var(--sub);
+    padding:4px 10px;border-radius:9px;font-size:11px;cursor:pointer;letter-spacing:.02em;
+    font-family:inherit;white-space:nowrap;transition:.16s;
+  }
+  .fav-sort-toggle[hidden]{display:none;}
+  .fav-sort-toggle:hover{border-color:var(--accent);color:var(--accent-deep);}
+  .fav-sort-toggle.on{border-color:#d9a441;color:#a97f2f;background:rgba(217,164,65,.12);font-weight:700;}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(228px,1fr));gap:12px;align-items:stretch;}
   .card{
     position:relative;display:flex;flex-direction:column;
@@ -1667,7 +1677,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.90</div>
+        <div class="brand-sub">HONMARU KEEPER V2.91</div>
       </div>
     </div>
 
@@ -1843,7 +1853,10 @@
 
       <div class="grid-meta">
         <span id="gridCount">共 0 振</span>
-        <span id="gridHint">点卡片「✎ 修改」编辑，保存后锁定 · 可多张同时改</span>
+        <span class="meta-right">
+          <button class="fav-sort-toggle" id="btnFavSort" hidden title="显示 / 隐藏置顶卡片的上下移按钮">⇅ 调整置顶顺序</button>
+          <span id="gridHint">点卡片「✎ 修改」编辑，保存后锁定 · 可多张同时改</span>
+        </span>
       </div>
       <div class="grid" id="grid"></div>
       <div class="empty" id="emptyState" hidden></div>
@@ -2870,7 +2883,7 @@ function idbGet(key){
     });
   });
 }
-const ui = {tab:'catalog', q:'', type:'', own:'', kiwame:'', ranbu:'', level:'', filterOpen:false, sort:'no', edit:{}, logQ:'', logKind:'', logDate:'', logPage:1, day:'', dayMode:'day', dayFrom:'', dayTo:'', dayLvSort:'lv', dayPageLv:1, dayPageRb:1};
+const ui = {tab:'catalog', q:'', type:'', own:'', kiwame:'', ranbu:'', level:'', filterOpen:false, sort:'no', favSort:false, edit:{}, logQ:'', logKind:'', logDate:'', logPage:1, day:'', dayMode:'day', dayFrom:'', dayTo:'', dayLvSort:'lv', dayPageLv:1, dayPageRb:1};
 
 function uid(){ return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 function seedTw(){
@@ -4286,7 +4299,7 @@ function cardHTML(x){
 
   const head = '<div class="card-top">' +
       '<span class="card-lead">' +
-        (fav ? '<span class="fav-movers">' +
+        (fav && ui.favSort ? '<span class="fav-movers">' +
                 '<button class="fav-move" data-act="favup" data-no="' + x.no + '"' +
                   (favRank <= 0 ? ' disabled' : '') +
                   ' title="上移一位" aria-label="上移一位">▲</button>' +
@@ -4295,7 +4308,7 @@ function cardHTML(x){
                   ' title="下移一位" aria-label="下移一位">▼</button>' +
               '</span>' : '') +
         '<button class="fav-btn' + (fav ? ' on' : '') + '" data-act="fav" data-no="' + x.no + '"' +
-          ' title="' + (fav ? '取消置顶 · 用 ▲▼ 调整顺序' : '收藏置顶（可多振 · 置顶后用 ▲▼ 调顺序）') + '"' +
+          ' title="' + (fav ? (ui.favSort ? '取消置顶' : '取消置顶 · 点上方「调整置顶顺序」可排序') : '收藏置顶（可多振）') + '"' +
           ' aria-label="' + (fav ? '取消置顶' : '收藏置顶') + '" aria-pressed="' + (fav ? 'true' : 'false') + '">★</button>' +
         '<span class="card-id">No.'+String(x.no).padStart(3,'0')+'</span>' +
       '</span>' +
@@ -5340,6 +5353,15 @@ function renderCatalog(){
   const favN = d.tw.filter(function(x){ return Number(x.fav) === 1; }).length;
   $('#gridCount').textContent = '共 ' + list.length + ' 振 / 已拥有 ' + ownedN + ' / 全 ' + d.tw.length + ' 振' +
     (favN ? ' · ⭐ 置顶 ' + favN : '');
+  /* 置顶排序开关：至少两振置顶时才需要调顺序；少于两振时退出排序模式并隐藏开关 */
+  const sortBtn = $('#btnFavSort');
+  if(favN < 2 && ui.favSort) ui.favSort = false;
+  if(sortBtn){
+    sortBtn.hidden = favN < 2;
+    sortBtn.classList.toggle('on', ui.favSort);
+    sortBtn.textContent = ui.favSort ? '✓ 完成排序' : '⇅ 调整置顶顺序';
+    sortBtn.title = ui.favSort ? '退出排序模式，收起上下移按钮' : '显示置顶卡片的 ▲▼ 按钮，调整顺序';
+  }
   /* 按等级筛的时候提醒一句：普刀卡片上的「等级」是普刀等级，排序 / 筛选用的是折算后的极等级 */
   const hintEl = $('#gridHint');
   if(hintEl){
@@ -10111,6 +10133,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.91 置顶排序按钮不再误触',
+     '<p>置顶卡片上的 ▲▼ 平时<b>收起来了</b>，不会再和其他按钮挤在一起被误点。要调顺序时，点置顶区上方那条「⇅ 调整置顶顺序」，卡片上才出现 ▲▼；点一下跟相邻那振换一位，调完再点「✓ 完成排序」收起即可。</p>' +
+     '<p>只有置顶<b>两振及以上</b>时才会有这个开关；置顶剩一振时自动退出排序模式。顺序照旧自动保存。</p>',
+     '2026.11'],
     ['V2.90 收起「补全花数」按钮',
      '<p>图鉴工具栏和活动登记区那两个「🌸 补全花数」按钮先收起来了，界面更清爽。花数该有的功能都还在：新增刀剑、活动登记时仍会<b>自动按刀帐补上花数</b>，乱舞进度、经验、活动统计照常算得准。</p>',
      '2026.11'],
@@ -10840,6 +10866,12 @@ function initEvents(){
   if(ftClear) ftClear.onclick = clearAllFilters;
   $('#btnAddSword').onclick = openAddSword;
   const lockBtn = $('#btnRosterLock'); if(lockBtn) lockBtn.onclick = toggleRosterLock;
+  const favSortBtn = $('#btnFavSort');
+  if(favSortBtn) favSortBtn.onclick = function(){
+    ui.favSort = !ui.favSort;
+    renderCatalog();
+    toast(ui.favSort ? '排序模式：点卡片上的 ▲▼ 调顺序，调完点「完成排序」' : '已收起排序按钮');
+  };
   const fillFlBtn = $('#btnFillFlower');
   if(fillFlBtn) fillFlBtn.onclick = fillFlowerAll;
   $('#btnResetData').onclick = resetData;
