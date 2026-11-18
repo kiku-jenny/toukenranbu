@@ -495,8 +495,17 @@
   .tpl-pwd{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap;}
   .tpl-pwd .input{flex:1;min-width:130px;}
   .tpl-authflag{font-size:11.5px;color:var(--muted);}
+  .tpl-authflag.on{color:#4f8a63;font-weight:700;}
+  .tpl-authflag.off{color:#b4563f;font-weight:700;}
+  /* 分步操作引导：告诉作者必须先验证口令才能改 / 发布 */
+  .tpl-guide{font-size:11.5px;line-height:1.65;color:var(--accent-deep);background:var(--tint-a);
+    border:1px solid var(--line);border-radius:9px;padding:8px 11px;margin-top:11px;}
+  .tpl-guide b{color:var(--accent-deep);}
+  .tpl-guide.ok{color:#3f7a55;}
   .tpl-acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
   .tpl-acts .btn{font-size:11.5px;padding:6px 11px;}
+  /* 未解锁时操作按钮淡出但仍可点（点了会给出明确提示），避免「以为没反应」 */
+  .tpl-acts.locked .btn{opacity:.5;}
   .modal-foot{flex-wrap:wrap;}
   .cloud-status{font-size:11.5px;line-height:1.8;color:var(--sub);background:var(--tint-a);
     border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:12px;}
@@ -1596,7 +1605,8 @@
 
   /* ---------- Toast ---------- */
   .toast{
-    position:fixed;left:50%;bottom:28px;transform:translate(-50%,14px);z-index:108;
+    /* 要比弹窗（.modal z-index:110）高，否则在弹窗里点按钮时提示被盖住，看着像「没反应」 */
+    position:fixed;left:50%;bottom:28px;transform:translate(-50%,14px);z-index:120;
     background:rgba(69,54,57,.94);color:var(--on-accent);font-size:12.5px;letter-spacing:.05em;
     padding:10px 20px;border-radius:24px;opacity:0;pointer-events:none;transition:.24s;
     box-shadow:0 14px 30px -14px rgba(0,0,0,.6);
@@ -1698,7 +1708,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V2.95</div>
+        <div class="brand-sub">HONMARU KEEPER V2.96</div>
       </div>
     </div>
 
@@ -3205,12 +3215,18 @@ function renderTplPanel(edit){
 
   if(edit){
     const foot =
+      '<div class="tpl-guide' + (tplAuthed ? ' ok' : '') + '" id="tplGuide">' +
+        (tplAuthed
+          ? '✅ <b>已解锁</b>：现在可以编辑表格、新增 / 删除、锁定、发布。改完点「⬆ 发布到云端」才会全服生效。'
+          : '① 在下面填入<b>作者口令</b> → ② 点「<b>验证</b>」→ ③ 看到「已解锁」后才能改表格、新增、锁定、发布。<br>未解锁时点下方按钮不会生效。') +
+      '</div>' +
       '<div class="tpl-pwd">' +
         '<input class="input" id="tplSecret" type="password" placeholder="作者口令" autocomplete="off">' +
-        '<button class="btn" id="tplVerify">验证</button>' +
-        '<span class="tpl-authflag" id="tplAuthFlag">' + (tplAuthed ? '✅ 已解锁编辑' : '🔒 未解锁') + '</span>' +
+        '<button class="btn primary" id="tplVerify">验证</button>' +
+        '<span class="tpl-authflag ' + (tplAuthed ? 'on' : 'off') + '" id="tplAuthFlag">' +
+          (tplAuthed ? '✅ 已解锁编辑' : '🔒 未解锁') + '</span>' +
       '</div>' +
-      '<div class="tpl-acts">' +
+      '<div class="tpl-acts' + (tplAuthed ? '' : ' locked') + '" id="tplActs">' +
         '<button class="btn" id="tplAdd">＋ 新增一振</button>' +
         '<button class="btn" id="tplLock">' + (tplEdit.locked ? '🔓 解锁模板' : '🔒 锁定模板') + '</button>' +
         '<button class="btn primary" id="tplPublish">⬆ 发布到云端（全服生效）</button>' +
@@ -3248,7 +3264,7 @@ function bindTplEdit(){
   });
   Array.prototype.forEach.call(document.querySelectorAll('.tpl-del'), function(b){
     b.onclick = function(){
-      if(!tplAuthed){ toast('先用作者口令解锁', true); return; }
+      if(!tplAuthed){ toast('🔒 请先填作者口令并点「验证」解锁', true); return; }
       const i = Number(b.dataset.i);
       tplEdit.rows.splice(i, 1);
       renderTplPanel(true);
@@ -3257,15 +3273,28 @@ function bindTplEdit(){
   const v = $('#tplVerify');
   if(v) v.onclick = async function(){
     const sec = ($('#tplSecret') ? $('#tplSecret').value : '').trim();
-    if(!sec){ toast('请输入作者口令', true); return; }
+    if(!sec){ toast('请先输入作者口令', true); return; }
+    v.disabled = true; v.textContent = '验证中…';
     const proof = await tplAuthorProof(sec);
-    if(proof === TPL_AUTHOR_PROOF){ tplAuthed = true; tplProofCache = proof; toast('编辑已解锁'); }
-    else { tplAuthed = false; tplProofCache = ''; toast('口令不正确', true); }
-    const flag = $('#tplAuthFlag'); if(flag) flag.textContent = tplAuthed ? '✅ 已解锁编辑' : '🔒 未解锁';
+    if(proof === TPL_AUTHOR_PROOF){ tplAuthed = true; tplProofCache = proof; }
+    else { tplAuthed = false; tplProofCache = ''; }
+    /* 重绘面板：引导条变绿、状态变色、操作按钮解灰（这里只更新这几处，不丢表格里已改的内容） */
+    const guide = $('#tplGuide');
+    if(guide){
+      guide.className = 'tpl-guide' + (tplAuthed ? ' ok' : '');
+      guide.innerHTML = tplAuthed
+        ? '✅ <b>已解锁</b>：现在可以编辑表格、新增 / 删除、锁定、发布。改完点「⬆ 发布到云端」才会全服生效。'
+        : '① 在下面填入<b>作者口令</b> → ② 点「<b>验证</b>」→ ③ 看到「已解锁」后才能改表格、新增、锁定、发布。<br>未解锁时点下方按钮不会生效。';
+    }
+    const flag = $('#tplAuthFlag');
+    if(flag){ flag.className = 'tpl-authflag ' + (tplAuthed ? 'on' : 'off'); flag.textContent = tplAuthed ? '✅ 已解锁编辑' : '🔒 未解锁'; }
+    const acts = $('#tplActs'); if(acts) acts.className = 'tpl-acts' + (tplAuthed ? '' : ' locked');
+    if(v){ v.disabled = false; v.textContent = '验证'; }
+    toast(tplAuthed ? '✅ 编辑已解锁，可以改了' : '口令不正确，请重新输入', !tplAuthed);
   };
   const add = $('#tplAdd');
   if(add) add.onclick = function(){
-    if(!tplAuthed){ toast('先用作者口令解锁', true); return; }
+    if(!tplAuthed){ toast('🔒 请先填作者口令并点「验证」解锁', true); return; }
     let maxNo = 0; tplEdit.rows.forEach(function(r){ if(r.no > maxNo) maxNo = r.no; });
     tplEdit.rows.push({no:maxNo + 1, name:'新刀', type:'打刀', fl:1, src:''});
     tplEdit.rows.sort(function(a,b){ return a.no - b.no; });
@@ -3273,14 +3302,14 @@ function bindTplEdit(){
   };
   const lk = $('#tplLock');
   if(lk) lk.onclick = function(){
-    if(!tplAuthed){ toast('先用作者口令解锁', true); return; }
+    if(!tplAuthed){ toast('🔒 请先填作者口令并点「验证」解锁', true); return; }
     tplEdit.locked = tplEdit.locked ? 0 : 1;
     renderTplPanel(true);
     toast(tplEdit.locked ? '已标记为锁定，记得发布' : '已标记为解锁，记得发布');
   };
   const pub = $('#tplPublish');
   if(pub) pub.onclick = async function(){
-    if(!tplAuthed || !tplProofCache){ toast('先用作者口令解锁', true); return; }
+    if(!tplAuthed || !tplProofCache){ toast('🔒 请先填作者口令并点「验证」解锁', true); return; }
     if(tplEdit.locked){ toast('模板已锁定，先解锁再发布', true); return; }
     const proof = tplProofCache;
     /* 校验编号唯一 */
@@ -10563,6 +10592,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V2.96 模板管理加上操作提示',
+     '<p>修好作者管理面板「点了没反应」：以前在弹窗里点按钮时，提示被弹窗挡住看不见。现在提示会浮在最上层，并加了<b>分步引导</b>（填口令 → 验证 → 解锁）和解锁状态高亮。</p>' +
+     '<p>未解锁时下方按钮会<b>变淡</b>，点了会明确提示「请先填作者口令并点验证」，不会再让人摸不着头脑。</p>',
+     '2026.11'],
     ['V2.95 可对刀名设置备注（各账号独立）',
      '<p>每振刀现在可以写一句<b>备注</b>（如「主力队 / 待练 / 等材料」），点卡片「✎ 修改」在最下面填写，保存后显示在刀名下方。备注是<b>你自己账号的标注</b>，不进全服模板、不影响别人；导出 / 云同步都会带上。</p>' +
      '<p>顶部搜索框现在也<b>能按备注搜刀</b>；备注的增删改同样会记入变动日志。清空备注即取消。</p>',
