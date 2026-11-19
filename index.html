@@ -1866,7 +1866,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.09</div>
+        <div class="brand-sub">HONMARU KEEPER V3.10</div>
       </div>
     </div>
 
@@ -3533,6 +3533,9 @@ function renderTplPanel(edit){
   const toTop = $('#tplToTop'), toBot = $('#tplToBottom');
   if(toTop) toTop.onclick = function(){ if(wrapEl) wrapEl.scrollTop = 0; };
   if(toBot) toBot.onclick = function(){ if(wrapEl) wrapEl.scrollTop = wrapEl.scrollHeight; };
+  /* 容器滚动时同步右侧常驻滚动条的位置 */
+  if(wrapEl) wrapEl.addEventListener('scroll', vsSchedule, {passive: true});
+  vsSchedule();
   const back = $('#tplBackView');
   if(back) back.onclick = function(){ tplEdit = null; renderTplPanel(false); };
   const enter = $('#tplEnterEdit');
@@ -10966,6 +10969,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.10 模板页也有侧边滚动条了',
+     '<p>之前模板页那根「顶 / 底」小进度条只有拇指粗（实测 2px），手机上几乎看不见，很多人以为没有滚动条。</p>' +
+     '<p>现在模板页用上了<strong>和图鉴页同一根侧边滚动条</strong>：右侧一条 14px 的粉色滑块、上下两个圆钮一键到顶 / 到底，手机底部还有「顶部 · 进度% · 底部」胶囊。桌面和手机都能拖、都能点，滑到哪儿进度就到哪儿。图鉴页原来的滚动条不受影响。</p>',
+     '2026.11'],
     ['V3.09 模板页：改刀名 / 删刀 + 锁定 + 滚动查找',
      '<p>「刀帐模板 · 作者管理」里，<b>每一行（含内置刀）的刀名都能改、刀都能删</b>——内置刀归全服模板统一维护，作者在这里改了、发布后所有账号同步。</p>' +
      '<p>新增<b>「🔒 锁定模板」</b>：锁定后整张表只读（刀名 / 字段都不能改、不能增删、不能发布），点「🔓 解锁模板」才恢复编辑；锁定状态会随模板发布同步给全服。这是作者页的编辑锁，跟各账号图鉴里的「刀账锁定」互不影响。</p>' +
@@ -11569,30 +11576,52 @@ function switchTab(tab){
   vsUpdate();
 }
 
-/* ---------- 图鉴页常驻滚动条：显示位置、可拖、两端到顶 / 到底 ---------- */
-function vsRange(){
+/* ---------- 常驻侧边滚动条：图鉴页滚整页，模板页滚内层表格容器 ---------- */
+/* 按当前页返回滚动目标：{total,view,max,pos,set} —— set 第二参可强制 'auto' 立即跳 */
+function vsScroller(){
+  if(ui.tab === 'tpl'){
+    const el = document.querySelector('#tplPage .tpl-table-wrap');
+    if(el){
+      return {
+        total: el.scrollHeight, view: el.clientHeight,
+        max: Math.max(0, el.scrollHeight - el.clientHeight),
+        pos: el.scrollTop,
+        set: function(v, behavior){ try{ el.scrollTo({top:v, behavior:behavior || 'auto'}); }catch(e){ el.scrollTop = v; } }
+      };
+    }
+  }
   const doc = document.documentElement;
   const total = Math.max(doc.scrollHeight, document.body.scrollHeight);
   const view = window.innerHeight;
-  return {total: total, view: view, max: Math.max(0, total - view)};
+  return {
+    total: total, view: view, max: Math.max(0, total - view),
+    pos: (window.scrollY || 0),
+    set: function(v, behavior){
+      const far = Math.abs(v - (window.scrollY || 0)) > window.innerHeight * 3;
+      const b = behavior || (far ? 'auto' : 'smooth');
+      try{ window.scrollTo({top: v, behavior: b}); }catch(e){ window.scrollTo(0, v); }
+    }
+  };
 }
+function vsRange(){ return vsScroller(); }
 function vsUpdate(){
   const box = $('#vScroll'), track = $('#vsTrack'), thumb = $('#vsThumb'), bar = $('#vsbar');
   if(!box || !track || !thumb) return;
   const r = vsRange();
-  /* 只在图鉴页、且确实要滚动时才出现 */
-  const show = ui.tab === 'catalog' && r.max >= 60;
+  /* 图鉴页或模板页，且确实要滚动时才出现 */
+  const show = (ui.tab === 'catalog' || ui.tab === 'tpl') && r.max >= 60;
   box.hidden = !show;
   if(bar) bar.classList.toggle('on', show);
   document.body.classList.toggle('vs-on', show);
   if(!show) return;
+  const pos = r.pos;
   const th = track.clientHeight || 1;
   const h = Math.min(th, Math.max(34, Math.round(th * r.view / r.total)));
-  const y = Math.round((th - h) * Math.min(1, Math.max(0, (window.scrollY || 0) / r.max)));
+  const y = Math.round((th - h) * Math.min(1, Math.max(0, pos / r.max)));
   thumb.style.height = h + 'px';
   thumb.style.transform = 'translateY(' + y + 'px)';
   const pct = $('#vsbPct');
-  if(pct) pct.textContent = (r.max ? Math.round((window.scrollY || 0) / r.max * 100) : 0) + '%';
+  if(pct) pct.textContent = (r.max ? Math.round(pos / r.max * 100) : 0) + '%';
   /* 停手两秒淡一点，免得一直挡着；一动就恢复 */
   if(bar){
     bar.classList.remove('idle');
@@ -11600,12 +11629,7 @@ function vsUpdate(){
     vsIdleTimer = setTimeout(function(){ bar.classList.add('idle'); }, 2200);
   }
 }
-function vsJump(top){
-  /* 距离太远（超过三屏）就直接跳，别让人等平滑滚动爬完 */
-  const far = Math.abs(top - (window.scrollY || 0)) > window.innerHeight * 3;
-  try{ window.scrollTo({top: top, behavior: far ? 'auto' : 'smooth'}); }
-  catch(e){ window.scrollTo(0, top); }
-}
+function vsJump(top){ vsRange().set(top); }
 function vsBind(){
   const box = $('#vScroll'), track = $('#vsTrack'), thumb = $('#vsThumb');
   if(!box || !track || !thumb) return;
@@ -11619,12 +11643,13 @@ function vsBind(){
     const th = track.clientHeight || 1;
     const h = thumb.offsetHeight || 26;
     const rect = track.getBoundingClientRect();
+    const sc = vsRange();
     if(e.target === thumb || thumb.contains(e.target)){
-      vsDragging = {y: e.clientY, top: window.scrollY || 0, th: th, h: h};
+      vsDragging = {y: e.clientY, top: sc.pos, th: th, h: h};
     }else{
       /* 点轨道空白处：把滑块中心挪到手指位置 */
       const ratio = Math.max(0, Math.min(1, ((e.clientY - rect.top) - h / 2) / Math.max(1, th - h)));
-      vsJump(ratio * vsRange().max);
+      sc.set(ratio * sc.max, 'auto');
     }
     box.classList.add('on');
     try{ track.setPointerCapture(e.pointerId); }catch(e2){}
@@ -11632,9 +11657,10 @@ function vsBind(){
   });
   track.addEventListener('pointermove', function(e){
     if(!vsDragging) return;
+    const sc = vsRange();
     const ratio = (e.clientY - vsDragging.y) / Math.max(1, vsDragging.th - vsDragging.h);
-    const target = vsDragging.top + ratio * vsRange().max;
-    window.scrollTo(0, Math.max(0, Math.min(vsRange().max, target)));
+    const target = vsDragging.top + ratio * sc.max;
+    sc.set(Math.max(0, Math.min(sc.max, target)), 'auto');
     e.preventDefault();
   });
   ['pointerup', 'pointercancel'].forEach(function(t){
