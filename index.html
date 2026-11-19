@@ -1003,6 +1003,8 @@
     font-size:11px;color:var(--accent-deep);transition:.16s;
   }
   .card-del:hover{background:var(--tint-b);border-color:var(--line-strong);color:#c25151;}
+  .card-del-na{flex:0 0 auto;padding:5px 9px;border-radius:8px;border:1px solid var(--line-soft);
+    background:var(--surface-2);font-size:10px;color:var(--muted-2);letter-spacing:.06em;cursor:default;}
   /* 极化后等级预估 */
   .kw-pre{
     display:flex;flex-wrap:wrap;align-items:center;gap:2px 5px;margin-top:9px;padding:5px 8px;
@@ -1859,7 +1861,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.07</div>
+        <div class="brand-sub">HONMARU KEEPER V3.08</div>
       </div>
     </div>
 
@@ -5142,9 +5144,11 @@ function cardHTML(x){
     '<div class="card-actions">' +
       '<button class="card-btn ghost" data-act="cancel">取消</button>' +
       '<button class="card-btn primary" data-act="save">保存</button>' +
-      (rosterLocked()
-        ? '<button class="card-del locked" data-act="dellocked" title="刀账已锁定，先在顶部解锁才能删除">🔒</button>'
-        : '<button class="card-del" data-act="del" title="从图鉴里删掉这振">🗑</button>') +
+      (isTplSword(x.no)
+        ? '<span class="card-del-na" title="内置刀帐的刀固定在图鉴里，不能删除">固定</span>'
+        : (rosterLocked()
+            ? '<button class="card-del locked" data-act="dellocked" title="刀账已锁定，先在顶部解锁才能删除">🔒</button>'
+            : '<button class="card-del" data-act="del" title="从图鉴里删掉这振">🗑</button>')) +
     '</div>' +
   '</div>';
 }
@@ -5642,6 +5646,7 @@ function deleteSword(no){
   const d = curData();
   const row = rowOf(no);
   if(!d || !row) return;
+  if(isTplSword(no)){ toast('内置刀帐的刀不能删除', true); return; }
   if(rosterLocked()){
     toast('刀账已锁定，先点顶部「🔓 解锁刀账」才能删除', true);
     return;
@@ -10948,6 +10953,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.08 图鉴里内置刀不能删',
+     '<p>图鉴卡片「✎ 修改」里，<b>内置 131 振的刀不再显示 🗑 删除按钮</b>，改显示「固定」——它们是全服刀帐的一部分，删掉后下次同步也会被补回来。</p>' +
+     '<p>你自己「＋ 新增一振」加进来的刀不受限制：<b>刀名可以改，也可以删除</b>；刀账锁定时照旧显示 🔒，解锁后即可删。</p>',
+     '2026.11'],
     ['V3.07 模板里内置刀不可删除',
      '<p>刀帐模板「作者管理」里，<b>内置 131 振的刀不能删除</b>——那一列的 🗑 按钮已去掉，改显示「固定」；即使绕过界面也删不掉，发布前还会校验内置刀是否齐全，缺一把都发不出去。</p>' +
      '<p>你自己「＋ 新增一振」加进来的刀不受限制，<b>刀名可以改、也可以删除</b>。</p>',
