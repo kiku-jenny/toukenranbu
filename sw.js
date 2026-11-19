@@ -9,6 +9,7 @@
    - 平时不发任何探测请求，不会误报；不点提示也没关系，下次打开自动就是新版。 */
 
 const CACHE = 'honmaru-cache-v31';
+/* build 2026-11-20 模板内置刀防删：改字节触发重装刷新缓存页，CACHE 名不变故不弹提示 */
 const PAGE = './';
 
 self.addEventListener('install', function(e){
