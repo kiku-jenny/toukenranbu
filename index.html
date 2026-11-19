@@ -491,9 +491,13 @@
   #viewTpl .tpl-table{min-width:600px;}
   #viewTpl .tpl-table td{white-space:nowrap;}
   #viewTpl .tpl-table td .input,#viewTpl .tpl-table td .select{min-width:0;}
-  .tpl-search{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .tpl-search{display:flex;align-items:center;gap:8px;margin-bottom:8px;
+    position:sticky;top:0;z-index:5;background:var(--bg);padding:6px 0;}
   .tpl-search .input{flex:1;min-width:0;font-size:12.5px;padding:7px 10px;}
   .tpl-search-n{font-size:11px;color:var(--muted);white-space:nowrap;}
+  .tpl-jump{flex:0 0 auto;padding:6px 9px;font-size:11px;border:1px solid var(--line);
+    border-radius:8px;background:var(--surface-2);color:var(--sub);white-space:nowrap;letter-spacing:.04em;}
+  .tpl-jump:hover{border-color:var(--accent);color:var(--accent-deep);}
   @media (max-width:640px){
     .tpl-hd{flex-direction:column;gap:6px;margin-bottom:8px;}
     .tpl-hd-txt p{display:none;}
@@ -511,7 +515,8 @@
     .tpl-acts .btn.primary{flex:1 1 100%;}
     .tpl-pwd{gap:7px;}
     .tpl-pwd .input{flex:1 1 60%;min-width:0;}
-    #viewTpl .tpl-table-wrap{max-height:none;min-height:0;overflow:visible;border:0;border-radius:0;}
+    /* 手机端卡片列表也给固定高度 + 滚动条，配合顶部查找 / ↑顶↓底 快速定位 */
+    #viewTpl .tpl-table-wrap{max-height:58vh;min-height:240px;overflow:auto;border:1px solid var(--line);border-radius:9px;padding:0 4px;}
     /* 手机端：表格堆叠成卡片，所有字段都在屏幕内，不用横向拖 */
     #viewTpl .tpl-table,#viewTpl .tpl-table tbody{display:block;min-width:0;}
     #viewTpl .tpl-table thead{display:none;}
@@ -1861,7 +1866,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.08</div>
+        <div class="brand-sub">HONMARU KEEPER V3.09</div>
       </div>
     </div>
 
@@ -3397,13 +3402,18 @@ function openTplManager(){
 function renderTplPanel(edit){
   tplMode = !!edit;
   const rows = edit ? tplEdit.rows : TPL.rows;
+  /* 模板锁定 = 整张表只读；解锁后才能改刀名 / 删刀 / 改字段。
+     注意：这是「作者管理页」的编辑锁，跟图鉴页那把「刀账锁定」是两回事。 */
+  const ro = edit && !!tplEdit.locked;
+  const dis = ro ? ' disabled' : '';
   const page = $('#tplPage');
   if(!page) return;
   const openN = rows.filter(function(r){ return Number(r.pk) === 1; }).length;
   const bar =
     '<div class="tpl-hd">' +
       '<div class="tpl-hd-txt"><p>' + (edit
-          ? '作者管理 · 改完点「⬆ 发布到云端」才会全服生效'
+          ? (ro ? '🔒 模板已锁定 · 整张表只读，点「🔓 解锁模板」后才能改刀名 / 删刀 / 改字段'
+                : '作者管理 · 刀名可改、刀可删 · 改完点「⬆ 发布到云端」才会全服生效')
           : '查看模式 · 刀名 / 刀种 / 花数 / 可极化 / 上限由作者统一维护；获取方式各账号可自己改') + '</p></div>' +
       '<div class="tpl-hd-acts">' +
         (edit
@@ -3413,8 +3423,8 @@ function renderTplPanel(edit){
     '</div>';
   const cfg = '<div class="tpl-cfg">' +
     (edit
-      ? '<label>极化等级上限 <input class="input" id="tplPmax" type="number" min="1" max="999" step="1" value="' + (tplEdit.openMax || 199) + '"></label>' +
-        '<label>乱舞上限 <input class="input" id="tplRmax" type="number" min="1" max="99" step="1" value="' + (tplEdit.ranbuMax || 10) + '"></label>'
+      ? '<label>极化等级上限 <input class="input" id="tplPmax" type="number" min="1" max="999" step="1" value="' + (tplEdit.openMax || 199) + '"' + dis + '></label>' +
+        '<label>乱舞上限 <input class="input" id="tplRmax" type="number" min="1" max="99" step="1" value="' + (tplEdit.ranbuMax || 10) + '"' + dis + '></label>'
       : '<span>极化等级上限 <b>' + POL_MAX() + '</b></span>' +
         '<span>乱舞上限 <b>' + RB_MAX() + '</b></span>') +
     '<span>已开放极化 <b>' + openN + '</b> 振</span></div>';
@@ -3428,9 +3438,11 @@ function renderTplPanel(edit){
       '「是否拥有 / 已极化 / 等级 / 乱舞 / 收藏」也是每个账号各自记录，不在模板里。</div>' +
     '</details>';
   const searchBar =
-    '<div class="tpl-search">' +
+    '<div class="tpl-search" id="tplSearchBar">' +
       '<input class="input" id="tplSearch" type="search" placeholder="搜索刀名 / 编号 / 刀种" autocomplete="off">' +
       '<span class="tpl-search-n" id="tplSearchN"></span>' +
+      '<button class="tpl-jump" id="tplToTop" title="回到列表顶部">↑顶</button>' +
+      '<button class="tpl-jump" id="tplToBottom" title="跳到列表底部">↓底</button>' +
     '</div>';
   /* 固定列宽：桌面端每行的编号 / 刀种 / 花数 / 可极化 / 删除都在同一条竖线上，
      刀名与获取方式分掉剩下的宽度 */
@@ -3446,28 +3458,26 @@ function renderTplPanel(edit){
     '<th class="tpl-th-fl">花数</th><th class="tpl-th-src">获取方式</th><th class="tpl-pkcol">可极化</th>' +
     (edit ? '<th class="tpl-th-del"></th>' : '') + '</tr></thead><tbody>';
   rows.forEach(function(r, i){
-    const builtin = !!TPL_BUILTIN_BY_NO[Number(r.no)];
     table += '<tr data-hay="' + esc((r.no + ' ' + r.name + ' ' + r.type).toLowerCase()) + '">' +
       (edit ? '<td class="tpl-dragcol">⠿</td>' : '') +
       '<td class="tpl-no tpl-c-no">' + r.no + '</td>' +
       (edit
-        ? '<td class="tpl-c-name"><input class="input tpl-in' + (builtin ? ' ro' : '') + '" data-tf="name" data-i="' + i + '" value="' + esc(r.name) + '" maxlength="24"' +
-            (builtin ? ' readonly title="内置刀帐刀名固定，不可修改"' : '') + '>' +
-            (builtin ? '<span class="tpl-lock">固定</span>' : '') + '</td>' +
-          '<td class="tpl-c-type"><select class="select tpl-in" data-tf="type" data-i="' + i + '">' +
+        ? '<td class="tpl-c-name"><input class="input tpl-in' + (ro ? ' ro' : '') + '" data-tf="name" data-i="' + i + '" value="' + esc(r.name) + '" maxlength="24"' +
+            (ro ? ' readonly title="模板已锁定，先解锁再改"' : '') + '></td>' +
+          '<td class="tpl-c-type"><select class="select tpl-in" data-tf="type" data-i="' + i + '"' + dis + '>' +
             TPL_TYPES.map(function(t){ return '<option' + (t === r.type ? ' selected' : '') + '>' + t + '</option>'; }).join('') +
           '</select></td>' +
-          '<td class="tpl-c-fl"><select class="select tpl-in" data-tf="fl" data-i="' + i + '">' +
+          '<td class="tpl-c-fl"><select class="select tpl-in" data-tf="fl" data-i="' + i + '"' + dis + '>' +
             [0,1,2,3,4,5].map(function(n){ return '<option value="' + n + '"' + (n === r.fl ? ' selected' : '') + '>' + (n === 0 ? '未知' : n) + '</option>'; }).join('') +
           '</select></td>' +
-          '<td class="tpl-c-src"><input class="input tpl-in" data-tf="src" data-i="' + i + '" value="' + esc(r.src) + '" maxlength="32" placeholder="留空"></td>'
+          '<td class="tpl-c-src"><input class="input tpl-in" data-tf="src" data-i="' + i + '" value="' + esc(r.src) + '" maxlength="32" placeholder="留空"' + dis + '></td>'
         : '<td class="tpl-c-name">' + esc(r.name) + '</td><td class="tpl-c-type">' + esc(r.type) + '</td><td class="tpl-c-fl">' + (r.fl || '未知') + '花</td><td class="tpl-c-src">' + (esc(r.src) || '—') + '</td>') +
       (edit
-        ? '<td class="tpl-pkcol tpl-c-pk"><label><input type="checkbox" class="tpl-in" data-tf="pk" data-i="' + i + '"' + (Number(r.pk) === 1 ? ' checked' : '') + ' title="勾上=该刀已开放极化"><span class="tpl-pk-lab">可极化</span></label></td>'
+        ? '<td class="tpl-pkcol tpl-c-pk"><label><input type="checkbox" class="tpl-in" data-tf="pk" data-i="' + i + '"' + (Number(r.pk) === 1 ? ' checked' : '') + dis + ' title="勾上=该刀已开放极化"><span class="tpl-pk-lab">可极化</span></label></td>'
         : '<td class="tpl-pkcol tpl-c-pk">' + (Number(r.pk) === 1 ? '<span class="pk-on">✔<i class="pk-txt"> 已开放</i></span>' : '<span class="pk-off">—</span>') + '</td>') +
       (edit
-        ? '<td class="tpl-c-del">' + (builtin
-            ? '<span class="tpl-del-na" title="内置刀帐的刀不能从模板删除">固定</span>'
+        ? '<td class="tpl-c-del">' + (ro
+            ? '<span class="tpl-del-na" title="模板已锁定，先解锁再删">锁定</span>'
             : '<button class="icon-btn danger tpl-del" data-i="' + i + '" title="从模板移除">🗑</button>') + '</td>'
         : '') +
       '</tr>';
@@ -3496,7 +3506,7 @@ function renderTplPanel(edit){
       '</div>' +
       '<details class="tpl-note-d"' + (narrow ? '' : ' open') + ' style="margin-top:8px;">' +
         '<summary>ⓘ 发布与上限说明</summary>' +
-        '<div class="tpl-note">内置刀帐的<b>刀名已锁定、也不能删除</b>（全服统一，任何人不能改），只有你自己「＋ 新增一振」加进来的刀可以改名、删除。锁定后模板不可再改；发布需作者口令且模板未锁定。发布后所有账号打开时自动同步刀名 / 刀种 / 花数 / 是否开放极化，版本 +1；<b>获取方式只在新增刀时作为默认值</b>，不会覆盖别人已经写好的。极化上限经验表只覆盖到 Lv199，调到 199 以上时超出部分按 Lv199 的满经验计。</div>' +
+        '<div class="tpl-note">这里每一行（含内置刀）的<b>刀名都能改、刀都能删</b>。<b>🔒 锁定后整张表只读</b>——刀名 / 字段都不能改、不能增删、不能发布；点「🔓 解锁模板」后恢复编辑。注意这是作者管理页的编辑锁，跟每个账号图鉴里的「刀账锁定」是两回事。发布需作者口令；发布后所有账号打开时<b>自动同步</b>刀名 / 刀种 / 花数 / 是否开放极化，版本 +1：<b>用户在图鉴里自己新增的刀不会被覆盖</b>，模板新增的刀会补进各账号（默认未拥有）。获取方式只在新增刀时作为默认值，不会覆盖别人已经写好的。极化上限经验表只覆盖到 Lv199，调到 199 以上时超出部分按 Lv199 的满经验计。</div>' +
       '</details>';
   }
 
@@ -3518,6 +3528,11 @@ function renderTplPanel(edit){
     sq.addEventListener('input', apply);
     apply();
   }
+  /* 列表顶 / 底快捷跳转：滚动的是 .tpl-table-wrap 这个容器 */
+  const wrapEl = page.querySelector('.tpl-table-wrap');
+  const toTop = $('#tplToTop'), toBot = $('#tplToBottom');
+  if(toTop) toTop.onclick = function(){ if(wrapEl) wrapEl.scrollTop = 0; };
+  if(toBot) toBot.onclick = function(){ if(wrapEl) wrapEl.scrollTop = wrapEl.scrollHeight; };
   const back = $('#tplBackView');
   if(back) back.onclick = function(){ tplEdit = null; renderTplPanel(false); };
   const enter = $('#tplEnterEdit');
@@ -3529,6 +3544,7 @@ function bindTplEdit(){
   /* 字段改动写回 tplEdit */
   Array.prototype.forEach.call(document.querySelectorAll('.tpl-in'), function(el){
     el.onchange = function(){
+      if(tplEdit.locked){ toast('🔒 模板已锁定，先解锁再改', true); return; }
       const i = Number(el.dataset.i), f = el.dataset.tf;
       if(!tplEdit.rows[i]) return;
       if(f === 'pk'){ tplEdit.rows[i].pk = el.checked ? 1 : 0; return; }
@@ -3542,9 +3558,8 @@ function bindTplEdit(){
   Array.prototype.forEach.call(document.querySelectorAll('.tpl-del'), function(b){
     b.onclick = function(){
       if(!tplAuthed){ toast('🔒 请先填作者口令并点「验证」解锁', true); return; }
+      if(tplEdit.locked){ toast('🔒 模板已锁定，先点「🔓 解锁模板」再删', true); return; }
       const i = Number(b.dataset.i);
-      const row = tplEdit.rows[i];
-      if(row && TPL_BUILTIN_BY_NO[Number(row.no)]){ toast('内置刀帐的刀不能删除', true); return; }
       tplEdit.rows.splice(i, 1);
       renderTplPanel(true);
     };
@@ -3574,6 +3589,7 @@ function bindTplEdit(){
   const add = $('#tplAdd');
   if(add) add.onclick = function(){
     if(!tplAuthed){ toast('🔒 请先填作者口令并点「验证」解锁', true); return; }
+    if(tplEdit.locked){ toast('🔒 模板已锁定，先点「🔓 解锁模板」再加刀', true); return; }
     let maxNo = 0; tplEdit.rows.forEach(function(r){ if(r.no > maxNo) maxNo = r.no; });
     tplEdit.rows.push({no:maxNo + 1, name:'新刀', type:'打刀', fl:1, src:'', pk:0});
     tplEdit.rows.sort(function(a,b){ return a.no - b.no; });
@@ -3584,20 +3600,17 @@ function bindTplEdit(){
     if(!tplAuthed){ toast('🔒 请先填作者口令并点「验证」解锁', true); return; }
     tplEdit.locked = tplEdit.locked ? 0 : 1;
     renderTplPanel(true);
-    toast(tplEdit.locked ? '已标记为锁定，记得发布' : '已标记为解锁，记得发布');
+    toast(tplEdit.locked ? '🔒 已锁定：整张表只读，记得发布让全服生效' : '🔓 已解锁：可以改刀名 / 删刀了，记得发布');
   };
   const pub = $('#tplPublish');
   if(pub) pub.onclick = async function(){
     if(!tplAuthed || !tplProofCache){ toast('🔒 请先填作者口令并点「验证」解锁', true); return; }
-    if(tplEdit.locked){ toast('模板已锁定，先解锁再发布', true); return; }
     const proof = tplProofCache;
     /* 校验编号唯一 */
     const seen = {}; let dup = false;
     tplEdit.rows.forEach(function(r){ if(seen[r.no]) dup = true; seen[r.no] = 1; });
     if(dup){ toast('有重复编号，请检查', true); return; }
-    const missBuiltin = Object.keys(TPL_BUILTIN_BY_NO).map(Number).filter(function(no){ return !seen[no]; });
-    if(missBuiltin.length){ toast('内置刀帐的刀不能删，请先「放弃改动」重来（缺 No.' + missBuiltin[0] + ' 等）', true); return; }
-    const payload = {ver:(Number(TPL.ver) || 0) + 1, locked:0,
+    const payload = {ver:(Number(TPL.ver) || 0) + 1, locked:tplEdit.locked ? 1 : 0,
                      openMax:clampNum(tplEdit.openMax, 1, 999, 199),
                      ranbuMax:clampNum(tplEdit.ranbuMax, 1, 99, 10),
                      rows:tplEdit.rows.map(function(r){
@@ -10953,6 +10966,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.09 模板页：改刀名 / 删刀 + 锁定 + 滚动查找',
+     '<p>「刀帐模板 · 作者管理」里，<b>每一行（含内置刀）的刀名都能改、刀都能删</b>——内置刀归全服模板统一维护，作者在这里改了、发布后所有账号同步。</p>' +
+     '<p>新增<b>「🔒 锁定模板」</b>：锁定后整张表只读（刀名 / 字段都不能改、不能增删、不能发布），点「🔓 解锁模板」才恢复编辑；锁定状态会随模板发布同步给全服。这是作者页的编辑锁，跟各账号图鉴里的「刀账锁定」互不影响。</p>' +
+     '<p>列表加了<b>滚动条</b>，查找框固定在顶部不会被滚走，旁边多了<b>「↑顶 / ↓底」</b>快速跳转。作者发布新版后，用户打开页面就会<b>自动同步</b>；用户在图鉴里自己新增的刀不会被覆盖，模板新增的刀会补进各账号（默认未拥有）。</p>',
+     '2026.11'],
     ['V3.08 图鉴里内置刀不能删',
      '<p>图鉴卡片「✎ 修改」里，<b>内置 131 振的刀不再显示 🗑 删除按钮</b>，改显示「固定」——它们是全服刀帐的一部分，删掉后下次同步也会被补回来。</p>' +
      '<p>你自己「＋ 新增一振」加进来的刀不受限制：<b>刀名可以改，也可以删除</b>；刀账锁定时照旧显示 🔒，解锁后即可删。</p>',
