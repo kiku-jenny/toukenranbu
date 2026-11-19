@@ -627,6 +627,7 @@
   #viewTpl .tpl-table td.tpl-c-name{position:relative;}
   .tpl-lock{position:absolute;right:8px;top:50%;transform:translateY(-50%);
     font-size:9px;color:var(--muted-2);letter-spacing:.04em;pointer-events:none;}
+  .tpl-del-na{font-size:9px;color:var(--muted-2);letter-spacing:.04em;white-space:nowrap;pointer-events:none;}
   #viewTpl .tpl-table td.tpl-c-name .tpl-in.ro{padding-right:30px;}
   @media (max-width:640px){
     #viewTpl .tpl-table td.tpl-c-name .tpl-lock{top:auto;bottom:11px;transform:none;right:11px;}
@@ -1858,7 +1859,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.06</div>
+        <div class="brand-sub">HONMARU KEEPER V3.07</div>
       </div>
     </div>
 
@@ -3462,7 +3463,11 @@ function renderTplPanel(edit){
       (edit
         ? '<td class="tpl-pkcol tpl-c-pk"><label><input type="checkbox" class="tpl-in" data-tf="pk" data-i="' + i + '"' + (Number(r.pk) === 1 ? ' checked' : '') + ' title="勾上=该刀已开放极化"><span class="tpl-pk-lab">可极化</span></label></td>'
         : '<td class="tpl-pkcol tpl-c-pk">' + (Number(r.pk) === 1 ? '<span class="pk-on">✔<i class="pk-txt"> 已开放</i></span>' : '<span class="pk-off">—</span>') + '</td>') +
-      (edit ? '<td class="tpl-c-del"><button class="icon-btn danger tpl-del" data-i="' + i + '" title="从模板移除">🗑</button></td>' : '') +
+      (edit
+        ? '<td class="tpl-c-del">' + (builtin
+            ? '<span class="tpl-del-na" title="内置刀帐的刀不能从模板删除">固定</span>'
+            : '<button class="icon-btn danger tpl-del" data-i="' + i + '" title="从模板移除">🗑</button>') + '</td>'
+        : '') +
       '</tr>';
   });
   table += '</tbody></table></div>';
@@ -3489,7 +3494,7 @@ function renderTplPanel(edit){
       '</div>' +
       '<details class="tpl-note-d"' + (narrow ? '' : ' open') + ' style="margin-top:8px;">' +
         '<summary>ⓘ 发布与上限说明</summary>' +
-        '<div class="tpl-note">内置刀帐的<b>刀名已锁定</b>（全服统一，任何人不能改），只有你自己「＋ 新增一振」加进来的刀可以改名。锁定后模板不可再改；发布需作者口令且模板未锁定。发布后所有账号打开时自动同步刀名 / 刀种 / 花数 / 是否开放极化，版本 +1；<b>获取方式只在新增刀时作为默认值</b>，不会覆盖别人已经写好的。极化上限经验表只覆盖到 Lv199，调到 199 以上时超出部分按 Lv199 的满经验计。</div>' +
+        '<div class="tpl-note">内置刀帐的<b>刀名已锁定、也不能删除</b>（全服统一，任何人不能改），只有你自己「＋ 新增一振」加进来的刀可以改名、删除。锁定后模板不可再改；发布需作者口令且模板未锁定。发布后所有账号打开时自动同步刀名 / 刀种 / 花数 / 是否开放极化，版本 +1；<b>获取方式只在新增刀时作为默认值</b>，不会覆盖别人已经写好的。极化上限经验表只覆盖到 Lv199，调到 199 以上时超出部分按 Lv199 的满经验计。</div>' +
       '</details>';
   }
 
@@ -3536,6 +3541,8 @@ function bindTplEdit(){
     b.onclick = function(){
       if(!tplAuthed){ toast('🔒 请先填作者口令并点「验证」解锁', true); return; }
       const i = Number(b.dataset.i);
+      const row = tplEdit.rows[i];
+      if(row && TPL_BUILTIN_BY_NO[Number(row.no)]){ toast('内置刀帐的刀不能删除', true); return; }
       tplEdit.rows.splice(i, 1);
       renderTplPanel(true);
     };
@@ -3586,6 +3593,8 @@ function bindTplEdit(){
     const seen = {}; let dup = false;
     tplEdit.rows.forEach(function(r){ if(seen[r.no]) dup = true; seen[r.no] = 1; });
     if(dup){ toast('有重复编号，请检查', true); return; }
+    const missBuiltin = Object.keys(TPL_BUILTIN_BY_NO).map(Number).filter(function(no){ return !seen[no]; });
+    if(missBuiltin.length){ toast('内置刀帐的刀不能删，请先「放弃改动」重来（缺 No.' + missBuiltin[0] + ' 等）', true); return; }
     const payload = {ver:(Number(TPL.ver) || 0) + 1, locked:0,
                      openMax:clampNum(tplEdit.openMax, 1, 999, 199),
                      ranbuMax:clampNum(tplEdit.ranbuMax, 1, 99, 10),
@@ -10939,6 +10948,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.07 模板里内置刀不可删除',
+     '<p>刀帐模板「作者管理」里，<b>内置 131 振的刀不能删除</b>——那一列的 🗑 按钮已去掉，改显示「固定」；即使绕过界面也删不掉，发布前还会校验内置刀是否齐全，缺一把都发不出去。</p>' +
+     '<p>你自己「＋ 新增一振」加进来的刀不受限制，<b>刀名可以改、也可以删除</b>。</p>',
+     '2026.11'],
     ['V3.06 不再反复催「重新载入」',
      '<p>如果你一晚被弹了好几次「有新版本 · 重新载入」，是真的：那段时间连发了三个版本，每发一次就弹一次；多开标签页时每个标签还会各弹一次。</p>' +
      '<p>现在按<b>版本号去重</b>：同一个版本只提示一次，点过或看过就记住，跨标签页、下次打开都不会再催。同时去掉了每次打开强制检查更新的动作，改为浏览器自己按节奏核对，不再反复安装 / 激活。这次修复是<b>静默生效</b>的，不会再弹出提示。</p>',
