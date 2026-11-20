@@ -1917,7 +1917,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.14</div>
+        <div class="brand-sub">HONMARU KEEPER V3.15</div>
       </div>
     </div>
 
@@ -11067,6 +11067,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.15 搜索点 × 直接返回查看，不再弹输入法',
+     '<p>图鉴（以及变动记录）里搜索出一堆结果后，点搜索框右边的 <b>✕</b> 清空，之前会自动把光标拉回搜索框——手机上就是<b>输入法又弹出来</b>，还得手动收键盘才能接着看列表。</p>' +
+     '<p>现在点 ✕ 清空后<b>直接收起输入法、关掉搜索历史下拉</b>，焦点离开搜索框，列表立刻恢复全部刀剑，你可以直接往下看，不用再跟键盘打交道。</p>',
+     '2026.11'],
     ['V3.14 极化经验长数字不再断行',
      '<p>卡片上的「极化经验 / 距极199」是 8～9 位数（如 150,722,500），窄屏上曾被<b>断成两行</b>——末位数字掉到下一行，看着像「不在一行」。现在改成和其它数值一样<b>保持一行完整显示</b>，用更紧凑的字距和小字号把它压进卡片，不再折行、也不挤压左边的标签。</p>',
      '2026.11'],
@@ -11841,7 +11845,9 @@ function initEvents(){
     renderCatalog();
   });
   $('#btnClearSearch').onclick = function(){
-    search.value = ''; ui.q = ''; $('#searchWrap').classList.remove('has-text'); renderCatalog(); search.focus();
+    search.value = ''; ui.q = ''; $('#searchWrap').classList.remove('has-text'); renderCatalog();
+    /* 点 × 直接返回查看：收起输入法、关掉历史下拉，不再重新聚焦搜索框 */
+    search.blur(); $('#fSearchHist').classList.remove('show');
   };
   bindSearchHist(search, $('#searchWrap'), $('#fSearchHist'), 'sword', function(v){
     ui.q = String(v || '').trim();
@@ -11943,7 +11949,9 @@ function initEvents(){
   $('#btnClearLogSearch').onclick = function(){
     logSearch.value = ''; ui.logQ = ''; ui.logPage = 1;
     $('#logSearchWrap').classList.remove('has-text');
-    renderLogs(); logSearch.focus();
+    renderLogs();
+    /* 点 × 直接返回查看：收起输入法、关掉历史下拉，不再重新聚焦搜索框 */
+    logSearch.blur(); $('#logSearchHist').classList.remove('show');
   };
   bindSearchHist(logSearch, $('#logSearchWrap'), $('#logSearchHist'), 'log', function(v){
     ui.logQ = String(v || '').trim(); ui.logPage = 1;
