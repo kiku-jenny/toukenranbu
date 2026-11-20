@@ -519,10 +519,25 @@
     #viewTpl .tpl-table-wrap{max-height:58vh;min-height:240px;overflow:auto;border:1px solid var(--line);border-radius:9px;padding:0 4px;}
     /* 手机端：表格堆叠成卡片，所有字段都在屏幕内，不用横向拖 */
     #viewTpl .tpl-table,#viewTpl .tpl-table tbody{display:block;min-width:0;}
-    #viewTpl .tpl-table thead{display:none;}
-    #viewTpl .tpl-table tr{border:1px solid var(--line);border-radius:11px;
+    /* 列名行：查看 / 管理都显示，随表格滚动吸顶冻结 */
+    #viewTpl .tpl-table thead{display:block;position:sticky;top:0;z-index:6;
+      background:var(--surface-2);border:1px solid var(--line);border-radius:9px;
+      margin-bottom:7px;overflow:hidden;}
+    #viewTpl .tpl-table thead tr{display:grid;align-items:center;
+      gap:2px 4px;padding:7px 11px;margin:0;
+      border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent;}
+    #viewTpl .tpl-table.readonly thead tr{grid-template-columns:38px minmax(0,1fr) 38px 26px 42px 16px;}
+    #viewTpl .tpl-table.manage thead tr{grid-template-columns:36px minmax(0,1fr) 36px 24px 40px 16px 22px;}
+    #viewTpl .tpl-table thead th{position:static;padding:0;border:0;background:transparent;
+      color:var(--muted);font-weight:600;font-size:0;line-height:1.3;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    #viewTpl .tpl-table thead th::after{content:attr(data-s);font-size:10px;}
+    #viewTpl .tpl-table thead th.tpl-th-drag{display:none;}
+    #viewTpl .tpl-table tbody tr{border:1px solid var(--line);border-radius:11px;
       background:var(--surface-2);margin-bottom:9px;}
     #viewTpl .tpl-table td{display:block;padding:0;border:0;white-space:normal;}
+    /* 桌面 .tpl-no{width:46px} 会撑破手机 grid 列宽，压住刀名 —— 这里交回 grid 控制 */
+    #viewTpl .tpl-table td.tpl-no{width:auto;}
 
     /* 编辑态：一张卡里竖排，刀名占整行，刀种/花数并排 */
     #viewTpl .tpl-table.manage tr.tpl-row-edit{display:grid;position:relative;
@@ -596,10 +611,16 @@
     #viewTpl .tpl-table.manage tr td.tpl-dragcol{display:none;}
     /* 更窄的屏幕把固定列再收紧一点，优先保住刀名 */
     @media (max-width:360px){
+      /* 窄屏把固定列再收紧，尽量把宽度留给刀名 */
       #viewTpl .tpl-table.readonly tr,
-      #viewTpl .tpl-table.manage tr.tpl-row-ro{
-        grid-template-columns:34px minmax(0,1fr) 34px 22px 36px 14px 20px;
+      #viewTpl .tpl-table.readonly thead tr{
+        grid-template-columns:30px minmax(0,1fr) 30px 20px 34px 12px;
         gap:2px 3px;padding:8px 9px;}
+      #viewTpl .tpl-table.manage tr.tpl-row-ro,
+      #viewTpl .tpl-table.manage thead tr{
+        grid-template-columns:30px minmax(0,1fr) 30px 20px 34px 12px 20px;
+        gap:2px 3px;padding:8px 9px;}
+      #viewTpl .tpl-table td.tpl-c-no::before{font-size:9px;}
     }
   }
   .tpl-cfg{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;font-size:11.5px;
@@ -1890,7 +1911,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.11</div>
+        <div class="brand-sub">HONMARU KEEPER V3.12</div>
       </div>
     </div>
 
@@ -3478,10 +3499,10 @@ function renderTplPanel(edit){
     (edit ? '<col class="tpl-col-del">' : '') +
     '</colgroup>';
   let table = searchBar + '<div class="tpl-table-wrap"><table class="tpl-table ' + (edit ? 'manage' : 'readonly') + '">' + colgroup + '<thead><tr>' +
-    (edit ? '<th class="tpl-th-drag"></th>' : '') +
-    '<th class="tpl-th-no">编号</th><th class="tpl-th-name">刀名</th><th class="tpl-th-type">刀种</th>' +
-    '<th class="tpl-th-fl">花数</th><th class="tpl-th-src">获取方式</th><th class="tpl-pkcol">可极化</th>' +
-    (edit ? '<th class="tpl-th-del"></th>' : '') + '</tr></thead><tbody>';
+    (edit ? '<th class="tpl-th-drag" data-s=""></th>' : '') +
+    '<th class="tpl-th-no" data-s="No.">编号</th><th class="tpl-th-name" data-s="刀名">刀名</th><th class="tpl-th-type" data-s="刀种">刀种</th>' +
+    '<th class="tpl-th-fl" data-s="花">花数</th><th class="tpl-th-src" data-s="获取">获取方式</th><th class="tpl-pkcol" data-s="极">可极化</th>' +
+    (edit ? '<th class="tpl-th-del" data-s="操作"></th>' : '') + '</tr></thead><tbody>';
   rows.forEach(function(r, i){
     /* 只有被选中的那一行展开成输入框，其余行只读文本，避免 131 行输入框误触 */
     const editing = edit && !ro && Number(r.no) === tplEditNo;
@@ -11040,6 +11061,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.12 模板表：列名冻结 + 长刀名不再压数字',
+     '<p>手机端「查看 / 作者管理」两种模式的表头之前被隐藏了，看不到每列叫什么，滚动时也没有参照。现在两种模式都加了<b>一行列名</b>（No. / 刀名 / 刀种 / 花 / 获取 / 极，管理页多一列「操作」），滚动时<b>固定吸顶</b>，桌面端列名保持完整文字。</p>' +
+     '<p>另外修掉一个手机端排版 bug：桌面给编号列写死的 46px 撑破了手机网格，编号格子会压到刀名上、名字一长就像和数字叠在一起。现在编号列宽交回手机网格控制，刀名与编号之间留出间距，长名字省略号显示、不再重叠。</p>',
+     '2026.11'],
     ['V3.11 作者管理：选中哪把才编辑哪把',
      '<p>模板有 131 振，以前一进「作者管理」整张表全是输入框，密密麻麻容易误触改错。现在<b>进入时默认整表只读</b>——每行只显示刀名 / 刀种 / 花数等信息，末尾一个「改」按钮。</p>' +
      '<p>想改哪一把，就<b>点那一行的「改」（或直接点整行）</b>：只有这一把会展开成编辑卡（可改刀名 / 刀种 / 花数 / 获取方式 / 可极化，右上角 ✓ 完成、🗑 删除），其余行保持只读。点「✓ 完成」收起、继续点别的刀。<b>新增的刀会自动进入编辑态</b>；🔒 锁定时全部只读、不能选中编辑。</p>',
