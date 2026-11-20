@@ -525,7 +525,7 @@
     #viewTpl .tpl-table td{display:block;padding:0;border:0;white-space:normal;}
 
     /* 编辑态：一张卡里竖排，刀名占整行，刀种/花数并排 */
-    #viewTpl .tpl-table.editable tr{display:grid;position:relative;
+    #viewTpl .tpl-table.manage tr.tpl-row-edit{display:grid;position:relative;
       grid-template-columns:1fr 1fr;
       grid-template-areas:
         "no   no"
@@ -534,30 +534,30 @@
         "src  src"
         "pk   pk";
       gap:7px 8px;padding:10px 11px;}
-    .tpl-c-no{grid-area:no;align-self:center;text-align:left;font-weight:600;
-      color:var(--sub);font-size:11.5px;padding-right:42px;}
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-no{grid-area:no;align-self:center;
+      text-align:left;font-weight:600;color:var(--sub);font-size:11.5px;padding-right:52px;}
     #viewTpl .tpl-table td.tpl-dragcol{display:none;}
-    #viewTpl .tpl-table.editable .tpl-c-del{position:absolute;top:7px;right:7px;}
-    .tpl-c-name{grid-area:name;}
-    .tpl-c-type{grid-area:type;}
-    .tpl-c-fl{grid-area:fl;}
-    .tpl-c-src{grid-area:src;}
-    .tpl-c-pk{grid-area:pk;text-align:left;}
-    #viewTpl .tpl-table.editable .tpl-c-name::before,
-    #viewTpl .tpl-table.editable .tpl-c-src::before,
-    #viewTpl .tpl-table.editable .tpl-c-pk::before{display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;}
-    #viewTpl .tpl-table.editable .tpl-c-type::before,
-    #viewTpl .tpl-table.editable .tpl-c-fl::before{display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;}
-    #viewTpl .tpl-table.editable .tpl-c-name::before{content:"刀名";}
-    #viewTpl .tpl-table.editable .tpl-c-type::before{content:"刀种";}
-    #viewTpl .tpl-table.editable .tpl-c-fl::before{content:"花数";}
-    #viewTpl .tpl-table.editable .tpl-c-src::before{content:"获取方式";}
-    #viewTpl .tpl-table.editable .tpl-c-pk::before{content:none;}
-    #viewTpl .tpl-table.editable .tpl-pk-lab{display:inline;font-size:12.5px;color:var(--sub);}
-    #viewTpl .tpl-table.editable .tpl-in{font-size:13px;padding:6px 8px;min-width:0;}
-    #viewTpl .tpl-table.editable .tpl-c-pk label,
-    #viewTpl .tpl-table.editable .tpl-c-pk{display:flex;align-items:center;gap:6px;}
-    #viewTpl .tpl-table.editable .tpl-c-pk input{width:17px;height:17px;flex-shrink:0;}
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-del{position:absolute;top:7px;right:7px;}
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-name{grid-area:name;}
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-type{grid-area:type;}
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-fl{grid-area:fl;}
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-src{grid-area:src;}
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-pk{grid-area:pk;text-align:left;}
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-name::before,
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-src::before,
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-pk::before{display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;}
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-type::before,
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-fl::before{display:block;font-size:10.5px;color:var(--muted);margin-bottom:3px;}
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-name::before{content:"刀名";}
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-type::before{content:"刀种";}
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-fl::before{content:"花数";}
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-src::before{content:"获取方式";}
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-pk::before{content:none;}
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-pk-lab{display:inline;font-size:12.5px;color:var(--sub);}
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-in{font-size:13px;padding:6px 8px;min-width:0;}
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-pk label,
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-pk{display:flex;align-items:center;gap:6px;}
+    #viewTpl .tpl-table.manage tr.tpl-row-edit .tpl-c-pk input{width:17px;height:17px;flex-shrink:0;}
 
     /* 只读：固定列宽网格。原来用 flex，获取方式一长就把刀名压窄、
        连带刀种/花数整行左移，填没填获取方式的行的竖排参差。
@@ -578,10 +578,27 @@
     #viewTpl .tpl-table.readonly .tpl-c-fl,
     #viewTpl .tpl-table.readonly .tpl-c-src,
     #viewTpl .tpl-table.readonly .tpl-c-pk{font-size:11px;color:var(--sub);}
+    /* 作者管理页：未选中行 = 紧凑单行，跟查看模式一样对齐；点它才展开编辑 */
+    #viewTpl .tpl-table.manage tr.tpl-row-ro{display:grid;
+      grid-template-columns:36px minmax(0,1fr) 36px 24px 40px 16px 22px;
+      align-items:center;gap:2px 4px;padding:8px 11px;
+      margin-bottom:0;border:0;border-bottom:1px solid var(--line);
+      border-radius:0;background:transparent;overflow:hidden;cursor:pointer;}
+    #viewTpl .tpl-table.manage tr.tpl-row-ro:hover{background:var(--tint-b);}
+    #viewTpl .tpl-table.manage tr.tpl-row-ro td{display:block;min-width:0;grid-area:auto;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--sub);}
+    #viewTpl .tpl-table.manage tr.tpl-row-ro .tpl-c-name{font-weight:600;color:var(--text);}
+    #viewTpl .tpl-table.manage tr.tpl-row-ro .tpl-c-src{color:var(--muted);}
+    #viewTpl .tpl-table.manage tr.tpl-row-ro .pk-txt{display:none;}
+    #viewTpl .tpl-table.manage tr.tpl-row-ro .tpl-c-del{text-align:center;}
+    #viewTpl .tpl-table.manage tr.tpl-row-ro .tpl-edit-go{width:22px;height:22px;font-size:11px;}
+    /* dragcol 空列不占位，否则只读行会整体错开一列 */
+    #viewTpl .tpl-table.manage tr td.tpl-dragcol{display:none;}
     /* 更窄的屏幕把固定列再收紧一点，优先保住刀名 */
     @media (max-width:360px){
-      #viewTpl .tpl-table.readonly tr{
-        grid-template-columns:36px minmax(0,1fr) 36px 24px 38px 14px;
+      #viewTpl .tpl-table.readonly tr,
+      #viewTpl .tpl-table.manage tr.tpl-row-ro{
+        grid-template-columns:34px minmax(0,1fr) 34px 22px 36px 14px 20px;
         gap:2px 3px;padding:8px 9px;}
     }
   }
@@ -607,14 +624,14 @@
   .tpl-table-wrap{max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:9px;}
   .tpl-table{width:100%;border-collapse:collapse;font-size:11.5px;}
   /* 桌面：固定列宽，各列上下对齐 */
-  .tpl-table.editable{table-layout:fixed;}
+  .tpl-table.editable,.tpl-table.manage{table-layout:fixed;}
   .tpl-col-drag{width:24px;}
   .tpl-col-no{width:46px;}
   .tpl-col-type{width:92px;}
   .tpl-col-fl{width:66px;}
   .tpl-col-src{width:186px;}
   .tpl-col-pk{width:74px;}
-  .tpl-col-del{width:40px;}
+  .tpl-col-del{width:64px;}
   .tpl-table th{position:sticky;top:0;background:var(--surface-2);color:var(--muted);
     text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap;z-index:1;border-bottom:1px solid var(--line);}
   .tpl-table th.tpl-th-drag,.tpl-table th.tpl-th-del,
@@ -633,6 +650,13 @@
   .tpl-lock{position:absolute;right:8px;top:50%;transform:translateY(-50%);
     font-size:9px;color:var(--muted-2);letter-spacing:.04em;pointer-events:none;}
   .tpl-del-na{font-size:9px;color:var(--muted-2);letter-spacing:.04em;white-space:nowrap;pointer-events:none;}
+  /* 行内编辑：✎ 进入编辑 / ✓ 完成 */
+  .tpl-edit-go,.tpl-edit-done{display:inline-grid;place-items:center;width:24px;height:24px;padding:0;
+    border:1px solid var(--line);border-radius:7px;background:var(--surface-2);
+    color:var(--sub);font-size:12px;cursor:pointer;line-height:1;transition:border-color .12s,color .12s,background .12s;}
+  .tpl-edit-go:hover{border-color:var(--accent);color:var(--accent-deep);background:var(--pink-soft);}
+  .tpl-edit-done{border-color:var(--accent-3);background:var(--pink-soft);color:var(--accent-deep);font-weight:700;}
+  .tpl-edit-done:hover{background:var(--accent-3);color:#fff;}
   #viewTpl .tpl-table td.tpl-c-name .tpl-in.ro{padding-right:30px;}
   @media (max-width:640px){
     #viewTpl .tpl-table td.tpl-c-name .tpl-lock{top:auto;bottom:11px;transform:none;right:11px;}
@@ -1866,7 +1890,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.10</div>
+        <div class="brand-sub">HONMARU KEEPER V3.11</div>
       </div>
     </div>
 
@@ -3379,6 +3403,7 @@ async function tplAuthorProof(secret){
 let tplEdit = null;        /* 管理模式下的可编辑副本 {ver,locked,rows} */
 let tplMode = false;      /* 全服模板页当前是不是编辑模式 */
 let tplAuthed = false;     /* 本次会话是否已用作者口令解锁 */
+let tplEditNo = null;      /* 作者管理页：当前正在编辑的刀编号，null=整表只读 */
 let tplProofCache = '';     /* 本会话验证通过后的写凭证（只存内存，不落盘、不进代码） */
 const TPL_TYPES = ['短刀','胁差','打刀','太刀','大太刀','枪','薙刀','剑'];
 
@@ -3412,8 +3437,8 @@ function renderTplPanel(edit){
   const bar =
     '<div class="tpl-hd">' +
       '<div class="tpl-hd-txt"><p>' + (edit
-          ? (ro ? '🔒 模板已锁定 · 整张表只读，点「🔓 解锁模板」后才能改刀名 / 删刀 / 改字段'
-                : '作者管理 · 刀名可改、刀可删 · 改完点「⬆ 发布到云端」才会全服生效')
+          ? (ro ? '🔒 模板已锁定 · 所有行只读，点「🔓 解锁模板」后才能选中编辑'
+                : '作者管理 · 默认整表只读，点某行的「改」才编辑那一把 · 改完点「⬆ 发布」全服生效')
           : '查看模式 · 刀名 / 刀种 / 花数 / 可极化 / 上限由作者统一维护；获取方式各账号可自己改') + '</p></div>' +
       '<div class="tpl-hd-acts">' +
         (edit
@@ -3452,33 +3477,45 @@ function renderTplPanel(edit){
     '<col class="tpl-col-fl"><col class="tpl-col-src"><col class="tpl-col-pk">' +
     (edit ? '<col class="tpl-col-del">' : '') +
     '</colgroup>';
-  let table = searchBar + '<div class="tpl-table-wrap"><table class="tpl-table ' + (edit ? 'editable' : 'readonly') + '">' + colgroup + '<thead><tr>' +
+  let table = searchBar + '<div class="tpl-table-wrap"><table class="tpl-table ' + (edit ? 'manage' : 'readonly') + '">' + colgroup + '<thead><tr>' +
     (edit ? '<th class="tpl-th-drag"></th>' : '') +
     '<th class="tpl-th-no">编号</th><th class="tpl-th-name">刀名</th><th class="tpl-th-type">刀种</th>' +
     '<th class="tpl-th-fl">花数</th><th class="tpl-th-src">获取方式</th><th class="tpl-pkcol">可极化</th>' +
     (edit ? '<th class="tpl-th-del"></th>' : '') + '</tr></thead><tbody>';
   rows.forEach(function(r, i){
-    table += '<tr data-hay="' + esc((r.no + ' ' + r.name + ' ' + r.type).toLowerCase()) + '">' +
-      (edit ? '<td class="tpl-dragcol">⠿</td>' : '') +
+    /* 只有被选中的那一行展开成输入框，其余行只读文本，避免 131 行输入框误触 */
+    const editing = edit && !ro && Number(r.no) === tplEditNo;
+    const pkOn = Number(r.pk) === 1;
+    const rowCls = edit ? (editing ? 'tpl-row-edit' : 'tpl-row-ro') : '';
+    table += '<tr class="' + rowCls + '"' + (edit ? ' data-no="' + r.no + '"' : '') + ' data-hay="' + esc((r.no + ' ' + r.name + ' ' + r.type).toLowerCase()) + '">' +
+      (edit ? '<td class="tpl-dragcol">' + (editing ? '✎' : '') + '</td>' : '') +
       '<td class="tpl-no tpl-c-no">' + r.no + '</td>' +
-      (edit
-        ? '<td class="tpl-c-name"><input class="input tpl-in' + (ro ? ' ro' : '') + '" data-tf="name" data-i="' + i + '" value="' + esc(r.name) + '" maxlength="24"' +
-            (ro ? ' readonly title="模板已锁定，先解锁再改"' : '') + '></td>' +
-          '<td class="tpl-c-type"><select class="select tpl-in" data-tf="type" data-i="' + i + '"' + dis + '>' +
+      (editing
+        ? '<td class="tpl-c-name"><input class="input tpl-in" data-tf="name" data-i="' + i + '" value="' + esc(r.name) + '" maxlength="24"></td>'
+        : '<td class="tpl-c-name">' + esc(r.name) + '</td>') +
+      (editing
+        ? '<td class="tpl-c-type"><select class="select tpl-in" data-tf="type" data-i="' + i + '">' +
             TPL_TYPES.map(function(t){ return '<option' + (t === r.type ? ' selected' : '') + '>' + t + '</option>'; }).join('') +
-          '</select></td>' +
-          '<td class="tpl-c-fl"><select class="select tpl-in" data-tf="fl" data-i="' + i + '"' + dis + '>' +
+          '</select></td>'
+        : '<td class="tpl-c-type">' + esc(r.type) + '</td>') +
+      (editing
+        ? '<td class="tpl-c-fl"><select class="select tpl-in" data-tf="fl" data-i="' + i + '">' +
             [0,1,2,3,4,5].map(function(n){ return '<option value="' + n + '"' + (n === r.fl ? ' selected' : '') + '>' + (n === 0 ? '未知' : n) + '</option>'; }).join('') +
-          '</select></td>' +
-          '<td class="tpl-c-src"><input class="input tpl-in" data-tf="src" data-i="' + i + '" value="' + esc(r.src) + '" maxlength="32" placeholder="留空"' + dis + '></td>'
-        : '<td class="tpl-c-name">' + esc(r.name) + '</td><td class="tpl-c-type">' + esc(r.type) + '</td><td class="tpl-c-fl">' + (r.fl || '未知') + '花</td><td class="tpl-c-src">' + (esc(r.src) || '—') + '</td>') +
-      (edit
-        ? '<td class="tpl-pkcol tpl-c-pk"><label><input type="checkbox" class="tpl-in" data-tf="pk" data-i="' + i + '"' + (Number(r.pk) === 1 ? ' checked' : '') + dis + ' title="勾上=该刀已开放极化"><span class="tpl-pk-lab">可极化</span></label></td>'
-        : '<td class="tpl-pkcol tpl-c-pk">' + (Number(r.pk) === 1 ? '<span class="pk-on">✔<i class="pk-txt"> 已开放</i></span>' : '<span class="pk-off">—</span>') + '</td>') +
+          '</select></td>'
+        : '<td class="tpl-c-fl">' + (r.fl || '未知') + '花</td>') +
+      (editing
+        ? '<td class="tpl-c-src"><input class="input tpl-in" data-tf="src" data-i="' + i + '" value="' + esc(r.src) + '" maxlength="32" placeholder="留空"></td>'
+        : '<td class="tpl-c-src">' + (esc(r.src) || '—') + '</td>') +
+      (editing
+        ? '<td class="tpl-pkcol tpl-c-pk"><label><input type="checkbox" class="tpl-in" data-tf="pk" data-i="' + i + '"' + (pkOn ? ' checked' : '') + ' title="勾上=该刀已开放极化"><span class="tpl-pk-lab">可极化</span></label></td>'
+        : '<td class="tpl-pkcol tpl-c-pk">' + (pkOn ? '<span class="pk-on">✔<i class="pk-txt"> 已开放</i></span>' : '<span class="pk-off">—</span>') + '</td>') +
       (edit
         ? '<td class="tpl-c-del">' + (ro
-            ? '<span class="tpl-del-na" title="模板已锁定，先解锁再删">锁定</span>'
-            : '<button class="icon-btn danger tpl-del" data-i="' + i + '" title="从模板移除">🗑</button>') + '</td>'
+            ? '<span class="tpl-del-na" title="模板已锁定，先解锁再改">锁定</span>'
+            : editing
+              ? '<button class="tpl-edit-done" title="完成编辑这把刀">✓</button>' +
+                '<button class="icon-btn danger tpl-del" data-i="' + i + '" title="从模板移除">🗑</button>'
+              : '<button class="tpl-edit-go" title="点这行编辑这把刀">改</button>') + '</td>'
         : '') +
       '</tr>';
   });
@@ -3537,9 +3574,9 @@ function renderTplPanel(edit){
   if(wrapEl) wrapEl.addEventListener('scroll', vsSchedule, {passive: true});
   vsSchedule();
   const back = $('#tplBackView');
-  if(back) back.onclick = function(){ tplEdit = null; renderTplPanel(false); };
+  if(back) back.onclick = function(){ tplEdit = null; tplEditNo = null; renderTplPanel(false); };
   const enter = $('#tplEnterEdit');
-  if(enter) enter.onclick = function(){ tplEdit = tplNorm(TPL); renderTplPanel(true); };
+  if(enter) enter.onclick = function(){ tplEdit = tplNorm(TPL); tplEditNo = null; renderTplPanel(true); };
   if(edit) bindTplEdit();
 }
 
@@ -3558,12 +3595,41 @@ function bindTplEdit(){
   if(pmax) pmax.onchange = function(){ tplEdit.openMax = clampNum(pmax.value, 1, 999, 199); };
   const rmax = $('#tplRmax');
   if(rmax) rmax.onchange = function(){ tplEdit.ranbuMax = clampNum(rmax.value, 1, 99, 10); };
+
+  /* 行内编辑：点某行的「✎ / 整行」才让这一把刀进入编辑态 */
+  function enterRowEdit(no){
+    if(!tplAuthed){ toast('🔒 请先填作者口令并点「验证」解锁', true); return; }
+    if(tplEdit.locked){ toast('🔒 模板已锁定，先点「🔓 解锁模板」再改', true); return; }
+    tplEditNo = Number(no);
+    renderTplPanel(true);
+    /* 滚到正在编辑的行，聚焦刀名 */
+    const er = document.querySelector('#tplPage tbody tr[data-no="' + no + '"]');
+    if(er){
+      const wrap = document.querySelector('#tplPage .tpl-table-wrap');
+      if(wrap) wrap.scrollTop = Math.max(0, er.offsetTop - wrap.offsetTop - 8);
+      const nm = er.querySelector('[data-tf=name]');
+      if(nm){ try{ nm.focus(); nm.select(); }catch(e){} }
+    }
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('#tplPage .tpl-edit-go'), function(b){
+    b.onclick = function(e){ e.stopPropagation(); const tr = b.closest('tr'); if(tr) enterRowEdit(Number(tr.dataset.no)); };
+  });
+  /* 点只读行的空白处也能进入编辑（手机整行点更顺手） */
+  Array.prototype.forEach.call(document.querySelectorAll('#tplPage tbody tr.tpl-row-ro'), function(tr){
+    tr.onclick = function(){ enterRowEdit(Number(tr.dataset.no)); };
+    tr.title = '点这一行编辑这把刀';
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('#tplPage .tpl-edit-done'), function(b){
+    b.onclick = function(){ tplEditNo = null; renderTplPanel(true); toast('✓ 这一把改好了，可以继续点别的刀'); };
+  });
   Array.prototype.forEach.call(document.querySelectorAll('.tpl-del'), function(b){
     b.onclick = function(){
       if(!tplAuthed){ toast('🔒 请先填作者口令并点「验证」解锁', true); return; }
       if(tplEdit.locked){ toast('🔒 模板已锁定，先点「🔓 解锁模板」再删', true); return; }
       const i = Number(b.dataset.i);
+      const removedNo = tplEdit.rows[i] ? Number(tplEdit.rows[i].no) : null;
       tplEdit.rows.splice(i, 1);
+      if(tplEditNo === removedNo) tplEditNo = null;
       renderTplPanel(true);
     };
   });
@@ -3594,14 +3660,19 @@ function bindTplEdit(){
     if(!tplAuthed){ toast('🔒 请先填作者口令并点「验证」解锁', true); return; }
     if(tplEdit.locked){ toast('🔒 模板已锁定，先点「🔓 解锁模板」再加刀', true); return; }
     let maxNo = 0; tplEdit.rows.forEach(function(r){ if(r.no > maxNo) maxNo = r.no; });
-    tplEdit.rows.push({no:maxNo + 1, name:'新刀', type:'打刀', fl:1, src:'', pk:0});
+    const newNo = maxNo + 1;
+    tplEdit.rows.push({no:newNo, name:'新刀', type:'打刀', fl:1, src:'', pk:0});
     tplEdit.rows.sort(function(a,b){ return a.no - b.no; });
+    tplEditNo = newNo;   /* 新增后直接让新刀进入编辑态，省得再找 */
     renderTplPanel(true);
+    const nr = document.querySelector('#tplPage tbody tr[data-no="' + newNo + '"]');
+    if(nr){ const w = document.querySelector('#tplPage .tpl-table-wrap'); if(w) w.scrollTop = nr.offsetTop - (w.offsetTop||0) - 8; }
   };
   const lk = $('#tplLock');
   if(lk) lk.onclick = function(){
     if(!tplAuthed){ toast('🔒 请先填作者口令并点「验证」解锁', true); return; }
     tplEdit.locked = tplEdit.locked ? 0 : 1;
+    tplEditNo = null;
     renderTplPanel(true);
     toast(tplEdit.locked ? '🔒 已锁定：整张表只读，记得发布让全服生效' : '🔓 已解锁：可以改刀名 / 删刀了，记得发布');
   };
@@ -3636,7 +3707,7 @@ function bindTplEdit(){
     }finally{ pub.disabled = false; pub.textContent = '⬆ 发布到云端（全服生效）'; }
   };
   const rel = $('#tplReloadEdit');
-  if(rel) rel.onclick = function(){ tplEdit = tplNorm(TPL); renderTplPanel(true); };
+  if(rel) rel.onclick = function(){ tplEdit = tplNorm(TPL); tplEditNo = null; renderTplPanel(true); };
 }
 
 /* 初次打开（本机还没有存档）时带的初始图鉴：直接铺全服模板（131 振） */
@@ -10969,6 +11040,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.11 作者管理：选中哪把才编辑哪把',
+     '<p>模板有 131 振，以前一进「作者管理」整张表全是输入框，密密麻麻容易误触改错。现在<b>进入时默认整表只读</b>——每行只显示刀名 / 刀种 / 花数等信息，末尾一个「改」按钮。</p>' +
+     '<p>想改哪一把，就<b>点那一行的「改」（或直接点整行）</b>：只有这一把会展开成编辑卡（可改刀名 / 刀种 / 花数 / 获取方式 / 可极化，右上角 ✓ 完成、🗑 删除），其余行保持只读。点「✓ 完成」收起、继续点别的刀。<b>新增的刀会自动进入编辑态</b>；🔒 锁定时全部只读、不能选中编辑。</p>',
+     '2026.11'],
     ['V3.10 模板页也有侧边滚动条了',
      '<p>之前模板页那根「顶 / 底」小进度条只有拇指粗（实测 2px），手机上几乎看不见，很多人以为没有滚动条。</p>' +
      '<p>现在模板页用上了<strong>和图鉴页同一根侧边滚动条</strong>：右侧一条 14px 的粉色滑块、上下两个圆钮一键到顶 / 到底，手机底部还有「顶部 · 进度% · 底部」胶囊。桌面和手机都能拖、都能点，滑到哪儿进度就到哪儿。图鉴页原来的滚动条不受影响。</p>',
