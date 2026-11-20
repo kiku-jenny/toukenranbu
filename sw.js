@@ -8,8 +8,9 @@
      就会安装新 SW、预缓存新页面；activate 时提示一次「新版本已就绪」。
    - 平时不发任何探测请求，不会误报；不点提示也没关系，下次打开自动就是新版。 */
 
-const CACHE = 'honmaru-cache-v31';
-/* build 2026-11-20f 模板表列名吸顶：改字节触发重装刷新缓存页，CACHE 名不变故不弹提示 */
+const CACHE = 'honmaru-cache-v32';
+/* build 2026-11-20g 恢复更新提示：CACHE 真升到 v32，activate 检测到旧缓存即提示一次；
+   页面端按 CACHE 版本去重（hk_seen_update），多标签 / 连发版也只弹一次，不会反复催。 */
 const PAGE = './';
 
 self.addEventListener('install', function(e){
