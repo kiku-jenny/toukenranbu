@@ -1827,6 +1827,9 @@
     white-space:nowrap;
   }
   .upd-bar button:hover{background:rgba(255,255,255,.24);}
+  .upd-bar .upd-go{background:var(--accent);border-color:transparent;color:#fff;font-weight:600;}
+  .upd-bar .upd-go:hover{background:var(--accent-deep);}
+  .upd-bar .upd-x{padding:3px 9px;font-size:15px;line-height:1;border-radius:999px;}
 
   .menu-btn{
     display:none;position:fixed;top:14px;left:14px;z-index:100;
@@ -1911,7 +1914,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.12</div>
+        <div class="brand-sub">HONMARU KEEPER V3.13</div>
       </div>
     </div>
 
@@ -11061,6 +11064,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.13 找回「载入新版本」提示',
+     '<p>之前为了不再反复弹「重新载入」，发版时刻意没升缓存版本号，结果连提示也一起没了——更新了却看不出来。现在把这个提示找回来：每次发版会真正升级版本号，底部冒出一条明确的<b>「新版本已就绪 · 载入新版本」</b>，点一下就换到新版。</p>' +
+     '<p>这条提示<b>不会几秒就自己消失</b>，除非你点「载入」或右边的 ×。同时保留了<b>按版本去重</b>：同一个版本只提示一次，多开标签、连发几版也不会像以前那样反复催。不点也没关系，下次打开自动就是新版。</p>',
+     '2026.11'],
     ['V3.12 模板表：列名冻结 + 长刀名不再压数字',
      '<p>手机端「查看 / 作者管理」两种模式的表头之前被隐藏了，看不到每列叫什么，滚动时也没有参照。现在两种模式都加了<b>一行列名</b>（No. / 刀名 / 刀种 / 花 / 获取 / 极，管理页多一列「操作」），滚动时<b>固定吸顶</b>，桌面端列名保持完整文字。</p>' +
      '<p>另外修掉一个手机端排版 bug：桌面给编号列写死的 46px 撑破了手机网格，编号格子会压到刀名上、名字一长就像和数字叠在一起。现在编号列宽交回手机网格控制，刀名与编号之间留出间距，长名字省略号显示、不再重叠。</p>',
@@ -12107,7 +12114,8 @@ function initPetals(){
 })();
 /* 按「缓存版本」去重：同一个版本只提示一次，跨标签页、跨打开都记得住。
    SW 的 activate 给所有窗口都发消息，多开时每个页面都会收到；
-   加上版本去重后，只有第一次弹、点过或看过就记住，不再反复催。 */
+   加上版本去重后，只有第一次弹、点过或看过就记住，不再反复催。
+   提示条本身常驻（不再几秒自动消失），确保用户一定能看到「更新了」。 */
 function showUpdateBar(ver){
   const KEY = 'hk_seen_update';
   let seen = '';
@@ -12118,13 +12126,18 @@ function showUpdateBar(ver){
   if(old && old.parentNode) old.parentNode.removeChild(old);
   const bar = document.createElement('div');
   bar.className = 'upd-bar';
-  bar.innerHTML = '<span>有新版本</span><button>重新载入</button>';
-  bar.querySelector('button').onclick = function(){ location.reload(); };
+  bar.innerHTML = '<span class="upd-txt">🔔 新版本已就绪，点右侧载入</span>' +
+    '<button class="upd-go">载入新版本</button>' +
+    '<button class="upd-x" title="稍后再说">×</button>';
+  bar.querySelector('.upd-go').onclick = function(){ location.reload(); };
+  bar.querySelector('.upd-x').onclick = function(){
+    bar.classList.remove('on');
+    setTimeout(function(){ if(bar.parentNode) bar.parentNode.removeChild(bar); }, 260);
+  };
   document.body.appendChild(bar);
   requestAnimationFrame(function(){ bar.classList.add('on'); });
-  /* 不点也没关系：下次打开就是新版，届时也不会再提示这一版 */
-  setTimeout(function(){ bar.classList.remove('on'); }, 9000);
-  setTimeout(function(){ if(bar.parentNode) bar.parentNode.removeChild(bar); }, 9600);
+  /* 常驻到用户点「载入新版本」或 × 才收起，不再几秒自动消失——避免一晃眼没看到、
+     以为没更新。同一版本只提示一次（上方按 CACHE 版本去重），所以不会反复弹。 */
 }
 
 </script>
