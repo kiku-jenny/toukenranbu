@@ -1018,8 +1018,10 @@
   }
   .ro b.k-on{color:var(--accent-deep);font-weight:700;font-family:inherit;}
   .ro b.ro-src{font-family:inherit;font-size:11px;color:var(--sub);}
-  /* 到极199 的总量：窄屏宁可折行也不要被省略号截掉 */
-  .ro b.ro-exp{font-size:11px;letter-spacing:-.01em;white-space:normal;overflow:visible;text-overflow:clip;word-break:break-all;line-height:1.3;}
+  /* 极化经验 / 距极199 的总量：跟其它数值一样保持一行，绝不折行。
+     用比例字体 + 紧字距压窄 11 位长数字，避免断成两行或把标签挤开。 */
+  .ro b.ro-exp{font-size:11px;letter-spacing:-.02em;white-space:nowrap;overflow:visible;text-overflow:clip;
+    word-break:normal;font-family:inherit;font-variant-numeric:tabular-nums;line-height:1.3;}
   .card-actions{display:flex;gap:6px;margin-top:auto;padding-top:11px;border-top:1px dashed var(--line);}
   .card-btn{
     flex:1;padding:5px 0;border-radius:8px;border:1px solid var(--line);background:var(--surface);
@@ -1882,8 +1884,9 @@
     .card-name{font-size:15px;}
     .card-name.long{font-size:13px;}
     .card-grid2,.card-grid2.name-row{grid-template-columns:1fr;}
-    /* 到极199 的长数字：窄屏缩字号，尽量留在一行（390 以上本来就是一行） */
-    .ro b.ro-exp{font-size:10px;letter-spacing:-.03em;}
+    /* 极化经验长数字：窄屏保持一行不折行，靠小字号 + 紧字距塞进卡片 */
+    .ro b.ro-exp{font-size:10px;letter-spacing:-.045em;}
+    @media (max-width:360px){ .ro b.ro-exp{font-size:9.5px;letter-spacing:-.05em;} }
     .card-ctrl{flex-wrap:wrap;gap:8px;}
     .mini-sel{flex:0 1 auto;margin-left:auto;white-space:nowrap;}
     .mini-sel select{flex:0 0 auto;min-width:68px;}
@@ -1914,7 +1917,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.13</div>
+        <div class="brand-sub">HONMARU KEEPER V3.14</div>
       </div>
     </div>
 
@@ -11064,6 +11067,9 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.14 极化经验长数字不再断行',
+     '<p>卡片上的「极化经验 / 距极199」是 8～9 位数（如 150,722,500），窄屏上曾被<b>断成两行</b>——末位数字掉到下一行，看着像「不在一行」。现在改成和其它数值一样<b>保持一行完整显示</b>，用更紧凑的字距和小字号把它压进卡片，不再折行、也不挤压左边的标签。</p>',
+     '2026.11'],
     ['V3.13 找回「载入新版本」提示',
      '<p>之前为了不再反复弹「重新载入」，发版时刻意没升缓存版本号，结果连提示也一起没了——更新了却看不出来。现在把这个提示找回来：每次发版会真正升级版本号，底部冒出一条明确的<b>「新版本已就绪 · 载入新版本」</b>，点一下就换到新版。</p>' +
      '<p>这条提示<b>不会几秒就自己消失</b>，除非你点「载入」或右边的 ×。同时保留了<b>按版本去重</b>：同一个版本只提示一次，多开标签、连发几版也不会像以前那样反复催。不点也没关系，下次打开自动就是新版。</p>',
