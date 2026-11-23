@@ -881,6 +881,12 @@
   .filter-panel .filter-row:last-child{margin-bottom:12px;}
   .filter-foot{justify-content:flex-end;border-top:1px dashed var(--line);padding-top:11px;margin-top:2px;}
   .filter-foot .btn{font-size:11.5px;padding:6px 14px;}
+  .lv-custom{display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex:1;}
+  .lv-custom label{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);white-space:nowrap;}
+  .lv-custom .input{width:74px;padding:6px 8px;font-size:12px;}
+  .lv-custom .input.on{border-color:var(--accent);color:var(--accent-deep);background:var(--surface-2);}
+  .lv-custom-hint{font-size:10px;color:var(--muted-2);letter-spacing:.02em;}
+  #levelCustomRow.active .filter-label{color:var(--accent-deep);}
   .filter-row{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px;}
   .filter-label{white-space:nowrap;font-size:11.5px;color:var(--muted);letter-spacing:.1em;padding-top:8px;flex:0 0 auto;min-width:34px;}
   .chips{display:flex;flex-wrap:wrap;gap:6px;flex:1;}
@@ -1930,7 +1936,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.17</div>
+        <div class="brand-sub">HONMARU KEEPER V3.18</div>
       </div>
     </div>
 
@@ -2101,6 +2107,16 @@
           <button class="chip active" data-lv="">全部</button>
           <button class="chip" data-lv="ge100" title="按极化等级算：已极化看极化等级，普刀按经验加上门槛后查极化条">极 100 及以上</button>
           <button class="chip" data-lv="lt100" title="极化等级不到 100，含还没极化、经验还没攒够门槛的普刀">极 100 以下</button>
+          <button class="chip" data-lv="geMax" title="极化等级满级（上限可全服配置），普刀按折算极化等级比较">极 <span id="lvMaxLbl">199</span></button>
+        </div>
+      </div>
+
+      <div class="filter-row" id="levelCustomRow">
+        <span class="filter-label">自定义</span>
+        <div class="lv-custom">
+          <label>极 ≥ <input class="input" id="lvMin" type="number" min="1" max="999" step="1" placeholder="最低" inputmode="numeric"></label>
+          <label>极 ≤ <input class="input" id="lvMax" type="number" min="1" max="999" step="1" placeholder="最高" inputmode="numeric"></label>
+          <span class="lv-custom-hint" id="lvCustomHint">按极化等级筛 · 普刀折算后比较</span>
         </div>
       </div>
 
@@ -3151,7 +3167,7 @@ function idbGet(key){
     });
   });
 }
-const ui = {tab:'catalog', q:'', type:'', own:'', kiwame:'', ranbu:'', level:'', filterOpen:false, sort:'no', favSort:false, edit:{}, logQ:'', logKind:'', logDate:'', logPage:1, day:'', dayMode:'day', dayFrom:'', dayTo:'', dayLvSort:'lv', dayPageLv:1, dayPageRb:1};
+const ui = {tab:'catalog', q:'', type:'', own:'', kiwame:'', ranbu:'', level:'', lvMin:'', lvMax:'', filterOpen:false, sort:'no', favSort:false, edit:{}, logQ:'', logKind:'', logDate:'', logPage:1, day:'', dayMode:'day', dayFrom:'', dayTo:'', dayLvSort:'lv', dayPageLv:1, dayPageRb:1};
 
 function uid(){ return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 function seedTw(ownVal){
@@ -4948,8 +4964,17 @@ function filteredRows(){
     if(ui.kiwame === 'open' && (!os.has(x.no) || x.k === 1)) return false;
     if(ui.ranbu === '10' && Number(x.r) !== RB_MAX()) return false;
     if(ui.ranbu === 'under' && Number(x.r) >= RB_MAX()) return false;
-    if(ui.level === 'ge100' && polarLvOf(x) < 100) return false;
-    if(ui.level === 'lt100' && polarLvOf(x) >= 100) return false;
+    /* 等级一律按「折算极化等级」比：极刀看极化等级，普刀按经验折算后比较 */
+    if(ui.level){
+      const pl = polarLvOf(x);
+      if(ui.level === 'ge100' && pl < 100) return false;
+      if(ui.level === 'lt100' && pl >= 100) return false;
+      if(ui.level === 'geMax' && pl < POL_MAX()) return false;
+      if(ui.level === 'custom'){
+        if(ui.lvMin !== '' && pl < (Number(ui.lvMin) || 0)) return false;
+        if(ui.lvMax !== '' && pl > (Number(ui.lvMax) || 0)) return false;
+      }
+    }
     if(ui.q){
       const q = ui.q.toLowerCase();
       const hay = (x.name + ' ' + x.no + ' ' + String(x.no).padStart(3, '0') + ' no.' + x.no +
@@ -5043,7 +5068,11 @@ function filterCondList(){
   if(kwTxt) out.push(kwTxt);
   const rbTxt = {'10':'乱舞 MAX', 'under':'未满乱舞'}[ui.ranbu];
   if(rbTxt) out.push(rbTxt);
-  const lvTxt = {'ge100':'极 100 及以上', 'lt100':'极 100 以下'}[ui.level];
+  let lvTxt = {'ge100':'极 100 及以上', 'lt100':'极 100 以下', 'geMax':'极 ' + POL_MAX()}[ui.level];
+  if(ui.level === 'custom'){
+    lvTxt = '极 ' + (ui.lvMin !== '' ? ('≥' + ui.lvMin) : '') + (ui.lvMax !== '' ? ((ui.lvMin !== '' ? ' ' : '') + '≤' + ui.lvMax) : '');
+    if(ui.lvMin === '' && ui.lvMax === '') lvTxt = '';
+  }
   if(lvTxt) out.push(lvTxt);
   return out;
 }
@@ -5073,11 +5102,14 @@ function renderFilterBar(){
 }
 /* 一键清空：条件是条件，搜索框也一起清（两个入口共用） */
 function clearAllFilters(){
-  ui.q = ''; ui.type = ''; ui.own = ''; ui.kiwame = ''; ui.ranbu = ''; ui.level = '';
+  ui.q = ''; ui.type = ''; ui.own = ''; ui.kiwame = ''; ui.ranbu = ''; ui.level = ''; ui.lvMin = ''; ui.lvMax = '';
   const s = $('#fSearch');
   if(s) s.value = '';
   const sw = $('#searchWrap');
   if(sw) sw.classList.remove('has-text');
+  const mi = $('#lvMin'), ma = $('#lvMax');
+  if(mi){ mi.value = ''; mi.classList.remove('on'); }
+  if(ma){ ma.value = ''; ma.classList.remove('on'); }
   renderCatalog();
   toast('已清除全部筛选');
 }
@@ -5098,17 +5130,23 @@ function renderFilters(){
 
   /* 极化 / 乱舞 / 等级 各档位的振数，按当前全图鉴实时统计 */
   const os = openSet();
-  let kw = 0, pu = 0, na = 0, wait = 0, maxR = 0, underR = 0, ge = 0, lt = 0, owned = 0;
+  let kw = 0, pu = 0, na = 0, wait = 0, maxR = 0, underR = 0, ge = 0, lt = 0, geMax = 0, owned = 0;
   d.tw.forEach(function(x){
     if(Number(x.own) !== 0) owned++;
     if(Number(x.k) === 1) kw++; else pu++;
     const op = os.has(x.no);
     if(!op) na++;
     if(op && Number(x.k) !== 1) wait++;
-    if(Number(x.r) === 10) maxR++; else underR++;
-    if(polarLvOf(x) >= 100) ge++; else lt++;
+    if(Number(x.r) === RB_MAX()) maxR++; else underR++;
+    const pl = polarLvOf(x);
+    if(pl >= 100) ge++; else lt++;
+    if(pl >= POL_MAX()) geMax++;
   });
   const total = d.tw.length;
+  /* 「极 N」快捷档跟着全服上限走，上限改了标签也跟着变 */
+  const lvMaxLbl = $('#lvMaxLbl'); if(lvMaxLbl) lvMaxLbl.textContent = POL_MAX();
+  const geMaxChip = $('#levelFilters .chip[data-lv="geMax"]');
+  if(geMaxChip) geMaxChip.setAttribute('title', '极化等级达到上限 极 ' + POL_MAX() + '（满级），普刀按折算极化等级比较');
 
   $$('#ownFilters .chip[data-own]').forEach(function(b){
     b.classList.toggle('active', b.dataset.own === ui.own);
@@ -5126,10 +5164,30 @@ function renderFilters(){
     setChipCount(b, map[b.dataset.r] || 0);
   });
   $$('#levelFilters .chip[data-lv]').forEach(function(b){
-    b.classList.toggle('active', b.dataset.lv === ui.level);
-    const map = {'':total, 'ge100':ge, 'lt100':lt};
-    setChipCount(b, map[b.dataset.lv] || 0);
+    const lv = b.dataset.lv;
+    /* 自定义区间生效时，等级这一排 chip 都不高亮 */
+    b.classList.toggle('active', ui.level !== 'custom' && lv === ui.level);
+    const map = {'':total, 'ge100':ge, 'lt100':lt, 'geMax':geMax};
+    setChipCount(b, map[lv] || 0);
   });
+  /* 自定义等级输入：回显状态 + 高亮 + 匹配数提示 */
+  const mi = $('#lvMin'), ma = $('#lvMax'), custRow = $('#levelCustomRow'), custHint = $('#lvCustomHint');
+  if(mi){ if(document.activeElement !== mi) mi.value = ui.lvMin; mi.classList.toggle('on', ui.level === 'custom' && ui.lvMin !== ''); }
+  if(ma){ if(document.activeElement !== ma) ma.value = ui.lvMax; ma.classList.toggle('on', ui.level === 'custom' && ui.lvMax !== ''); }
+  if(custRow) custRow.classList.toggle('active', ui.level === 'custom');
+  if(custHint){
+    if(ui.level === 'custom'){
+      const hit = d.tw.filter(function(x){
+        const pl = polarLvOf(x);
+        if(ui.lvMin !== '' && pl < (Number(ui.lvMin) || 0)) return false;
+        if(ui.lvMax !== '' && pl > (Number(ui.lvMax) || 0)) return false;
+        return true;
+      }).length;
+      custHint.textContent = '匹配 ' + hit + ' 振 · 普刀按折算极化等级比较';
+    }else{
+      custHint.textContent = '按极化等级筛 · 普刀折算后比较';
+    }
+  }
   renderFilterBar();
 }
 
@@ -11146,6 +11204,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.18 等级筛选加「极199」与自定义等级',
+     '<p>图鉴「等级」筛选新增 <b>极 199</b> 快捷档（跟着全服极化上限走，一键筛满级），再往下多了「自定义」一行：填 <b>极 ≥ 最低</b> 或 <b>极 ≤ 最高</b>（可只填一端）就能按任意等级区间筛，旁边实时显示匹配振数。</p>' +
+     '<p>所有等级筛选一律<b>按极化等级比较</b>：极刀看极化等级，<b>普刀按经验折算后的极化等级</b>，口径和排序、每日统计一致；选了固定档会自动清掉自定义输入，互不打架。</p>',
+     '2026.11'],
     ['V3.17 图鉴一键清除筛选 + 每日统计日期与汇总',
      '<p>图鉴筛选面板底部新增「🧹 一键清除全部筛选」按钮，展开筛选就能一键清掉所有条件与搜索词、恢复全部刀剑；乱舞满级的「10 ✓」改成纯数字「10」，编辑下拉里的勾也去掉了。</p>' +
      '<p>每日统计的日期<b>不能再选到今天之后</b>（未来的日子不会有记录）：按日 / 按周 / 按月 / 自定义都锁到今天，到今天后「下一段」自动禁用。「查看」弹窗顶部新增一排汇总，直接显示这振在本段的 <b>+等级 / +经验 / +乱舞等级 / +获得振数</b>，涨用红色标出。</p>',
@@ -11956,8 +12018,31 @@ function initEvents(){
     b.onclick = function(){ ui.ranbu = b.dataset.r; renderCatalog(); };
   });
   $$('#levelFilters .chip[data-lv]').forEach(function(b){
-    b.onclick = function(){ ui.level = b.dataset.lv; renderCatalog(); };
+    b.onclick = function(){
+      ui.level = b.dataset.lv;
+      /* 选了固定档就清掉自定义等级，避免两处条件叠加让人看不懂 */
+      ui.lvMin = ''; ui.lvMax = '';
+      const mi = $('#lvMin'), ma = $('#lvMax');
+      if(mi) mi.value = '';
+      if(ma) ma.value = '';
+      renderCatalog();
+    };
   });
+  /* 自定义等级：≥ 最低 / ≤ 最高，按折算极化等级筛。留空的那一端不限制 */
+  const bindLvInput = function(id, key){
+    const el = $('#' + id);
+    if(!el) return;
+    const apply = function(){
+      const v = String(el.value || '').trim();
+      ui[key] = /^\d+$/.test(v) ? String(Number(v)) : '';
+      ui.level = (ui.lvMin !== '' || ui.lvMax !== '') ? 'custom' : '';
+      renderCatalog();
+    };
+    el.addEventListener('input', apply);
+    el.addEventListener('change', apply);
+  };
+  bindLvInput('lvMin', 'lvMin');
+  bindLvInput('lvMax', 'lvMax');
   /* 筛选条：点一下展开 / 收起；收起时仍能看到已选条件和结果数 */
   const ftBtn = $('#btnFilterToggle');
   if(ftBtn) ftBtn.onclick = function(){
