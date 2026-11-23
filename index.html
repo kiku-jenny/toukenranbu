@@ -1601,13 +1601,15 @@
   .dv-i{flex:0 0 18px;text-align:right;font-family:ui-monospace,Menlo,monospace;font-size:9.5px;color:var(--muted-2);}
   .dv-t{flex:0 0 auto;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--accent-deep);white-space:nowrap;}
   .dv-c{flex:1 1 auto;min-width:0;font-size:11px;color:var(--sub);line-height:1.65;word-break:break-word;}
-  .dv-pager{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);}
+  .dv-pager{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:5px;margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);}
   .dv-pg{
-    border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:3px 10px;
+    border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:3px 9px;
     font-size:10.5px;color:var(--sub);letter-spacing:.02em;transition:.15s;white-space:nowrap;
   }
   .dv-pg:hover:not(:disabled){border-color:var(--line-strong);color:var(--accent-deep);}
   .dv-pg:disabled{opacity:.35;cursor:not-allowed;}
+  .dv-pg.dv-pgnum{min-width:26px;padding:3px 6px;text-align:center;font-family:ui-monospace,Menlo,monospace;}
+  .dv-pg.dv-pgnum.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700;}
   .dv-pgn{font-size:10px;color:var(--muted);font-family:ui-monospace,Menlo,monospace;margin:0 1px;white-space:nowrap;}
   .day-table td{padding:9px 10px;font-size:11px;line-height:1.55;white-space:normal;vertical-align:middle;}
   .day-table th:nth-child(2),.day-table td:nth-child(2),
@@ -1917,7 +1919,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.15</div>
+        <div class="brand-sub">HONMARU KEEPER V3.16</div>
       </div>
     </div>
 
@@ -7614,9 +7616,21 @@ function openDayLogs(no, cnt, kind){
     }).join('');
     const pager = pages > 1
       ? '<div class="dv-pager">' +
+          '<button class="dv-pg" data-dv="1"' + (page <= 1 ? ' disabled' : '') + ' title="第一页">« 首页</button>' +
           '<button class="dv-pg" data-dv="' + (page - 1) + '"' + (page <= 1 ? ' disabled' : '') + '>‹ 上一页</button>' +
-          '<span class="dv-pgn">第 ' + page + ' / ' + pages + ' 页 · 每页 ' + per + ' 条</span>' +
+          (function(){
+            let h = '', from = Math.max(1, page - 2), to = Math.min(pages, from + 4);
+            from = Math.max(1, to - 4);
+            if(from > 1) h += '<button class="dv-pg dv-pgnum' + (page === 1 ? ' on' : '') + '" data-dv="1">1</button>' + (from > 2 ? '<span class="dv-pgn">…</span>' : '');
+            for(let i = from; i <= to; i++){
+              h += '<button class="dv-pg dv-pgnum' + (i === page ? ' on' : '') + '" data-dv="' + i + '">' + i + '</button>';
+            }
+            if(to < pages) h += (to < pages - 1 ? '<span class="dv-pgn">…</span>' : '') + '<button class="dv-pg dv-pgnum" data-dv="' + pages + '">' + pages + '</button>';
+            return h;
+          })() +
           '<button class="dv-pg" data-dv="' + (page + 1) + '"' + (page >= pages ? ' disabled' : '') + '>下一页 ›</button>' +
+          '<button class="dv-pg" data-dv="' + pages + '"' + (page >= pages ? ' disabled' : '') + ' title="最后一页">末页 »</button>' +
+          '<span class="dv-pgn">第 ' + page + ' / ' + pages + ' 页 · 每页 ' + per + ' 条</span>' +
         '</div>'
       : '';
     const wrap = $('#dvWrap');
@@ -7632,8 +7646,12 @@ function openDayLogs(no, cnt, kind){
       b.onclick = function(){
         const pg = Number(b.dataset.dv);
         if(!pg || pg === page || pg < 1 || pg > pages) return;
+        const oldList = wrap.querySelector('.dv-list');
+        const top = oldList ? oldList.scrollTop : 0;
         page = pg;
         dvDraw();
+        const newList = wrap.querySelector('.dv-list');
+        if(newList) newList.scrollTop = top;   /* 翻页后列表滚回原来的位置，不跳到底 */
       };
     });
   }
@@ -7717,7 +7735,22 @@ function dayPages(el, pages, page, go, per){
     b.onclick = function(){
       const pg = Number(b.dataset.page);
       if(!pg || pg === page || pg < 1 || pg > pages) return;
+      /* 翻页会整表重绘：记录分页器此刻在视口里的位置，重绘后把它对齐回去，
+         避免页面跳到顶 / 表格变矮时被夹到底部，视线始终留在列表这一带。 */
+      const rectBefore = el.getBoundingClientRect();
+      const anchor = window.scrollY;
       go(pg);
+      const rectAfter = el.getBoundingClientRect();
+      /* 若重绘后分页器还在文档里且位置变了，按前后差值补偿滚动 */
+      const delta = rectAfter.top - rectBefore.top;
+      if(delta || window.scrollY !== anchor){
+        const target = Math.max(0, Math.min(
+          document.body.scrollHeight - window.innerHeight,
+          window.scrollY + delta));
+        window.scrollTo(0, target);
+      }
+      /* 兜底：末页行数少、页面被夹短时，确保分页器仍完整可见 */
+      requestAnimationFrame(function(){ el.scrollIntoView({block:'nearest'}); });
     };
   });
 }
@@ -11067,6 +11100,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.16 每日统计翻页定位 + 查看可跳页',
+     '<p>每日统计条数多、翻页之后页面会跳到顶部或被夹到底部，看不到刚翻的那一页——现在翻页会<b>保持视线停在列表这一带</b>，不跳不夹，末页行数少时分页器也照样在眼前。</p>' +
+     '<p>表格每行末尾的「查看」弹窗，原来只能一页页点「上一页 / 下一页」。现在<b>加了页码按钮</b>，可以直接选第几页，也能一键到<b>« 首页</b> 和 <b>末页 »</b>，当前页高亮；翻页时列表不再跳回顶部。</p>',
+     '2026.11'],
     ['V3.15 搜索点 × 直接返回查看，不再弹输入法',
      '<p>图鉴（以及变动记录）里搜索出一堆结果后，点搜索框右边的 <b>✕</b> 清空，之前会自动把光标拉回搜索框——手机上就是<b>输入法又弹出来</b>，还得手动收键盘才能接着看列表。</p>' +
      '<p>现在点 ✕ 清空后<b>直接收起输入法、关掉搜索历史下拉</b>，焦点离开搜索框，列表立刻恢复全部刀剑，你可以直接往下看，不用再跟键盘打交道。</p>',
