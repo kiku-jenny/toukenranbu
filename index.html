@@ -879,6 +879,8 @@
     .ft-clear{order:2;margin-left:auto;}
   }
   .filter-panel .filter-row:last-child{margin-bottom:12px;}
+  .filter-foot{justify-content:flex-end;border-top:1px dashed var(--line);padding-top:11px;margin-top:2px;}
+  .filter-foot .btn{font-size:11.5px;padding:6px 14px;}
   .filter-row{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px;}
   .filter-label{white-space:nowrap;font-size:11.5px;color:var(--muted);letter-spacing:.1em;padding-top:8px;flex:0 0 auto;min-width:34px;}
   .chips{display:flex;flex-wrap:wrap;gap:6px;flex:1;}
@@ -1595,6 +1597,15 @@
   .day-view:hover{border-color:var(--line-strong);color:var(--accent-deep);}
   .day-view em{font-style:normal;font-family:ui-monospace,Menlo,monospace;font-size:9px;color:var(--accent-deep);margin-left:2px;}
   /* 「查看」弹窗：这段里每条变动的时间 + 变了什么 */
+  .dv-sum{display:flex;flex-wrap:wrap;gap:7px;margin:2px 0 12px;}
+  .dv-sum .dv-s{flex:1 1 68px;min-width:64px;border:1px solid var(--line);border-radius:11px;
+    background:var(--surface-2);padding:7px 8px;text-align:center;}
+  .dv-sum .dv-s b{display:block;font-size:15px;font-weight:700;line-height:1.2;
+    font-family:ui-monospace,Menlo,monospace;color:var(--ink);}
+  .dv-sum .dv-s small{display:block;font-size:9.5px;color:var(--muted);letter-spacing:.04em;margin-top:2px;}
+  .dv-sum .dv-s b.up{color:#c0392b;}
+  .dv-sum .dv-s b.down{color:var(--accent-deep);}
+  .dv-sum .dv-s b.flat{color:var(--muted-2);}
   .dv-list{display:flex;flex-direction:column;max-height:44vh;overflow:auto;margin-top:2px;}
   .dv-row{display:flex;gap:9px;align-items:baseline;padding:7px 2px;border-bottom:1px dashed var(--line);}
   .dv-row:last-child{border-bottom:none;}
@@ -1919,7 +1930,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.16</div>
+        <div class="brand-sub">HONMARU KEEPER V3.17</div>
       </div>
     </div>
 
@@ -2091,6 +2102,10 @@
           <button class="chip" data-lv="ge100" title="按极化等级算：已极化看极化等级，普刀按经验加上门槛后查极化条">极 100 及以上</button>
           <button class="chip" data-lv="lt100" title="极化等级不到 100，含还没极化、经验还没攒够门槛的普刀">极 100 以下</button>
         </div>
+      </div>
+
+      <div class="filter-row filter-foot">
+        <button class="btn ghost" id="btnFilterClearAll" title="清掉所有筛选条件与搜索词，恢复全部">🧹 一键清除全部筛选</button>
       </div>
       </div>
 
@@ -5167,7 +5182,7 @@ function cardHTML(x){
     /* 乱舞这一栏直接给「乱舞 n→n+1」和剩余数量，不再显示 x/y 进度 */
     const rbLeft = Math.max(0, (needNext || 0) - rp);
     const rbLine = (r >= RB_MAX())
-      ? '<span>乱舞</span><b title="已乱舞 MAX">10 ✓</b>'
+      ? '<span>乱舞</span><b title="已乱舞 MAX">' + RB_MAX() + '</b>'
       : (!fl
           ? '<span>乱舞</span><b title="花数未设，算不出升乱舞 ' + (r+1) + ' 要几把">' + r + '</b>'
           : '<span title="当前乱舞 ' + r + '，下一级是 ' + (r+1) + '">乱舞 ' + r + '→' + (r+1) + '</span>' +
@@ -5194,7 +5209,7 @@ function cardHTML(x){
 
   const opts = [];
   for(let i=1;i<=RB_MAX();i++){
-    opts.push('<option value="'+i+'"'+(r===i?' selected':'')+'>'+(i===RB_MAX()?i+' ✓':i)+'</option>');
+    opts.push('<option value="'+i+'"'+(r===i?' selected':'')+'>'+i+'</option>');
   }
   const flOpts = ['<option value="0"'+(fl===0?' selected':'')+'>未知</option>']
     .concat([1,2,3,4,5,6].map(function(f){
@@ -7455,9 +7470,13 @@ function dayLvSortOf(){
 function dayModeOf(){
   return ['day','week','month','range'].indexOf(ui.dayMode) >= 0 ? ui.dayMode : 'day';
 }
+/* 今天（YYYY-MM-DD）。日期串可直接按字典序比大小 */
+function dayToday(){ return fmtDate(new Date()); }
+/* 日期不得超过今天：未来的日子不会有记录，选了也没意义 */
+function clampDay(v){ const t = dayToday(); return (v && v > t) ? t : v; }
 /* 当前范围：周从周一起算，月按自然月，自定义按起止日（反了自动对调） */
 function dayRange(){
-  const base = ui.day || fmtDate(new Date());
+  const base = clampDay(ui.day || fmtDate(new Date()));
   const dt = new Date(base + 'T00:00:00');
   if(isNaN(dt.getTime())) return [fmtDate(new Date()), fmtDate(new Date())];
   const m = dayModeOf();
@@ -7474,8 +7493,8 @@ function dayRange(){
   }
   if(m === 'range'){
     const ok = /^\d{4}-\d{2}-\d{2}$/;
-    let a = ok.test(String(ui.dayFrom || '')) ? ui.dayFrom : base;
-    let b = ok.test(String(ui.dayTo || '')) ? ui.dayTo : a;
+    let a = ok.test(String(ui.dayFrom || '')) ? clampDay(ui.dayFrom) : base;
+    let b = ok.test(String(ui.dayTo || '')) ? clampDay(ui.dayTo) : a;
     return a <= b ? [a, b] : [b, a];
   }
   return [base, base];
@@ -7494,14 +7513,19 @@ function dayRangeText(from, to){
   return (from.slice(0,4) === to.slice(0,4)) ? (f + ' – ' + t) : (from + ' – ' + to);
 }
 function dayShift(n){
-  const base = ui.day || fmtDate(new Date());
+  const base = clampDay(ui.day || fmtDate(new Date()));
   const dt = new Date(base + 'T00:00:00');
   if(isNaN(dt.getTime())) return;
   const m = dayModeOf();
   if(m === 'week') dt.setDate(dt.getDate() + 7 * n);
   else if(m === 'month'){ dt.setDate(1); dt.setMonth(dt.getMonth() + n); }
   else dt.setDate(dt.getDate() + n);
-  ui.day = fmtDate(dt);
+  /* 往后翻不能越过今天；到今天为止就不再前进 */
+  const today = dayToday();
+  let next = fmtDate(dt);
+  if(n > 0 && next > today) next = (m === 'month') ? today.slice(0,7) + '-01' : today;
+  if(m === 'month') next = next.slice(0,7) + '-01';
+  ui.day = next;
   ui.dayPageLv = 1; ui.dayPageRb = 1;
   renderDaily();
 }
@@ -7569,6 +7593,21 @@ function openDayLogs(no, cnt, kind){
   const list = dayLogList(no, from, to).filter(function(l){
     return (l.changes || []).some(keepC);
   });
+  /* 本段汇总：直接取这振在 dailyAgg 里的净变动，和表里的口径一致。
+     等级 = 普刀等级 + 极化等级；经验、乱舞等级、获得振数各取净增。 */
+  const drec = (dailyAgg(d, from, to).rows || []).filter(function(r){ return Number(r.no) === Number(no); })[0] || {};
+  const lvNet = (Number(drec.lvGain) || 0) + (drec.hasPlv ? (Number(drec.plvGain) || 0) : 0);
+  const expNet = Number(drec.expGain) || 0;
+  const rbLevelNet = (drec.rbFrom && drec.rbTo && drec.rbFrom.r !== null && drec.rbTo.r !== null)
+    ? (Number(drec.rbTo.r) - Number(drec.rbFrom.r)) : 0;
+  const rbNet = Number(drec.rbGain) || 0;
+  const dcls = function(v){ return v > 0 ? 'up' : (v < 0 ? 'down' : 'flat'); };
+  const sumHTML = '<div class="dv-sum">' +
+    '<div class="dv-s"><b class="' + dcls(lvNet) + '">' + (lvNet ? signedNum(lvNet) : '0') + '</b><small>等级</small></div>' +
+    '<div class="dv-s"><b class="' + dcls(expNet) + '">' + (expNet ? signedNum(expNet) : '0') + '</b><small>经验</small></div>' +
+    '<div class="dv-s"><b class="' + dcls(rbLevelNet) + '">' + (rbLevelNet ? signedNum(rbLevelNet) : '0') + '</b><small>乱舞等级</small></div>' +
+    '<div class="dv-s"><b class="' + dcls(rbNet) + '">' + (rbNet ? signedNum(rbNet) : '0') + '</b><small>获得振数</small></div>' +
+    '</div>';
   if(!list.length){
     /* 明细被清空 / 被上限挤出后，这一振在这段里可能只剩每日汇总 */
     const agg = d.dayAgg || {};
@@ -7579,7 +7618,7 @@ function openDayLogs(no, cnt, kind){
     openModal({
       title: '「' + row.name + '」的' + label + '变动时间',
       sub: (same ? from : (from + ' 至 ' + to)) + ' · 0 条明细',
-      body: '<p class="muted" style="margin:0;font-size:12px;line-height:1.9;">' +
+      body: sumHTML + '<p class="muted" style="margin:0;font-size:12px;line-height:1.9;">' +
         (archived
           ? '这振在这段里的明细没留下来（清空的那些日子已经有了明细备份，更早的只存了汇总，或明细超出保留量被裁掉了）——' +
             '每日统计里的' + label + '涨跌仍然保留，只是看不到逐条时间。'
@@ -7594,7 +7633,7 @@ function openDayLogs(no, cnt, kind){
     title: '「' + row.name + '」的' + label + '变动时间',
     sub: (same ? from : (from + ' 至 ' + to)) + ' · 共 ' + list.length + ' 条' + label + '明细' +
          (miss ? '（另有 ' + (Number(cnt) - list.length) + ' 条只留了汇总）' : '') + ' · 按时间先后',
-    body: '<div id="dvWrap"></div>',
+    body: sumHTML + '<div id="dvWrap"></div>',
     actions: [{text:'关闭', cls:'btn', onClick:closeModal}]
   });
 
@@ -7759,29 +7798,36 @@ function renderDaily(){
   const inp = $('#dayDate');
   if(!inp) return;
   if(!ui.day) ui.day = fmtDate(new Date());
+  ui.day = clampDay(ui.day);
   const mode = dayModeOf();
   const rg = dayRange();
   const from = rg[0], to = rg[1];
   const span = daySpan(from, to);
   const rTxt = dayRangeText(from, to);
   const per = mode === 'day' ? DAY_PER : 20;
+  const today = dayToday();
 
-  /* 日期控件：月模式切成 type=month；自定义模式换成两个日期框 */
+  /* 日期控件：月模式切成 type=month；自定义模式换成两个日期框。
+     max 锁到今天，避免选到未来（未来不会有记录） */
   if(mode === 'month'){
     if(inp.type !== 'month') inp.type = 'month';
     inp.value = from.slice(0, 7);
+    inp.max = today.slice(0, 7);
   }else{
     if(inp.type !== 'date') inp.type = 'date';
     inp.value = mode === 'range' ? from : ui.day;
+    inp.max = today;
   }
   inp.hidden = mode === 'range';
   const dFrom = $('#dayFrom'), dTo = $('#dayTo');
   const rangeWrap = $('#dayRangeWrap');
   if(rangeWrap) rangeWrap.hidden = mode !== 'range';
-  if(dFrom && mode === 'range') dFrom.value = from;
-  if(dTo && mode === 'range') dTo.value = to;
+  if(dFrom && mode === 'range'){ dFrom.value = from; dFrom.max = today; }
+  if(dTo && mode === 'range'){ dTo.value = to; dTo.max = today; }
   const navPrev = $('#btnDayPrev'), navNext = $('#btnDayNext'), navToday = $('#btnDayToday');
   [navPrev, navNext, navToday].forEach(function(b){ if(b) b.hidden = mode === 'range'; });
+  /* 当前段已经含今天：后面不会再有记录了，禁用「下一段」 */
+  if(navNext) navNext.disabled = (mode !== 'range' && to >= today);
   const rt = $('#dayRangeTxt');
   if(rt) rt.textContent = mode === 'range' ? ('共 ' + span + ' 天')
     : (mode === 'day' ? '' : rTxt + ' · ' + span + ' 天');
@@ -11100,6 +11146,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.17 图鉴一键清除筛选 + 每日统计日期与汇总',
+     '<p>图鉴筛选面板底部新增「🧹 一键清除全部筛选」按钮，展开筛选就能一键清掉所有条件与搜索词、恢复全部刀剑；乱舞满级的「10 ✓」改成纯数字「10」，编辑下拉里的勾也去掉了。</p>' +
+     '<p>每日统计的日期<b>不能再选到今天之后</b>（未来的日子不会有记录）：按日 / 按周 / 按月 / 自定义都锁到今天，到今天后「下一段」自动禁用。「查看」弹窗顶部新增一排汇总，直接显示这振在本段的 <b>+等级 / +经验 / +乱舞等级 / +获得振数</b>，涨用红色标出。</p>',
+     '2026.11'],
     ['V3.16 每日统计翻页定位 + 查看可跳页',
      '<p>每日统计条数多、翻页之后页面会跳到顶部或被夹到底部，看不到刚翻的那一页——现在翻页会<b>保持视线停在列表这一带</b>，不跳不夹，末页行数少时分页器也照样在眼前。</p>' +
      '<p>表格每行末尾的「查看」弹窗，原来只能一页页点「上一页 / 下一页」。现在<b>加了页码按钮</b>，可以直接选第几页，也能一键到<b>« 首页</b> 和 <b>末页 »</b>，当前页高亮；翻页时列表不再跳回顶部。</p>',
@@ -11916,6 +11966,8 @@ function initEvents(){
   };
   const ftClear = $('#btnFilterClear');
   if(ftClear) ftClear.onclick = clearAllFilters;
+  const ftClearAll = $('#btnFilterClearAll');
+  if(ftClearAll) ftClearAll.onclick = clearAllFilters;
   $('#btnAddSword').onclick = openAddSword;
   const lockBtn = $('#btnRosterLock'); if(lockBtn) lockBtn.onclick = toggleRosterLock;
   const favSortBtn = $('#btnFavSort');
@@ -12012,8 +12064,12 @@ function initEvents(){
   const dayDate = $('#dayDate');
   if(dayDate) dayDate.onchange = function(){
     const v = String(this.value || '');
-    if(dayModeOf() === 'month') ui.day = /^\d{4}-\d{2}$/.test(v) ? (v + '-01') : fmtDate(new Date());
-    else ui.day = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : fmtDate(new Date());
+    if(dayModeOf() === 'month'){
+      const m = /^\d{4}-\d{2}$/.test(v) ? (v + '-01') : fmtDate(new Date());
+      ui.day = clampDay(m);
+      if(ui.day.slice(0,7) > dayToday().slice(0,7)) ui.day = dayToday().slice(0,7) + '-01';
+    }
+    else ui.day = clampDay(/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : fmtDate(new Date()));
     ui.dayPageLv = 1; ui.dayPageRb = 1;
     renderDaily();
   };
@@ -12024,7 +12080,7 @@ function initEvents(){
       ui.dayMode = m;
       /* 第一次切到自定义：默认最近 7 天，免得两个空框 */
       if(m === 'range' && (!ui.dayFrom || !ui.dayTo)){
-        const to = ui.day || fmtDate(new Date());
+        const to = clampDay(ui.day || fmtDate(new Date()));
         const dt = new Date(to + 'T00:00:00');
         dt.setDate(dt.getDate() - 6);
         ui.dayFrom = fmtDate(dt);
@@ -12050,9 +12106,10 @@ function initEvents(){
     el.onchange = function(){
       const v = String(this.value || '');
       if(!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
-      if(id === 'dayFrom') ui.dayFrom = v; else ui.dayTo = v;
-      if(!ui.dayFrom) ui.dayFrom = v;
-      if(!ui.dayTo) ui.dayTo = v;
+      const cv = clampDay(v);                  // 未来日期夹回今天
+      if(id === 'dayFrom') ui.dayFrom = cv; else ui.dayTo = cv;
+      if(!ui.dayFrom) ui.dayFrom = cv;
+      if(!ui.dayTo) ui.dayTo = cv;
       /* 起止反了当场对调并写回状态，免得输入框显示的和实际统计的不一样 */
       const rg = dayRange();
       ui.dayFrom = rg[0]; ui.dayTo = rg[1];
