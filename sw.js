@@ -8,8 +8,8 @@
      就会安装新 SW、预缓存新页面；activate 时提示一次「新版本已就绪」。
    - 平时不发任何探测请求，不会误报；不点提示也没关系，下次打开自动就是新版。 */
 
-const CACHE = 'honmaru-cache-v37';
-/* build 2026-11-24b 等级筛选加极199档与自定义极化等级区间：每版必升 CACHE，确保「载入新版本」提示能弹；
+const CACHE = 'honmaru-cache-v38';
+/* build 2026-11-24c 每日统计查看弹窗逐条显示变动chip+增量：每版必升 CACHE，确保「载入新版本」提示能弹；
    页面端按 CACHE 版本去重（hk_seen_update），多标签 / 连发版也只弹一次，不会反复催。 */
 const PAGE = './';
 
