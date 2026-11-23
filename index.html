@@ -1603,11 +1603,15 @@
   .day-view:hover{border-color:var(--line-strong);color:var(--accent-deep);}
   .day-view em{font-style:normal;font-family:ui-monospace,Menlo,monospace;font-size:9px;color:var(--accent-deep);margin-left:2px;}
   /* 「查看」弹窗：这段里每条变动的时间 + 变了什么 */
-  .dv-sum{display:flex;flex-wrap:wrap;gap:7px;margin:2px 0 12px;}
-  .dv-sum .dv-s{flex:1 1 68px;min-width:64px;border:1px solid var(--line);border-radius:11px;
-    background:var(--surface-2);padding:7px 8px;text-align:center;}
+  .dv-sum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:2px 0 12px;}
+  .dv-sum .dv-s{min-width:0;border:1px solid var(--line);border-radius:11px;
+    background:var(--surface-2);padding:7px 8px;text-align:center;overflow:hidden;}
   .dv-sum .dv-s b{display:block;font-size:15px;font-weight:700;line-height:1.2;
-    font-family:ui-monospace,Menlo,monospace;color:var(--ink);}
+    font-family:ui-monospace,Menlo,monospace;color:var(--ink);white-space:nowrap;}
+  /* 长数字按长度收字号：7+ / 9+ / 11+ 字符逐级缩小，经验上亿也放得进卡片 */
+  .dv-sum .dv-s b.lg{font-size:12.5px;}
+  .dv-sum .dv-s b.xl{font-size:10.5px;}
+  .dv-sum .dv-s b.xxl{font-size:9px;}
   .dv-sum .dv-s small{display:block;font-size:9.5px;color:var(--muted);letter-spacing:.04em;margin-top:2px;}
   .dv-sum .dv-s b.up{color:#c0392b;}
   .dv-sum .dv-s b.down{color:var(--accent-deep);}
@@ -1670,6 +1674,12 @@
   }
 
   @media (max-width:600px){
+    /* 查看弹窗汇总卡片：手机改 2×2，长经验数字才放得下、不被裁 */
+    .dv-sum{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .dv-sum .dv-s b{font-size:14px;}
+    .dv-sum .dv-s b.lg{font-size:13px;}
+    .dv-sum .dv-s b.xl{font-size:12px;}
+    .dv-sum .dv-s b.xxl{font-size:10.5px;}
     .day-nav{width:100%;margin-left:0;}
     .day-date{flex:1 1 118px;min-width:118px;}
     .day-range-wrap{width:100%;}
@@ -1942,7 +1952,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.19</div>
+        <div class="brand-sub">HONMARU KEEPER V3.20</div>
       </div>
     </div>
 
@@ -7684,11 +7694,17 @@ function openDayLogs(no, cnt, kind){
     ? (Number(drec.rbTo.r) - Number(drec.rbFrom.r)) : 0;
   const rbNet = Number(drec.rbGain) || 0;
   const dcls = function(v){ return v > 0 ? 'up' : (v < 0 ? 'down' : 'flat'); };
+  /* 汇总卡片较窄，长数字（经验动辄上亿）按长度缩小字号，保证完整显示不被裁 */
+  const dnum = function(v, label){
+    const txt = v ? signedNum(v) : '0';
+    const len = txt.length;
+    const sz = len >= 11 ? ' xxl' : (len >= 9 ? ' xl' : (len >= 7 ? ' lg' : ''));
+    return '<div class="dv-s"><b class="' + dcls(v) + sz + '" title="' + txt + '">' + txt +
+           '</b><small>' + label + '</small></div>';
+  };
   const sumHTML = '<div class="dv-sum">' +
-    '<div class="dv-s"><b class="' + dcls(lvNet) + '">' + (lvNet ? signedNum(lvNet) : '0') + '</b><small>等级</small></div>' +
-    '<div class="dv-s"><b class="' + dcls(expNet) + '">' + (expNet ? signedNum(expNet) : '0') + '</b><small>经验</small></div>' +
-    '<div class="dv-s"><b class="' + dcls(rbLevelNet) + '">' + (rbLevelNet ? signedNum(rbLevelNet) : '0') + '</b><small>乱舞等级</small></div>' +
-    '<div class="dv-s"><b class="' + dcls(rbNet) + '">' + (rbNet ? signedNum(rbNet) : '0') + '</b><small>获得振数</small></div>' +
+    dnum(lvNet, '等级') + dnum(expNet, '经验') +
+    dnum(rbLevelNet, '乱舞等级') + dnum(rbNet, '获得振数') +
     '</div>';
   if(!list.length){
     /* 明细被清空 / 被上限挤出后，这一振在这段里可能只剩每日汇总 */
@@ -11241,6 +11257,9 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.20 修复查看弹窗经验数字显示不全',
+     '<p>修复每日统计「查看」弹窗里经验数字被裁的问题：经验动辄上亿（如 <b>+5,111,500</b>），卡片太窄时被截成「+5,111,5」。现在手机端汇总卡片改成 <b>2×2 两列</b>，数字长时自动缩小字号且不再裁切，无论几位经验都完整显示；桌面保持四列。逐条明细里的经验数字同样完整。</p>',
+     '2026.11'],
     ['V3.19 每日统计「查看」逐条显示变动',
      '<p>每日统计点「查看」后，明细不再是干巴巴的一段文字：现在<b>每一条都像日志那样单独列出变动内容</b>（如「等级 90→92」「经验 100→600」「乱舞 3→4」），下面再跟上这一条各自的 <b>+等级 / +经验 / +乱舞 / +振数</b> 增量，涨红跌绿，一眼看出这次每条到底变了多少。</p>' +
      '<p>顶部仍保留整段汇总卡片（合计多少），两者对照着看：上面看总账，下面看每一笔明细。</p>',
