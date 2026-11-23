@@ -1618,6 +1618,12 @@
   .dv-i{flex:0 0 18px;text-align:right;font-family:ui-monospace,Menlo,monospace;font-size:9.5px;color:var(--muted-2);}
   .dv-t{flex:0 0 auto;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--accent-deep);white-space:nowrap;}
   .dv-c{flex:1 1 auto;min-width:0;font-size:11px;color:var(--sub);line-height:1.65;word-break:break-word;}
+  .dv-chips{display:block;}
+  .dv-deltas{display:flex;flex-wrap:wrap;gap:3px 8px;margin-top:4px;}
+  .dv-d{display:inline-flex;align-items:baseline;gap:2px;font-size:11.5px;font-weight:700;font-family:ui-monospace,Menlo,monospace;}
+  .dv-d small{font-size:9px;font-weight:400;color:var(--muted);font-family:inherit;}
+  .dv-d.up{color:var(--red);}
+  .dv-d.down{color:var(--green);}
   .dv-pager{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:5px;margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);}
   .dv-pg{
     border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:3px 9px;
@@ -1936,7 +1942,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.18</div>
+        <div class="brand-sub">HONMARU KEEPER V3.19</div>
       </div>
     </div>
 
@@ -6969,6 +6975,24 @@ function logDeltaHTML(l){
            (l.kind === 'ranbu' ? '<em class="dv-u">振</em>' : '') + '</span>';
   }).join('');
 }
+/* 单条日志里这振的4类净增量（给每日统计「查看」逐条显示用，口径与整段汇总一致）：
+   等级 = 普刀等级 + 极化等级；经验；乱舞等级；获得振数 */
+function dayRowDeltas(l){
+  const cs = l.changes || [];
+  let lv = 0, exp = 0, rbLv = 0, rbGain = 0;
+  cs.forEach(function(c){
+    if(c.f === 'lv' || c.f === 'plv') lv += (Number(c.to) || 0) - (Number(c.from) || 0);
+    else if(c.f === 'exp') exp += (Number(c.to) || 0) - (Number(c.from) || 0);
+    else if(c.f === 'ranbu'){
+      rbGain += ranbuChangeGain(c);
+      const r = Number(c.r) || 1, r2 = Number(c.r2) || r;
+      rbLv += r2 - r;
+    }
+    else if(c.f === 'r') rbLv += (Number(c.to) || 0) - (Number(c.from) || 0);
+    /* rp 只是乱舞进度，不计入「乱舞等级」或「振数」 */
+  });
+  return {lv:lv, exp:exp, rbLv:rbLv, rbGain:rbGain};
+}
 function logMatched(d){
   const q = (ui.logQ || '').toLowerCase();
   let list = (d.logs || []).slice();
@@ -7705,10 +7729,23 @@ function openDayLogs(no, cnt, kind){
       const full = fmtTime(l.ts);
       /* 看一天就只写时分秒；看一段带上月 / 日，免得分不清是哪天 */
       const t = same ? full.slice(11) : (full.slice(5, 10).replace('-', '/') + ' ' + full.slice(11, 16));
+      /* 这一条的变动：和日志页一样的 chip + 这振这一条的4类增量 */
+      const chips = (l.changes || []).filter(keepC).map(function(c){ return logChangeHTML(c, l.kind); }).join('');
+      const dd = dayRowDeltas(l);
+      const cell = function(v, label){
+        if(!v) return '';
+        const cls = v > 0 ? 'up' : 'down';
+        return '<span class="dv-d ' + cls + '">' + signedNum(v) + '<small>' + label + '</small></span>';
+      };
+      const delta = cell(dd.lv, '等级') + cell(dd.exp, '经验') +
+                    cell(dd.rbLv, '乱舞') + cell(dd.rbGain, '振');
       return '<div class="dv-row">' +
         '<span class="dv-i">' + (start + i + 1) + '</span>' +
         '<span class="dv-t">' + t + '</span>' +
-        '<span class="dv-c">' + esc(flat(l)) + '</span>' +
+        '<span class="dv-c">' +
+          (chips ? '<span class="dv-chips">' + chips + '</span>' : '') +
+          (delta ? '<span class="dv-deltas">' + delta + '</span>' : '') +
+        '</span>' +
       '</div>';
     }).join('');
     const pager = pages > 1
@@ -11204,6 +11241,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.19 每日统计「查看」逐条显示变动',
+     '<p>每日统计点「查看」后，明细不再是干巴巴的一段文字：现在<b>每一条都像日志那样单独列出变动内容</b>（如「等级 90→92」「经验 100→600」「乱舞 3→4」），下面再跟上这一条各自的 <b>+等级 / +经验 / +乱舞 / +振数</b> 增量，涨红跌绿，一眼看出这次每条到底变了多少。</p>' +
+     '<p>顶部仍保留整段汇总卡片（合计多少），两者对照着看：上面看总账，下面看每一笔明细。</p>',
+     '2026.11'],
     ['V3.18 等级筛选加「极199」与自定义等级',
      '<p>图鉴「等级」筛选新增 <b>极 199</b> 快捷档（跟着全服极化上限走，一键筛满级），再往下多了「自定义」一行：填 <b>极 ≥ 最低</b> 或 <b>极 ≤ 最高</b>（可只填一端）就能按任意等级区间筛，旁边实时显示匹配振数。</p>' +
      '<p>所有等级筛选一律<b>按极化等级比较</b>：极刀看极化等级，<b>普刀按经验折算后的极化等级</b>，口径和排序、每日统计一致；选了固定档会自动清掉自定义输入，互不打架。</p>',
