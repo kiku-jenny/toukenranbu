@@ -1277,6 +1277,12 @@
   }
   #btnAddSwordCalc{margin-left:auto;}
   .calc-addsw:hover{border-color:var(--accent);color:var(--accent-deep);background:var(--surface-2);}
+  .calc-undo{
+    margin-left:0;padding:4px 10px;font-size:11px;border-radius:9px;
+    border:1px solid var(--line-strong);color:var(--accent-deep);background:var(--surface);
+    white-space:nowrap;cursor:pointer;
+  }
+  .calc-undo:hover{border-color:var(--accent);background:var(--tint-a);}
   .calc-tools{display:flex;align-items:center;gap:10px;margin-top:9px;flex-wrap:wrap;}
   .calc-check{display:flex;align-items:center;gap:6px;font-size:11px;color:#9c8489;letter-spacing:.02em;cursor:pointer;}
   .calc-check input{accent-color:var(--accent);width:13px;height:13px;margin:0;}
@@ -1324,6 +1330,29 @@
     .calc-koban .calc-mf input{flex:0 0 auto;width:96px;}
     .calc-koban .btn{flex:1 1 100%;margin-left:0;padding:7px 10px;}
     .calc-koban-tip{flex:1 1 100%;width:100%;line-height:1.6;}
+  }
+  /* 门票小判 */
+  .calc-ticket{border-top:1px dotted var(--line-soft);padding-top:10px;margin-top:2px;}
+  .calc-tk-head{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;color:var(--accent-deep);margin-bottom:8px;}
+  .calc-tk-head .calc-check{font-weight:400;}
+  .calc-tk-set{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px;}
+  .calc-tk-set .calc-mf{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);}
+  .calc-tk-set .calc-mf input{width:90px;}
+  .calc-tk-set .btn{padding:5px 12px;font-size:11px;border-radius:8px;}
+  .calc-tk-buy{background:var(--gold-btn,#d8a13c) !important;color:#2a2010 !important;border-color:transparent !important;font-weight:700;}
+  .calc-tk-list{display:flex;flex-direction:column;gap:5px;margin:6px 0;}
+  .calc-tk-row{display:flex;align-items:center;gap:8px;font-size:11px;background:var(--surface);border:1px solid var(--line-soft);border-radius:8px;padding:6px 9px;}
+  .calc-tk-row .tk-q{color:var(--accent-deep);font-weight:700;}
+  .calc-tk-row .tk-cost{margin-left:auto;color:var(--gold-fg,#b9862f);font-weight:700;font-variant-numeric:tabular-nums;}
+  .calc-tk-row .tk-time{color:var(--muted-2);font-size:10px;font-variant-numeric:tabular-nums;}
+  .calc-tk-row .tk-del{border:0;background:none;color:var(--muted-2);cursor:pointer;font-size:13px;padding:0 2px;}
+  .calc-tk-row .tk-del:hover{color:var(--accent-deep);}
+  .calc-tk-sum{display:flex;gap:14px;font-size:11px;color:var(--muted);padding:4px 2px;}
+  .calc-tk-sum b{color:var(--gold-fg,#b9862f);font-variant-numeric:tabular-nums;}
+  .calc-tk-tip{font-size:10px;color:var(--muted-2);line-height:1.6;}
+  @media (max-width:700px){
+    .calc-tk-set .calc-mf input{width:80px;}
+    .calc-tk-sum{gap:10px;}
   }
   .calc-nums{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding-bottom:12px;border-bottom:1px dashed var(--line);}
   .calc-num{text-align:center;}
@@ -1967,7 +1996,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.25</div>
+        <div class="brand-sub">HONMARU KEEPER V3.26</div>
       </div>
     </div>
 
@@ -2399,6 +2428,7 @@
             <label class="calc-check"><input type="checkbox" id="calcBoost"><span>登记时同步乱舞进度（喂满自动 +1）</span></label>
             <button class="btn calc-addsw" id="btnAddSwordCalc">＋ 图鉴没有？补录一把</button>
             <button class="btn calc-addsw" id="btnFillFlowerCalc" hidden>🌸 补全花数</button>
+            <button class="btn calc-undo" id="btnUndoDrop" hidden title="撤销最近一把登记，乱舞/日志/统计一并回退">↩ 撤销一把</button>
             <span class="calc-status" id="calcStatus"></span>
           </div>
         </div>
@@ -8513,7 +8543,34 @@ function normCalc(c){
         koban: clampNum(s.koban, 0, RES_MAX, 0),
         resId: s.resId ? String(s.resId) : '',
         daily: daily,
-        firsts: firsts
+        firsts: firsts,
+        /* 门票小判：need 是否需要门票；price 每张小判；buys 购买明细 [{q,cost,date,ts}]；ticketResId 当日合并的资源快照 */
+        ticket: (function(t){
+          t = (t && typeof t === 'object') ? t : {};
+          return {
+            need: t.need ? 1 : 0,
+            price: clampNum(t.price, 0, RES_MAX, 0),
+            buys: Array.isArray(t.buys) ? t.buys.filter(function(b){
+              return b && Number(b.q) > 0 && Number(b.cost) >= 0 && /^\d{4}-\d{2}-\d{2}$/.test(String(b.date || ''));
+            }).map(function(b){
+              return {q:clampNum(b.q,1,99,1), cost:clampNum(b.cost,0,RES_MAX,0), date:String(b.date), ts:Number(b.ts)||Date.now(),
+                      logId: b.logId ? String(b.logId) : ''};
+            }) : [],
+            ticketResId: t.ticketResId ? String(t.ticketResId) : ''
+          };
+        })(s.ticket),
+        /* 撤销快照：记录最近一次登记的 no/day 和副作用，供完整回退 */
+        lastOp: (s.lastOp && typeof s.lastOp === 'object') ? {
+          no: clampNum(s.lastOp.no, 0, 99999, 0),
+          day: /^\d{4}-\d{2}-\d{2}$/.test(String(s.lastOp.day || '')) ? String(s.lastOp.day) : '',
+          ts: Number(s.lastOp.ts) || 0,
+          rb: !!s.lastOp.rb,          /* 这次是否喂了乱舞 */
+          fromR: clampNum(s.lastOp.fromR, 1, RB_MAX(), 1),
+          fromRp: clampNum(s.lastOp.fromRp, 0, 999, 0),
+          wasFirst: !!s.lastOp.wasFirst,
+          logIds: Array.isArray(s.lastOp.logIds) ? s.lastOp.logIds.map(String) : [],
+          newSword: !!s.lastOp.newSword  /* 是否补录的新刀（撤销时移除） */
+        } : null
       });
     });
     acts.push(act);
@@ -8670,6 +8727,12 @@ function renderCalc(){
   }
   $('#calcBoost').checked = !!c.boost;
   $('#calcBoost').disabled = !ses || closed;
+  /* 撤销按钮：仅在有可撤销登记且记录未结束时显示 */
+  const undoBtn = $('#btnUndoDrop');
+  if(undoBtn){
+    const hasUndo = !!(ses && !closed && ses.lastOp && ses.lastOp.no);
+    undoBtn.hidden = !hasUndo;
+  }
 
   /* ④ 统计 / 明细 / 历史 */
   $('#calcStats').innerHTML = calcStatsHTML(act, ses);
@@ -8774,6 +8837,113 @@ function calcSesMetaHTML(act, ses){
   return h + '</div>';
 }
 
+/* 门票小判区：勾选需要门票 → 填单价 → 买 1-99 张（可多次）→ 花费与明细。
+   购买按天合并写一条资源快照（小判减少），每笔写一条资源日志。 */
+function calcTicketHTML(ses){
+  const t = (ses && ses.ticket) || {need:0, price:0, buys:[], ticketResId:''};
+  const closed = !!(ses && ses.closed);
+  const dis = closed ? ' disabled' : '';
+  let h = '<div class="calc-ticket">' +
+    '<div class="calc-tk-head">🎫 门票小判' +
+      '<label class="calc-check"><input type="checkbox" data-tkf="need"' + (t.need ? ' checked' : '') + dis +
+      '><span>这个活动需要门票</span></label></div>';
+  if(!t.need){
+    h += '<div class="calc-tk-tip">不勾选就是普通活动，不需要填任何门票信息。勾上后可记录买门票花的小判。</div>';
+    return h + '</div>';
+  }
+  const price = t.price || 0;
+  const totalQ = t.buys.reduce(function(s,b){ return s + (Number(b.q)||0); }, 0);
+  const totalCost = t.buys.reduce(function(s,b){ return s + (Number(b.cost)||0); }, 0);
+  h += '<div class="calc-tk-set">' +
+      '<label class="calc-mf"><span>每张门票</span><input type="number" min="0" max="999999999" step="1" data-tkf="price" value="' + price + '" placeholder="小判/张"' + dis + '></label>' +
+      '<label class="calc-mf"><span>买几张(1-99)</span><input type="number" min="1" max="99" step="1" id="tkQty" value="1"' + dis + '></label>' +
+      (closed ? '' : '<button class="btn calc-tk-buy" data-tkact="buy">🪙 购买</button>') +
+    '</div>';
+  if(t.buys.length){
+    h += '<div class="calc-tk-list">' + t.buys.map(function(b, i){
+      const dt = new Date(b.ts || Date.now());
+      const tm = ('0'+dt.getHours()).slice(-2) + ':' + ('0'+dt.getMinutes()).slice(-2);
+      return '<div class="calc-tk-row"><span class="tk-q">× ' + b.q + ' 张</span>' +
+        '<span class="tk-time">' + esc(b.date) + ' ' + tm + '</span>' +
+        '<span class="tk-cost">-' + fmtNum(b.cost) + '</span>' +
+        (closed ? '' : '<button class="tk-del" data-tkdel="' + i + '" title="删除这笔并回退小判">✕</button>') +
+        '</div>';
+    }).join('') + '</div>';
+    h += '<div class="calc-tk-sum"><span>共买 <b>' + totalQ + '</b> 张</span><span>花费 <b>' + fmtNum(totalCost) + '</b> 小判</span></div>';
+  }else{
+    h += '<div class="calc-tk-tip">填好单价和张数，点「购买」记一笔；可买多次，同一天合并记一条资源。</div>';
+  }
+  h += '<div class="calc-tk-tip">每次花费 = 张数 × 单价，并在资源记录里扣掉对应小判、写一条资源日志（按时间归到本活动）。</div>';
+  return h + '</div>';
+}
+
+/* 买门票：按天合并写资源快照（小判减少），每笔写一条资源日志 */
+function calcBuyTicket(){
+  const d = curData();
+  const act = curAct();
+  const ses = curSes();
+  if(!d || !ses || ses.closed) return;
+  const t = ses.ticket || (ses.ticket = {need:0, price:0, buys:[], ticketResId:''});
+  if(!t.need){ toast('先勾选「需要门票」', true); return; }
+  const price = clampNum(t.price, 0, RES_MAX, 0);
+  if(!price){ toast('先填每张门票的小判数', true); return; }
+  const qtyEl = $('#tkQty');
+  const q = clampNum(qtyEl ? qtyEl.value : 1, 1, 99, 1);
+  const cost = price * q;
+  const now = new Date();
+  const date = calcDayKey(now);
+  if(!Array.isArray(d.res)) d.res = [];
+  /* 按 (sesId, date, src='ticket') 找当天这条快照；没有就基于当天前最新一条复制 */
+  let dayRec = d.res.find(function(r){ return r && r.src === 'ticket' && r.sesId === ses.id && r.date === date; });
+  if(!dayRec){
+    const base = resAsc(d).filter(function(r){ return r.date <= date; }).pop() || null;
+    const vals = base ? Object.assign({}, base.vals)
+                      : {charcoal:0, steel:0, coolant:0, whetstone:0, koban:0};
+    dayRec = {id:uid(), date:date, vals:vals, ts:Date.now(), src:'ticket', sesId:ses.id, actName:(act && act.name) || ''};
+    d.res.push(dayRec);
+    t.ticketResId = dayRec.id;
+  }
+  const from = clampNum(dayRec.vals.koban, 0, RES_MAX, 0);
+  const to = clampNum(from - cost, 0, RES_MAX, 0);
+  dayRec.vals.koban = to;
+  dayRec.ts = Date.now();
+  const buyLog = pushLog({kind:'res', name:'门票', date:date, src:'门票', act:(act && act.name) || '', ses:ses.name,
+           changes:[{f:'res', key:'koban', from:from, to:to, note:'买门票 ' + q + ' 张 × ' + fmtNum(price)}]});
+  t.buys.push({q:q, cost:cost, date:date, ts:dayRec.ts, logId: buyLog ? String(buyLog.id) : ''});
+  save();
+  renderCalc(); renderResources();
+  toast('🪙 已买 ' + q + ' 张门票 · 花 ' + fmtNum(cost) + ' 小判（资源与日志已同步）');
+}
+
+/* 删除某笔门票购买：回退资源快照里的对应小判、删那条日志 */
+function calcDelTicket(idx){
+  const d = curData();
+  const ses = curSes();
+  if(!d || !ses || ses.closed) return;
+  const t = ses.ticket;
+  if(!t || !t.buys || !t.buys[idx]) return;
+  const b = t.buys[idx];
+  const dayRec = d.res.find(function(r){ return r && r.src === 'ticket' && r.sesId === ses.id && r.date === b.date; });
+  if(dayRec){
+    const from = clampNum(dayRec.vals.koban, 0, RES_MAX, 0);
+    dayRec.vals.koban = clampNum(from + (Number(b.cost)||0), 0, RES_MAX, 0);
+    dayRec.ts = Date.now();
+  }
+  /* 删掉这笔购买对应的资源日志 */
+  if(b.logId && Array.isArray(d.logs)){
+    d.logs = d.logs.filter(function(l){ return String(l.id) !== String(b.logId); });
+  }
+  t.buys.splice(idx, 1);
+  if(!t.buys.length && dayRec){
+    /* 当天没有门票记录了，撤掉这条资源快照 */
+    d.res = d.res.filter(function(r){ return r !== dayRec; });
+    t.ticketResId = '';
+  }
+  save();
+  renderCalc(); renderResources();
+  toast('已删除这笔门票购买并回退小判');
+}
+
 /* 把小判增长写进资源记录（同一条会更新，不会重复累加） */
 function syncKobanRes(){
   const d = curData();
@@ -8829,6 +8999,7 @@ function calcStatsHTML(act, ses){
   const closed = !!ses.closed;
   let h = '<div class="calc-stats">';
   h += calcSesMetaHTML(act, ses);
+  h += calcTicketHTML(ses);
   if(closed){
     h += '<div class="calc-closed-bar">🔒 这次活动已于 ' + esc(fmtDate(new Date(ses.closed))) + ' 结束，记录已锁定</div>';
   }
@@ -9326,6 +9497,10 @@ function addDrop(){
     renderCatalog();
   }
   const day = calcDayKey();
+  /* 撤销快照：记下登记前的日志 id 集合，登记后 diff 出这次新增的日志 */
+  const oldLogIds = {};
+  (d.logs || []).forEach(function(l){ oldLogIds[l.id] = 1; });
+  const rbBefore = (function(){ const x = rowOf(no); return x ? {r:clampNum(x.r,1,RB_MAX(),1), rp:clampNum(x.rp,0,999,0)} : null; })();
   ses.daily[day] = ses.daily[day] || {};
   ses.daily[day][no] = (ses.daily[day][no] || 0) + 1;
   ses.firsts = ses.firsts || {};
@@ -9355,57 +9530,109 @@ function addDrop(){
   /* 可选：把这一把喂进图鉴里的乱舞进度 */
   let boostTxt = '';
   /* 刚补录的刀保持乱舞 1：这一把只计入活动统计，不重复喂进度 */
+  /* 先喂乱舞，再判断是否真的变了（喂之前 row 的 r/rp 还等于 rbBefore，判断会永远为 false） */
   if(c.lvlSync && !justAdded) boostTxt = applyRanbuGain(no, act, ses);
+  const rbDidFeed = !!(c.lvlSync && !justAdded && rbBefore && rowOf(no) &&
+    (Number(rowOf(no).r) !== rbBefore.r || Number(rowOf(no).rp) !== rbBefore.rp));
+  /* 收集这次登记产生的所有日志 id，供撤销精确删除 */
+  const newLogIds = (d.logs || []).filter(function(l){ return !oldLogIds[l.id]; }).map(function(l){ return String(l.id); });
+  ses.lastOp = {
+    no:no, day:day, ts:Date.now(),
+    rb: !!rbDidFeed,
+    fromR: rbBefore ? rbBefore.r : 1,
+    fromRp: rbBefore ? rbBefore.rp : 0,
+    wasFirst: isFirst,
+    logIds: newLogIds,
+    newSword: justAdded
+  };
   save();
   renderCalc();
   calcStatus('🌸 ' + swordName(no) + ' 已登记（今日 ' + ses.daily[day][no] + ' 振·本次 ' + sesTotal(ses) + ' 振）' +
-    (isFirst ? ' · 本次首振' : '') + boostTxt + addedTip);
+    (isFirst ? ' · 本次首振' : '') + boostTxt + addedTip + ' · 可点「↩ 撤销一把」回退');
   const inp = $('#calcInput');
   if(inp && inp.value) inp.select();
 }
 
-/* 登记一把 → 图鉴里该刀的乱舞进度 +1，并写一条「乱舞 +1」日志（喂满自动升级） */
-function applyRanbuGain(no, act, ses){
-  const d = curData();
+/* 乱舞进度变动的核心：delta=+1 喂一把（喂满自动升级，满 RB_MAX 不再加）；
+   delta=-1 退一把（rp 退回上一级并跨级回退，乱舞 1 且 rp=0 时不再退）。
+   返回 {changed, r, rp, fromR, fromRp, msg}；真正写日志由调用方决定，便于撤销时精确回滚。
+   justAdd：登记的是刚补录的新刀，这一把不喂进度（和原登记逻辑一致）。 */
+function ranbuDeltaCore(no, delta, justAdd){
   const x = rowOf(no);
-  if(!d || !x) return '';
+  if(!x) return null;
   let r = clampNum(x.r, 1, RB_MAX(), 1);
   let rp = clampNum(x.rp, 0, 999, 0);
-  if(r >= RB_MAX()) return ' · 乱舞已满';
   const fl = clampNum(x.fl, 0, 6, 0);
-  const need = ranbuNeed(fl, r);
-  if(!need) return ' · 花数未设，未记进度';
   const fromR = r, fromRp = rp;
-  rp += 1;
-  while(r < RB_MAX() && rp >= ranbuNeed(fl, r)){
-    rp -= ranbuNeed(fl, r);
-    r += 1;
+  if(delta > 0){
+    if(justAdd) return {changed:false, r:r, rp:rp, fromR:fromR, fromRp:fromRp, msg:''};
+    if(r >= RB_MAX()) return {changed:false, r:r, rp:rp, fromR:fromR, fromRp:fromRp, msg:' · 乱舞已满'};
+    const need = ranbuNeed(fl, r);
+    if(!need) return {changed:false, r:r, rp:rp, fromR:fromR, fromRp:fromRp, msg:' · 花数未设，未记进度'};
+    rp += 1;
+    while(r < RB_MAX() && rp >= ranbuNeed(fl, r)){ rp -= ranbuNeed(fl, r); r += 1; }
+    if(r >= RB_MAX()){ r = RB_MAX(); rp = 0; }
+  }else{
+    if(r <= 1 && rp <= 0) return {changed:false, r:r, rp:rp, fromR:fromR, fromRp:fromRp, msg:''};
+    if(rp > 0){ rp -= 1; }
+    else{
+      /* 本级没进度可退 → 退回上一级，rp 设成上一级所需-1（即从上一级末尾退一把） */
+      const prevNeed = ranbuNeed(fl, r - 1);
+      r -= 1;
+      rp = Math.max(0, (prevNeed || 1) - 1);
+    }
   }
-  if(r >= RB_MAX()){ r = RB_MAX(); rp = 0; }
-  x.r = r;
-  x.rp = rp;
+  x.r = r; x.rp = rp;
+  return {changed:true, r:r, rp:rp, fromR:fromR, fromRp:fromRp, msg:''};
+}
+/* 写一条乱舞变动日志（gain 可正可负；渲染层按方向显示） */
+function logRanbuDelta(no, act, ses, res, delta, justAdd){
+  const x = rowOf(no);
+  if(!x) return;
+  const fl = clampNum(x.fl, 0, 6, 0);
   pushLog({
     kind:'ranbu', no:no, name:x.name, act:(act && act.name) || '',
     ses:(ses && ses.name) || '', src:'活动',
-    changes:[{f:'ranbu', r:fromR, rp:fromRp, r2:r, rp2:rp, n:need,
-              n2: r >= RB_MAX() ? 0 : (ranbuNeed(fl, r) || 0), gain:1}]
+    changes:[{f:'ranbu', r:res.fromR, rp:res.fromRp, r2:res.r, rp2:res.rp,
+              n:ranbuNeed(fl, res.fromR) || 0,
+              n2: res.r >= RB_MAX() ? 0 : (ranbuNeed(fl, res.r) || 0),
+              gain: delta * (justAdd ? 0 : 1)}]
   });
+}
+/* 登记一把 → 喂乱舞 +1（喂满自动升级）。返回状态文字。 */
+function applyRanbuGain(no, act, ses){
+  const res = ranbuDeltaCore(no, +1, false);
+  if(!res) return '';
+  if(!res.changed) return res.msg;
+  logRanbuDelta(no, act, ses, res, +1, false);
   renderStats(); renderFilters();
-  if(r !== fromR){
-    return ' · 乱舞 ' + fromR + '→' + r + ' 🎉';
-  }
-  return ' · 乱舞 ' + r + ' · 升' + (r+1) + ' 还差 ' + Math.max(0, (ranbuNeed(fl, r) || 0) - rp) + ' 把';
+  if(res.r !== res.fromR) return ' · 乱舞 ' + res.fromR + '→' + res.r + ' 🎉';
+  return ' · 乱舞 ' + res.r + ' · 升' + (res.r+1) + ' 还差 ' + Math.max(0, (ranbuNeed(clampNum(rowOf(no).fl,0,6,0), res.r) || 0) - res.rp) + ' 把';
+}
+/* 减一把 → 乱舞回退 -1（跨级退回）。返回状态文字。 */
+function applyRanbuRewind(no, act, ses){
+  const res = ranbuDeltaCore(no, -1, false);
+  if(!res) return '';
+  if(!res.changed) return '';
+  logRanbuDelta(no, act, ses, res, -1, false);
+  renderStats(); renderFilters();
+  if(res.r !== res.fromR) return ' · 乱舞 ' + res.fromR + '→' + res.r + '（回退）';
+  return ' · 乱舞 ' + res.r + ' · 进度 -1';
 }
 
 function calcPlusMinus(no, plus){
   const c = calcStateOf();
+  const act = curAct();
   const ses = curSes();
   if(!ses || ses.closed) return;
   ses.daily = ses.daily || {};
+  let rbTxt = '';
   if(plus){
     const day = calcDayKey();
     ses.daily[day] = ses.daily[day] || {};
     ses.daily[day][no] = (ses.daily[day][no] || 0) + 1;
+    /* 加：同步喂乱舞（满级不加），和「掉了一把」口径一致 */
+    if(c && c.lvlSync) rbTxt = applyRanbuGain(no, act, ses);
   }else{
     const days = Object.keys(ses.daily).filter(function(d){ return (ses.daily[d] || {})[no] > 0; }).sort().reverse();
     if(!days.length) return;
@@ -9413,9 +9640,51 @@ function calcPlusMinus(no, plus){
     ses.daily[day][no] -= 1;
     if(ses.daily[day][no] <= 0) delete ses.daily[day][no];
     if(!Object.keys(ses.daily[day]).length) delete ses.daily[day];
+    /* 减：乱舞同步回退（跨级退回，乱舞1·0不再退） */
+    if(c && c.lvlSync) rbTxt = applyRanbuRewind(no, act, ses);
   }
+  /* 手动 ± 改动后，撤销快照不再可靠（乱舞可能已被别处改），清掉防误撤 */
+  ses.lastOp = null;
   save();
   renderCalc();
+  calcStatus('🌸 ' + swordName(no) + ' ' + (plus ? '+1' : '-1') + '（本次 ' + sesTotal(ses) + ' 振）' + rbTxt);
+}
+
+/* 撤销最近一次登记：完整回退 daily / 乱舞 / 日志 / 首振 / 补录新刀。
+   只回退「最近一把」登记（lastOp 由 addDrop 写入，任何后续 ± 会清空它）。 */
+function undoLastDrop(){
+  const d = curData();
+  const ses = curSes();
+  if(!d || !ses || ses.closed || !ses.lastOp){ toast('没有可撤销的登记', true); return; }
+  const op = ses.lastOp;
+  const no = op.no;
+  /* 1) 回退这一把的每日计数 */
+  if(op.day && ses.daily && ses.daily[op.day] && (ses.daily[op.day][no] || 0) > 0){
+    ses.daily[op.day][no] -= 1;
+    if(ses.daily[op.day][no] <= 0) delete ses.daily[op.day][no];
+    if(!Object.keys(ses.daily[op.day]).length) delete ses.daily[op.day];
+  }
+  /* 2) 首振回退 */
+  if(op.wasFirst && ses.firsts){ delete ses.firsts[no]; }
+  /* 3) 乱舞恢复到登记前（用快照精确回退，不写新日志） */
+  if(op.rb){
+    const x = rowOf(no);
+    if(x){ x.r = clampNum(op.fromR, 1, RB_MAX(), 1); x.rp = clampNum(op.fromRp, 0, 999, 0); }
+  }
+  /* 4) 删除这次登记产生的日志（拥有/花数/新刀/乱舞等） */
+  if(Array.isArray(d.logs) && op.logIds && op.logIds.length){
+    const rm = {}; op.logIds.forEach(function(id){ rm[id] = 1; });
+    d.logs = d.logs.filter(function(l){ return !rm[String(l.id)]; });
+  }
+  /* 5) 补录的新刀：整行移除（连同它的乱舞/拥有状态一起回退） */
+  if(op.newSword && Array.isArray(d.tw)){
+    d.tw = d.tw.filter(function(x){ return Number(x.no) !== Number(no); });
+  }
+  ses.lastOp = null;
+  save();
+  renderCalc(); renderStats(); renderFilters(); renderLogs(); renderCatalog(); renderSidebar();
+  toast('已撤销上一把 · 乱舞 / 日志 / 统计已一并回退');
+  calcStatus('↩ 已撤销最近一把登记，乱舞 / 日志 / 统计已一并回退');
 }
 
 /* ---------- 新建 / 结束 / 清空 / 删除 ---------- */
@@ -9872,6 +10141,8 @@ function bindCalc(){
     pickCalcSword(item.dataset.no);
   });
   $('#btnAddDrop').onclick = addDrop;
+  const undoDropBtn = $('#btnUndoDrop');
+  if(undoDropBtn) undoDropBtn.onclick = undoLastDrop;
   const addSwBtn = $('#btnAddSwordCalc');
   if(addSwBtn) addSwBtn.onclick = calcNewSwordFromCalc;
   const fillFlCalc = $('#btnFillFlowerCalc');
@@ -9888,10 +10159,22 @@ function bindCalc(){
 
   /* 活动起止时间 / 小判增长 */
   $('#calcStats').addEventListener('change', function(e){
-    const el = e.target.closest('[data-sesf]');
-    if(!el) return;
     const ses = curSes();
     if(!ses) return;
+    /* 门票：need 勾选 / price 单价 */
+    const tkEl = e.target.closest('[data-tkf]');
+    if(tkEl){
+      if(ses.closed) return;
+      const t = ses.ticket || (ses.ticket = {need:0, price:0, buys:[], ticketResId:''});
+      const tf = tkEl.dataset.tkf;
+      if(tf === 'need') t.need = tkEl.checked ? 1 : 0;
+      else if(tf === 'price') t.price = clampNum(tkEl.value, 0, RES_MAX, 0);
+      save();
+      setTimeout(renderCalc, 0);
+      return;
+    }
+    const el = e.target.closest('[data-sesf]');
+    if(!el) return;
     const f = el.dataset.sesf;
     if(f === 'koban'){
       if(ses.closed) return;
@@ -9913,6 +10196,9 @@ function bindCalc(){
   $('#calcStats').addEventListener('click', function(e){
     if(e.target.closest('[data-sesact="edit"]')){ calcEditSes(); return; }
     if(e.target.closest('[data-sesact="koban"]')) syncKobanRes();
+    if(e.target.closest('[data-tkact="buy"]')){ calcBuyTicket(); return; }
+    const tkDel = e.target.closest('[data-tkdel]');
+    if(tkDel){ calcDelTicket(Number(tkDel.dataset.tkdel)); return; }
   });
 
   $('#calcActs').addEventListener('click', function(e){
@@ -11381,6 +11667,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.26 记录更顺手：乱舞同步、撤销、门票小判',
+     '<p>① 掉落明细的<b>± 改数量</b>现在同步乱舞：加一把喂一次、减一把回退一次，乱舞满 10 不再加进度。</p>' +
+     '<p>② 新增<b>「↩ 撤销一把」</b>：登错了一键回退，乱舞、日志、统计一起还原。③ 每条记录可勾选<b>「需要门票」</b>：填单价后买 1–99 张、可买多次，花费小判<b>按天合并</b>写进资源记录并记一条日志，明细带日期时间。</p>',
+     '2026.11'],
     ['V3.25 更新改为静默，不再弹提示',
      '<p>发版后不再冒出「载入新版本」提示条了：新版本会在后台<b>自动下载并缓存好</b>，你下次打开或刷新页面就直接是新版，不用再点一下。离线缓存照常可用，更新过程完全无感。</p>',
      '2026.11'],
