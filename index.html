@@ -1967,7 +1967,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.23</div>
+        <div class="brand-sub">HONMARU KEEPER V3.24</div>
       </div>
     </div>
 
@@ -6894,25 +6894,38 @@ function logVal(f, v){
   return String(v);
 }
 
-/* 某一天落在哪个活动区间里（用于给历史日志补活动名） */
-function actNameAtDay(day){
+/* 按「日期 + 时间」把一条日志对应到活动：日志时间戳要落在活动的
+   [开始日 + 开始整点, 结束日 + 结束整点] 区间内才算命中；整点没填则按
+   当天 00:00:00 开始 / 23:59:59 结束。多条都命中时取「开始时刻最近」的那条
+   （同一天旧活动 12:00 收、新活动 15:00 开，早上的归旧、下午的归新）。
+   对不上任何活动就返回空——这条日志的活动格留空。 */
+function actNameAtMoment(ts){
   const d = curData();
-  if(!d || !d.calc || !Array.isArray(d.calc.acts)) return '';
-  let hit = null, hitCreated = -1;
+  if(!d || !d.calc || !Array.isArray(d.calc.acts) || !ts) return '';
+  const logT = fmtTime(ts);   /* 'YYYY-MM-DD HH:MM:SS'，定宽字符串比大小即时间先后 */
+  let hit = null, hitFrom = '', hitCreated = -1;
   d.calc.acts.forEach(function(a){
     (a.sessions || []).forEach(function(s){
       const sp = sesSpan(s);
-      if(day >= sp[0] && day <= sp[1] && (a.created || 0) >= hitCreated){
-        hitCreated = a.created || 0;
-        hit = a;
+      const st = validHour(s.startT) ? (s.startT + ':00') : '00:00:00';
+      const et = validHour(s.endT) ? (s.endT + ':00') : '23:59:59';
+      const from = sp[0] + ' ' + st;
+      const to = sp[1] + ' ' + et;
+      if(logT >= from && logT <= to){
+        const created = a.created || 0;
+        if(from > hitFrom || (from === hitFrom && created > hitCreated)){
+          hitFrom = from; hitCreated = created; hit = a;
+        }
       }
     });
   });
   return hit ? hit.name : '';
 }
 function logActOf(l){
-  if(l.act) return l.act;
-  return actNameAtDay(fmtDate(new Date(l.ts)));
+  /* 活动归属按「日志发生日期 + 时间」精确对应活动记录的起止（含整点），
+     不再用写入时固化的活动名：旧活动结束 / 换新活动 / 删除后都能正确归位，
+     时刻不在任何活动区间内则留空。 */
+  return actNameAtMoment(l.ts);
 }
 function logFlat(l){
   return l.changes.map(function(c){
@@ -11368,6 +11381,9 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.24 日志按日期+时间对应活动',
+     '<p>日志里的活动标签改为按<b>发生日期＋整点</b>去对应活动记录的起止（含开始 15:00、结束 12:00 这类整点），不再固定显示写入时的旧活动名。旧活动 12:00 收、新活动 15:00 开，那么早上的变动归旧活动、下午的归新活动，中间空档<b>留空</b>；活动结束、换新或删除后都会自动归位。</p>',
+     '2026.11'],
     ['V3.23 去掉极化等级后面的上箭头',
      '<p>每日统计「查看」和日志明细里，「极化等级 Lv35 → Lv72 ⬆」末尾那个上箭头去掉了，只保留「极化等级 Lv35 → Lv72」。等级涨了从数字变化本身就看得出来，界面更清爽。</p>',
      '2026.11'],
