@@ -1383,8 +1383,10 @@
   }
   /* 门票小判 */
   .calc-ticket{border-top:1px dotted var(--line-soft);padding-top:10px;margin-top:2px;}
-  .calc-tk-head{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;color:var(--accent-deep);margin-bottom:8px;}
+  .calc-tk-head{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;color:var(--accent-deep);margin-bottom:8px;flex-wrap:wrap;}
   .calc-tk-head .calc-check{font-weight:400;}
+  .tk-price-tag{font-size:10px;font-weight:400;color:var(--gold-fg,#b9862f);background:#fdf6e8;border:1px dashed #f0dcae;border-radius:9px;padding:2px 8px;}
+  .calc-tk-note{font-size:10.5px;color:var(--muted-2);line-height:1.6;margin:-2px 0 9px;}
   .calc-tk-set{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px;}
   .calc-tk-set .calc-mf{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);}
   .calc-tk-set .calc-mf input{width:90px;}
@@ -1404,6 +1406,45 @@
     .calc-tk-set .calc-mf input{width:80px;}
     .calc-tk-sum{gap:10px;}
   }
+
+  /* ---------- 活动设置页 ---------- */
+  .as-card{border:1px solid var(--line);border-radius:13px;padding:14px 15px;background:var(--surface);margin-bottom:14px;}
+  .as-card h3{margin:0 0 4px;font-size:13px;color:var(--accent-deep);letter-spacing:.04em;display:flex;align-items:center;gap:6px;}
+  .as-card .as-sub{font-size:10.5px;color:var(--muted-2);margin:0 0 12px;line-height:1.6;}
+  .as-head{display:grid;grid-template-columns:1fr 108px 62px;gap:8px;padding:0 2px 6px;font-size:10px;color:var(--muted);letter-spacing:.06em;}
+  .as-list{display:flex;flex-direction:column;gap:7px;}
+  .as-row{display:grid;grid-template-columns:1fr 108px 62px;gap:8px;align-items:center;padding:7px 9px;border:1px solid var(--line-soft);border-radius:10px;background:linear-gradient(160deg,var(--surface),var(--tint-a));}
+  .as-row .as-name{font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .as-row input.as-price{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:12px;color:var(--ink);outline:none;text-align:center;font-family:ui-monospace,Menlo,monospace;}
+  .as-row input.as-price:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(217,123,141,.14);}
+  .as-row input.as-price::placeholder{color:var(--muted-2);}
+  .as-ops{display:flex;gap:5px;justify-content:flex-end;}
+  .as-ops button{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:7px;width:26px;height:26px;font-size:11px;cursor:pointer;transition:.15s;}
+  .as-ops button:hover{border-color:var(--accent);color:var(--accent-deep);}
+  .as-ops button.danger:hover{border-color:#d9534f;color:#c2455e;background:#fdf0f1;}
+  .as-foot{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;}
+  .as-foot .btn{font-size:11.5px;padding:7px 14px;}
+  .as-tip{font-size:10.5px;color:var(--muted-2);line-height:1.7;margin-top:10px;padding:9px 11px;background:var(--tint-a);border:1px dashed var(--line);border-radius:9px;}
+  /* 切换弹窗：活动 + 记录列表 */
+  .sw-list{margin-top:10px;max-height:52vh;overflow:auto;display:flex;flex-direction:column;gap:9px;}
+  .sw-act{border:1px solid var(--line);border-radius:11px;overflow:hidden;background:var(--surface);}
+  .sw-act.on{border-color:var(--accent);box-shadow:0 0 0 2px rgba(217,123,141,.12);}
+  .sw-act-h{padding:8px 11px;font-size:12.5px;font-weight:700;color:var(--accent-deep);background:var(--tint-a);display:flex;align-items:center;gap:6px;}
+  .sw-n{font-size:10px;font-weight:400;color:var(--muted-2);margin-left:auto;}
+  .sw-ses{padding:5px 7px;}
+  .sw-ses-row{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:7px 9px;border:1px solid transparent;border-radius:8px;background:none;cursor:pointer;font-size:12px;color:var(--sub);}
+  .sw-ses-row:hover{background:var(--tint-a);}
+  .sw-ses-row.on{background:var(--pink-soft);border-color:var(--accent);color:var(--accent-deep);font-weight:600;}
+  .sw-ses-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sw-ses-meta{font-size:10px;color:var(--muted-2);white-space:nowrap;}
+  .sw-none{font-size:11px;color:var(--muted-2);padding:8px 10px;display:block;}
+  @media (max-width:700px){
+    .as-head{display:none;}
+    .as-row{grid-template-columns:1fr 88px 56px;gap:6px;padding:8px;}
+    .as-row .as-name{font-size:11.5px;line-height:1.4;white-space:normal;}
+    .as-row input.as-price{padding:6px 4px;font-size:11px;}
+  }
+
   .calc-nums{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding-bottom:12px;border-bottom:1px dashed var(--line);}
   .calc-num{text-align:center;}
   .calc-num b{display:block;font-family:ui-monospace,Menlo,monospace;font-size:21px;color:var(--accent-deep);line-height:1.15;}
@@ -2046,7 +2087,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.28</div>
+        <div class="brand-sub">HONMARU KEEPER V3.29</div>
       </div>
     </div>
 
@@ -2056,11 +2097,11 @@
       <button class="menu-item" data-tab="daily"><i>📊</i>每日统计</button>
       <button class="menu-item" data-tab="resources"><i>🪵</i>资源记录</button>
       <button class="menu-item" data-tab="records"><i>🎪</i>活动记录</button>
+      <button class="menu-item" data-tab="actset"><i>⚙️</i>活动设置</button>
     </nav>
 
     <div class="menu-aux">
       <button class="ghost-btn" id="btnNotice">📢 公告与更新</button>
-      <button class="ghost-btn" id="btnFeedback">💬 反馈与支持</button>
     </div>
 
     <div class="theme-box">
@@ -2449,8 +2490,8 @@
         <!-- ① 当前记录卡：置顶显示 活动›记录·状态·振数·起止，点卡片任意处展开下方切换区 -->
         <div class="calc-current" id="calcCurrent"></div>
 
-        <!-- ② 活动 / 记录切换区：紧跟当前卡，点当前卡即展开；新建入口也在里面 -->
-        <details class="calc-pick" id="calcPick">
+        <!-- ② 活动 / 记录切换区：改为点当前卡弹搜索面板；此处保留为 DOM 容器（隐藏）以复用渲染与事件 -->
+        <details class="calc-pick" id="calcPick" hidden style="display:none;">
           <summary><span class="calc-pick-t">⇄ 切换活动 / 记录</span><span class="calc-pick-hint" id="calcPickHint"></span><span class="calc-pick-arrow">▾</span></summary>
           <div class="calc-pick-body">
             <div class="act-filter-bar">
@@ -2509,6 +2550,17 @@
         </div>
 
         <div id="calcHistory"></div>
+      </div>
+    </section>
+
+    <!-- ========== 活动设置 ========== -->
+    <section id="viewActSet" class="view" hidden>
+      <div class="panel">
+        <div class="panel-head">
+          <h2>⚙️ 活动设置</h2>
+          <p>活动类型与门票单价统一在这里维护 · 活动记录读取此处的配置</p>
+        </div>
+        <div id="actSetBody"></div>
       </div>
     </section>
 
@@ -3334,6 +3386,25 @@ const CALC_ACTS = [
   '秘宝之里',
   '江户城潜入调查'
 ];
+/* 活动类型默认配置：预置 5 个，秘宝之里门票默认 300 小判/张，其余留空（0=不需要门票） */
+function seedActTypes(){
+  return CALC_ACTS.map(function(n){ return {name:n, price:(n === '秘宝之里' ? 300 : 0)}; });
+}
+/* 按活动名精确/包含匹配配置；返回 {name, price} 或 null */
+function actTypeOf(name){
+  const d = curData();
+  if(!d || !Array.isArray(d.actTypes)) return null;
+  const nm = String(name || '');
+  if(!nm) return null;
+  const hit = d.actTypes.find(function(t){ return t.name === nm; });
+  if(hit) return hit;
+  return d.actTypes.find(function(t){ return nm.indexOf(t.name) >= 0 || t.name.indexOf(nm) >= 0; }) || null;
+}
+/* 某活动名的门票单价（0=不需要门票） */
+function ticketPriceOf(name){
+  const t = actTypeOf(name);
+  return t ? (Number(t.price) || 0) : 0;
+}
 const FLOWER = [5,5,3,3,3,1,5,3,5,2,5,2,4,2,2,1,1,1,1,1,1,1,1,1,1,1,5,4,3,4,1,3,3,2,1,2,3,4,4,4,2,1,2,2,2,3,2,2,3,2,2,2,2,2,2,3,2,1,3,5,4,3,4,3,3,4,3,3,1,2,1,3,1,3,2,3,2,2,3,4,2,2,1,2,2,2,2,5,4,2,2,4,1,2,3,2,5,2,4,4,5,5,3,3,3,3,3,4,1,3,2,2,3,2,1,3,5,3,3,4,1,4,2,2,2,3,3,4,3,1];
 
 
@@ -3910,12 +3981,14 @@ function bindTplEdit(){
 /* 初次打开（本机还没有存档）时带的初始图鉴：直接铺全服模板（131 振） */
 function seedData(){
   return {ver:6, roster:1, tw:seedTw(), open:seedOpen(), res:seedRes(), records:[], logs:[],
-          searchHist:[], logSearchHist:[], rosterLock:{on:0, at:0, n:0}, tplVer:TPL.ver, calc:seedCalc()};
+          searchHist:[], logSearchHist:[], rosterLock:{on:0, at:0, n:0}, tplVer:TPL.ver,
+          actTypes:seedActTypes(), calc:seedCalc()};
 }
 /* 新建的账号从零开始：图鉴、资源、活动、变动记录全空 */
 function blankData(){
   return {ver:6, roster:1, tw:[], open:[], res:[], records:[], logs:[],
           searchHist:[], logSearchHist:[], rosterLock:{on:0, at:0, n:0}, tplVer:TPL.ver,
+          actTypes:seedActTypes(),
           calc:{acts:[], cur:'', curS:'', boost:true, lvlSync:true}};
 }
 /* 变动日志：{id, kind, no, name, act, ses, src, date, changes:[{f, ...}], ts}
@@ -4236,6 +4309,14 @@ function normalize(d){
     if(a.l !== undefined && !Array.isArray(a.l)) delete a.l;
   });
   if(!Array.isArray(d.records)) d.records = [];
+  /* 活动类型配置：预置 5 个（秘宝之里默认门票 300），可在「活动设置」页增删改。
+     老存档没有就补一份；已配置的以用户值为准，只补齐缺失字段。 */
+  if(!Array.isArray(d.actTypes) || !d.actTypes.length) d.actTypes = seedActTypes();
+  else{
+    d.actTypes = d.actTypes.filter(function(t){ return t && typeof t.name === 'string' && t.name.trim(); }).map(function(t){
+      return {name:String(t.name).trim().slice(0, 40), price:clampNum(t.price, 0, RES_MAX, 0)};
+    });
+  }
   d.calc = normCalc(d.calc);
   d.logs = normLogs(d.logs);
   fixLegacyExp(d);
@@ -8736,7 +8817,7 @@ function renderCalc(){
         '<span class="cur-act">' + (act ? esc(act.name) : '还没有活动') + '</span>' +
         '<span class="cur-sep">›</span>' +
         '<span class="cur-ses">' + (act ? '还没有记录' : '先建个活动') + '</span></div>' +
-        '<div class="cur-sub">' + (act ? '点下方「切换活动 / 记录」新建一条记录就能开始登记' : '点下方「切换活动 / 记录」新建活动，比如「秘宝之里」') + '</div>';
+        '<div class="cur-sub">' + (act ? '点这张卡搜索切换活动 / 记录，或新建一条记录开始登记' : '点这张卡新建活动，比如「秘宝之里」') + '</div>';
     }else{
       const sp = sesSpan(ses);
       const st = sesStats(ses);
@@ -8754,7 +8835,7 @@ function renderCalc(){
           '<span>本次 <b>' + st.total + '</b> 振</span>' +
           '<span>' + days + ' 天</span>' +
           '<span>' + esc(sesSpanText(ses, sp)) + '</span>' +
-          '<span class="cur-go">⇄ 点此切换活动 / 记录</span>' +
+          '<span class="cur-go">🔍 点此搜索切换</span>' +
         '</div>';
     }
     const pickHint = $('#calcPickHint');
@@ -8934,34 +9015,32 @@ function calcSesMetaHTML(act, ses){
   return h + '</div>';
 }
 
-/* 门票小判区：勾选需要门票 → 填单价 → 买 N 张（可多次、张数不限）→ 花费与明细。
-   秘宝之里默认单价 300，其他活动留空待填；已填过的以用户值为准。
-   购买按天合并写一条资源快照（小判减少），每笔写一条资源日志。 */
-function isTreasureAct(act){ return /秘宝/.test(String((act && act.name) || '')); }
+/* 门票小判区：单价从「活动设置」按活动类型读取（只读），这里只填买几张。
+   配置单价 > 0 = 该活动需要门票；单价 0 且没买过 = 不显示门票区（普通活动）。
+   买 N 张（可多次、张数不限）；按天合并写一条资源快照（小判减少），每笔写一条资源日志。 */
 function calcTicketHTML(act, ses){
   const t = (ses && ses.ticket) || {need:0, price:0, buys:[], ticketResId:''};
   const closed = !!(ses && ses.closed);
   const dis = closed ? ' disabled' : '';
-  /* 秘宝之里：单价从没填过时默认 300（写入数据，用户可改）；其他活动不预填 */
-  if(isTreasureAct(act) && !t.price && !t.buys.length) t.price = 300;
+  const price = ticketPriceOf((act && act.name) || '');   /* 单价统一读活动设置 */
+  const buys = Array.isArray(t.buys) ? t.buys : [];
+  /* 活动设置没配门票单价、也没买过 → 普通活动，不显示门票区 */
+  if(!price && !buys.length) return '';
+  const totalQ = buys.reduce(function(s,b){ return s + (Number(b.q)||0); }, 0);
+  const totalCost = buys.reduce(function(s,b){ return s + (Number(b.cost)||0); }, 0);
   let h = '<div class="calc-ticket">' +
-    '<div class="calc-tk-head">🎫 门票小判' +
-      '<label class="calc-check"><input type="checkbox" data-tkf="need"' + (t.need ? ' checked' : '') + dis +
-      '><span>这个活动需要门票</span></label></div>';
-  if(!t.need){
-    h += '<div class="calc-tk-tip">不勾选就是普通活动，不需要填任何门票信息。勾上后可记录买门票花的小判。</div>';
-    return h + '</div>';
+    '<div class="calc-tk-head">🎫 门票小判 <span class="tk-price-tag">' +
+      (price ? ('单价 ' + fmtNum(price) + ' 小判/张') : '门票单价已在活动设置中关闭') + '</span></div>';
+  if(price){
+    h += '<div class="calc-tk-note">门票单价来自「⚙️ 活动设置 → ' + esc((act && act.name) || '活动') +
+      '」，在活动记录里不能改；要改价格去活动设置页。</div>' +
+      '<div class="calc-tk-set">' +
+        '<label class="calc-mf"><span>买几张</span><input type="number" min="1" step="1" id="tkQty" value="1"' + dis + '></label>' +
+        (closed ? '' : '<button class="btn calc-tk-buy" data-tkact="buy">🪙 购买</button>') +
+      '</div>';
   }
-  const price = t.price || 0;
-  const totalQ = t.buys.reduce(function(s,b){ return s + (Number(b.q)||0); }, 0);
-  const totalCost = t.buys.reduce(function(s,b){ return s + (Number(b.cost)||0); }, 0);
-  h += '<div class="calc-tk-set">' +
-      '<label class="calc-mf"><span>每张门票</span><input type="number" min="0" max="999999999" step="1" data-tkf="price" value="' + price + '" placeholder="小判/张"' + dis + '></label>' +
-      '<label class="calc-mf"><span>买几张</span><input type="number" min="1" step="1" id="tkQty" value="1"' + dis + '></label>' +
-      (closed ? '' : '<button class="btn calc-tk-buy" data-tkact="buy">🪙 购买</button>') +
-    '</div>';
-  if(t.buys.length){
-    h += '<div class="calc-tk-list">' + t.buys.map(function(b, i){
+  if(buys.length){
+    h += '<div class="calc-tk-list">' + buys.map(function(b, i){
       const dt = new Date(b.ts || Date.now());
       const tm = ('0'+dt.getHours()).slice(-2) + ':' + ('0'+dt.getMinutes()).slice(-2);
       return '<div class="calc-tk-row"><span class="tk-q">× ' + b.q + ' 张</span>' +
@@ -8971,10 +9050,10 @@ function calcTicketHTML(act, ses){
         '</div>';
     }).join('') + '</div>';
     h += '<div class="calc-tk-sum"><span>共买 <b>' + totalQ + '</b> 张</span><span>花费 <b>' + fmtNum(totalCost) + '</b> 小判</span></div>';
-  }else{
-    h += '<div class="calc-tk-tip">填好单价和张数，点「购买」记一笔；可买多次，同一天合并记一条资源。</div>';
+  }else if(price){
+    h += '<div class="calc-tk-tip">填张数，点「购买」记一笔；可买多次，同一天合并记一条资源。</div>';
   }
-  h += '<div class="calc-tk-tip">每次花费 = 张数 × 单价，并在资源记录里扣掉对应小判、写一条资源日志（按时间归到本活动）。</div>';
+  if(price) h += '<div class="calc-tk-tip">每次花费 = 张数 × 单价，并在资源记录里扣掉对应小判、写一条资源日志（按时间归到本活动）。</div>';
   return h + '</div>';
 }
 
@@ -8985,9 +9064,9 @@ function calcBuyTicket(){
   const ses = curSes();
   if(!d || !ses || ses.closed) return;
   const t = ses.ticket || (ses.ticket = {need:0, price:0, buys:[], ticketResId:''});
-  if(!t.need){ toast('先勾选「需要门票」', true); return; }
-  const price = clampNum(t.price, 0, RES_MAX, 0);
-  if(!price){ toast('先填每张门票的小判数', true); return; }
+  /* 门票单价统一从活动设置读取，记录里不再填写 */
+  const price = ticketPriceOf((act && act.name) || '');
+  if(!price){ toast('这个活动没有配置门票单价，去「活动设置」里填', true); return; }
   const qtyEl = $('#tkQty');
   const q = clampNum(qtyEl ? qtyEl.value : 1, 1, RES_MAX, 1);
   const cost = price * q;
@@ -9808,16 +9887,130 @@ function calcPrompt(title, sub, dft, onOk, placeholder){
   });
   setTimeout(function(){ const el = $('#cpName'); if(el){ el.focus(); el.select(); } }, 60);
 }
+/* 切换活动 / 记录：方案B——点当前卡弹出搜索面板，输入即筛，点记录即切换 */
+function openActSwitch(){
+  const c = calcStateOf();
+  const acts = (c && Array.isArray(c.acts)) ? c.acts : [];
+  openModal({
+    title:'🔍 切换活动 / 记录',
+    sub:'搜活动名或记录名，点记录即切换。当前正在看的会高亮。',
+    body:'<div class="asw-hint info">输入即筛，不用翻长长的列表。</div>' +
+      '<input class="input" id="swQ" placeholder="搜活动 / 记录名…" autocomplete="off">' +
+      '<div id="swList" class="sw-list"></div>' +
+      '<div class="as-foot">' +
+        '<button class="btn primary" id="swNewAct">＋ 新建活动</button>' +
+        '<button class="btn" id="swNewSes">＋ 新建记录</button>' +
+      '</div>',
+    actions:[{text:'关闭', cls:'btn', onClick:closeModal}]
+  });
+  const list = $('#swList');
+  function renderList(q){
+    if(!list) return;
+    q = String(q || '').trim().toLowerCase();
+    let html = '', shown = 0;
+    acts.forEach(function(a){
+      const sesArr = Array.isArray(a.sessions) ? a.sessions : [];
+      const actHit = !q || String(a.name).toLowerCase().indexOf(q) >= 0;
+      const hitSes = sesArr.filter(function(s){ return !q || String(s.name).toLowerCase().indexOf(q) >= 0; });
+      if(!actHit && !hitSes.length) return;
+      shown++;
+      const showSes = q ? (actHit ? sesArr : hitSes) : sesArr;
+      html += '<div class="sw-act' + (a.id === c.cur ? ' on' : '') + '" data-swact="'+esc(a.id)+'">' +
+        '<div class="sw-act-h">🎪 '+esc(a.name)+' <span class="sw-n">'+sesArr.length+' 条记录</span></div><div class="sw-ses">';
+      if(!showSes.length) html += '<span class="sw-none">还没记录，点下面「＋ 新建记录」</span>';
+      showSes.forEach(function(s){
+        const n = sesTotal(s), live = !s.closed;
+        html += '<button class="sw-ses-row' + (a.id===c.cur && s.id===c.curS ? ' on' : '') + '" data-swact="'+esc(a.id)+'" data-swses="'+esc(s.id)+'">' +
+          '<span class="sw-ses-nm">'+esc(s.name)+'</span>' +
+          '<span class="sw-ses-meta">'+(live?'● 进行中':'🔒 已结束')+(n?' · '+n+' 振':'')+'</span></button>';
+      });
+      html += '</div></div>';
+    });
+    if(!shown) html = '<div class="sw-none" style="padding:16px 4px;">没找到匹配的活动 / 记录</div>';
+    list.innerHTML = html;
+  }
+  renderList('');
+  const qi = $('#swQ');
+  if(qi) qi.addEventListener('input', function(){ renderList(this.value); });
+  if(list) list.addEventListener('click', function(e){
+    const row = e.target.closest('[data-swses]');
+    if(row){
+      c.cur = row.getAttribute('data-swact');
+      c.curS = row.getAttribute('data-swses');
+      calcOpsOpen = false; save(); closeModal(); renderCalc();
+      calcStatus('已切到「'+safeNameOf(curAct() && curAct().name)+'」');
+      return;
+    }
+    const act = e.target.closest('[data-swact]');
+    if(act){
+      const a = acts.find(function(x){ return x.id === act.getAttribute('data-swact'); });
+      if(!a) return;
+      c.cur = a.id;
+      c.curS = (a.sessions.length ? a.sessions[a.sessions.length-1].id : '');
+      calcOpsOpen = false; save(); renderList(qi ? qi.value : ''); renderCalc();
+    }
+  });
+  const na = $('#swNewAct'), ns = $('#swNewSes');
+  if(na) na.onclick = function(){ closeModal(); setTimeout(calcNewAct, 60); };
+  if(ns) ns.onclick = function(){ closeModal(); setTimeout(calcNewSes, 60); };
+  setTimeout(function(){ if(qi) qi.focus(); }, 60);
+}
+/* 安全取名（活动名不涉及刀名，做个兜底避免 undefined 显示） */
+function safeNameOf(s){ return String(s || '该活动'); }
+/* 新建活动：仿「新增刀剑」——输入即出候选（活动类型来自活动设置），点候选反填；
+   也可直接输入新名字。建好后门票单价自动按活动类型从活动设置读取。 */
 function calcNewAct(){
-  calcPrompt('🎪 新建活动', '给这个活动起个名字，比如「联动活动」「秘宝之里」。', '',
-    function(name){
-      const c = calcStateOf();
-      const act = {id:uid(), name:name, created:Date.now(), sessions:[]};
-      c.acts.push(act);
-      c.cur = act.id; c.curS = '';
-      save(); renderCalc();
-      calcStatus('已新建活动「' + name + '」，接着点「＋ 新建记录」');
-    }, '活动名称');
+  const d = curData();
+  const types = (d && Array.isArray(d.actTypes)) ? d.actTypes.map(function(t){ return t.name; }) : [];
+  openModal({
+    title:'＋ 新建活动',
+    sub:'输入即出候选（活动类型来自「⚙️ 活动设置」）：点一行就按它建活动；都不对就直接输入新名字。门票单价自动带出，不用在这里填。',
+    body:'<div class="asw-hint info" id="nsaHint">打一个字试试，如「秘宝」「大阪」「江户」。</div>' +
+      '<label class="fld"><span>活动名称</span><input type="text" id="nsaName" maxlength="40" placeholder="搜活动类型，或直接输入新活动名" autocomplete="off"></label>' +
+      '<div class="asw-sug" id="nsaSug" hidden></div>' +
+      '<div class="calc-form-tip" id="nsaTip">门票单价：由活动设置按活动类型自动决定，建好后到活动记录里只读显示。</div>',
+    actions:[
+      {text:'取消', cls:'btn', onClick:closeModal},
+      {text:'建活动', cls:'btn primary', onClick:function(){
+        const name = ($('#nsaName').value || '').trim();
+        if(!name){ toast('活动名称不能为空', true); $('#nsaName').focus(); return; }
+        const c = calcStateOf();
+        const act = {id:uid(), name:name.slice(0,40), created:Date.now(), sessions:[]};
+        c.acts.push(act);
+        c.cur = act.id; c.curS = '';
+        save(); closeModal(); renderCalc();
+        const tp = ticketPriceOf(name);
+        calcStatus('已新建活动「' + name + '」' + (tp ? '（门票 '+tp+' 小判/张已带出）' : '') + '，接着点「＋ 新建记录」');
+      }}
+    ]
+  });
+  setTimeout(function(){
+    const inp = $('#nsaName'); if(!inp) return;
+    inp.focus();
+    inp.addEventListener('input', function(){
+      const q = inp.value.trim();
+      const box = $('#nsaSug');
+      if(!q){ box.hidden = true; box.innerHTML = ''; $('#nsaTip').textContent = '门票单价：由活动设置按活动类型自动决定，建好后到活动记录里只读显示。'; return; }
+      const hit = types.filter(function(t){ return t.indexOf(q) >= 0; });
+      let rows = hit.map(function(t){
+        const p = ticketPriceOf(t);
+        return '<div class="asw-sug-item" data-nsa="'+esc(t)+'">🎪 '+esc(t)+'<i>'+(p?p+' 小判/张':'无门票')+'</i></div>';
+      }).join('');
+      rows += '<div class="asw-sug-empty">都不对，用「'+esc(q)+'」作为新活动 <button class="asw-sug-add" data-nsa="'+esc(q)+'">建这个</button></div>';
+      box.innerHTML = rows; box.hidden = false;
+      const auto = hit.length ? hit[0] : '';
+      $('#nsaTip').textContent = auto
+        ? ('候选「'+auto+'」的门票单价：' + (ticketPriceOf(auto)?ticketPriceOf(auto)+' 小判/张':'无门票') + '（来自活动设置）')
+        : ('新活动「'+q+'」：活动设置里没有同名类型，门票单价默认 0（需要门票请去活动设置添加类型并填单价）');
+    });
+    $('#nsaSug').addEventListener('click', function(e){
+      const it = e.target.closest('[data-nsa]');
+      if(!it) return;
+      const nm = it.getAttribute('data-nsa');
+      inp.value = nm; this.hidden = true;
+      $('#nsaTip').textContent = '门票单价：' + (ticketPriceOf(nm)?ticketPriceOf(nm)+' 小判/张':'无门票') + '（来自活动设置，只读）';
+    });
+  }, 60);
 }
 function calcNewSes(){
   const act = curAct();
@@ -10263,18 +10456,6 @@ function bindCalc(){
   $('#calcStats').addEventListener('change', function(e){
     const ses = curSes();
     if(!ses) return;
-    /* 门票：need 勾选 / price 单价 */
-    const tkEl = e.target.closest('[data-tkf]');
-    if(tkEl){
-      if(ses.closed) return;
-      const t = ses.ticket || (ses.ticket = {need:0, price:0, buys:[], ticketResId:''});
-      const tf = tkEl.dataset.tkf;
-      if(tf === 'need') t.need = tkEl.checked ? 1 : 0;
-      else if(tf === 'price') t.price = clampNum(tkEl.value, 0, RES_MAX, 0);
-      save();
-      setTimeout(renderCalc, 0);
-      return;
-    }
     const el = e.target.closest('[data-sesf]');
     if(!el) return;
     const f = el.dataset.sesf;
@@ -10303,19 +10484,9 @@ function bindCalc(){
     if(tkDel){ calcDelTicket(Number(tkDel.dataset.tkdel)); return; }
   });
 
-  /* 当前记录卡：点一下展开/收起「切换活动 / 记录」区；展开态持久化 */
+  /* 当前记录卡：点一下弹出「切换活动 / 记录」搜索面板（方案B） */
   const curCard = $('#calcCurrent');
-  const pickBox = $('#calcPick');
-  if(curCard && pickBox){
-    try{ pickBox.open = (localStorage.getItem('hk_recpick_open') === '1'); }catch(e){}
-    curCard.addEventListener('click', function(){
-      pickBox.open = !pickBox.open;
-      try{ localStorage.setItem('hk_recpick_open', pickBox.open ? '1' : '0'); }catch(e){}
-    });
-    pickBox.addEventListener('toggle', function(){
-      try{ localStorage.setItem('hk_recpick_open', pickBox.open ? '1' : '0'); }catch(e){}
-    });
-  }
+  if(curCard) curCard.addEventListener('click', openActSwitch);
 
   $('#calcActs').addEventListener('click', function(e){
     if(e.target.closest('[data-actmore]')){
@@ -11783,6 +11954,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.29 新增「活动设置」页，切换改搜索弹窗',
+     '<p>① 侧栏新增<b>「⚙️ 活动设置」</b>页：预置现在 5 个活动类型，每个可改名、删除、新增；<b>门票单价和活动类型放一起</b>、可直接改（秘宝之里默认 300，留空=不要门票）。活动记录页的门票单价改为<b>读取这里的配置、只读</b>，不再在记录里填。</p>' +
+     '<p>② 「＋ 新建活动」仿「新增刀剑」：<b>输入即出候选</b>，点一行反填。③ 点顶部当前记录卡改为弹出<b>搜索面板</b>，搜活动/记录名即筛、点记录即切换。④ 移除了「反馈与支持」入口。</p>',
+     '2026.11'],
     ['V3.28 登记反馈与门票微调',
      '<p>① 按钮「掉了一把」改为<b>「登记」</b>，登记成功会弹出提示。② <b>秘宝之里</b>门票单价<b>默认 300 小判</b>（可改），其他活动仍留空待填。③ 门票<b>购买张数不再限 99</b>，想买多少填多少。④「切换活动 / 记录」移到当前卡正下方，不再夹在登记框和统计中间。</p>',
      '2026.11'],
@@ -12389,31 +12564,84 @@ function openOpenPool(){
   };
 }
 
-function openFeedback(){
-  const list = (S.feedback || []).slice(-3).reverse();
-  const history = list.length
-    ? '<div style="margin-top:14px;border-top:1px dashed var(--line);padding-top:10px;">' +
-      '<div class="block-title">最近提交</div>' +
-      list.map(function(f){
-        return '<div style="font-size:11.5px;color:var(--sub);margin-bottom:6px;">· <b style="font-weight:400;color:var(--accent-deep)">'+esc(f.contact||'匿名')+'</b>：'+esc(f.text)+'</div>';
-      }).join('') +
-      '</div>'
-    : '';
+/* =========================================================
+   活动设置页：活动类型 + 门票单价（活动记录读取此配置）
+   ========================================================= */
+function renderActSet(){
+  const box = $('#actSetBody');
+  if(!box) return;
+  const d = curData();
+  const list = (d && Array.isArray(d.actTypes)) ? d.actTypes : [];
+  let h = '<div class="as-card">' +
+    '<h3>🎪 活动类型</h3>' +
+    '<p class="as-sub">这里维护所有活动类型，新增活动记录时从这里选。门票单价和类型放在一起，改一处全局生效。</p>' +
+    '<div class="as-head"><span>活动类型</span><span>门票单价（小判/张）</span><span>操作</span></div>' +
+    '<div class="as-list">' +
+      (list.length ? list.map(function(t, i){
+        return '<div class="as-row" data-asi="'+i+'">' +
+          '<span class="as-name" title="'+esc(t.name)+'">'+esc(t.name)+'</span>' +
+          '<input class="as-price" data-asprice="'+i+'" type="number" min="0" max="999999999" step="1" ' +
+            'value="'+(Number(t.price)>0 ? t.price : '')+'" placeholder="留空=不需要门票">' +
+          '<span class="as-ops">' +
+            '<button data-asedit="'+i+'" title="改名">✎</button>' +
+            '<button class="danger" data-asdel="'+i+'" title="删除">🗑</button>' +
+          '</span>' +
+        '</div>';
+      }).join('') : '<div class="muted" style="padding:12px 2px;font-size:11.5px;">还没有活动类型，点下面「＋ 新增活动类型」</div>') +
+    '</div>' +
+    '<div class="as-foot">' +
+      '<button class="btn primary" id="btnAsAdd">＋ 新增活动类型</button>' +
+      '<button class="btn" id="btnAsReset">↻ 恢复默认 5 个</button>' +
+    '</div>' +
+    '<div class="as-tip">门票单价留空 = 该活动不需要门票，活动记录页不会显示门票区。<b>秘宝之里</b>默认 300 小判/张；改完自动保存，活动记录页立即读取新值。已买过的门票记录不会被改动。</div>' +
+  '</div>';
+  box.innerHTML = h;
+}
+function asAddType(){
   openModal({
-    title:'💬 反馈与支持',
-    sub:'这是纯前端版本，反馈会暂存在本机，方便你整理后统一提交给开发者。',
-    body:'<input class="input" id="fbContact" placeholder="你的联系方式（可选）" maxlength="30">' +
-         '<textarea id="fbText" placeholder="遇到了什么问题，或希望增加什么功能？"></textarea>' + history,
+    title:'＋ 新增活动类型',
+    sub:'输入活动类型名称，比如「联动活动」。门票单价可稍后在列表里填。',
+    body:'<label class="fld"><span>活动类型名称</span><input type="text" id="asName" maxlength="40" placeholder="如 联动活动"></label>',
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
-      {text:'提交反馈', cls:'btn primary', onClick:function(){
-        const text = ($('#fbText').value || '').trim();
-        if(!text){ toast('请先写一点内容', true); return; }
-        S.feedback.push({contact:($('#fbContact').value || '').trim(), text:text, ts:Date.now()});
-        save(); closeModal(); toast('感谢反馈，已记录在本机');
+      {text:'添加', cls:'btn primary', onClick:function(){
+        const name = ($('#asName').value || '').trim();
+        if(!name){ toast('名称不能为空', true); $('#asName').focus(); return; }
+        const d = curData();
+        if(d.actTypes.some(function(t){ return t.name === name; })){ toast('这个活动类型已存在', true); return; }
+        d.actTypes.push({name:name, price:0});
+        save(); closeModal(); renderActSet(); toast('已添加活动类型「'+name+'」');
       }}
     ]
   });
+  setTimeout(function(){ const el=$('#asName'); if(el){ el.focus(); el.select(); } }, 60);
+}
+function asEditType(i){
+  const d = curData(), t = d.actTypes[i];
+  if(!t) return;
+  openModal({
+    title:'✎ 修改活动类型',
+    sub:'改名后，用旧名字建的活动会自动归到新名字下（按名称匹配门票配置）。',
+    body:'<label class="fld"><span>活动类型名称</span><input type="text" id="asEditName" maxlength="40" value="'+esc(t.name)+'"></label>',
+    actions:[
+      {text:'取消', cls:'btn', onClick:closeModal},
+      {text:'保存', cls:'btn primary', onClick:function(){
+        const name = ($('#asEditName').value || '').trim();
+        if(!name){ toast('名称不能为空', true); return; }
+        if(name !== t.name && d.actTypes.some(function(x){ return x.name === name; })){ toast('这个活动类型已存在', true); return; }
+        t.name = name;
+        save(); closeModal(); renderActSet(); toast('已改为「'+name+'」');
+      }}
+    ]
+  });
+  setTimeout(function(){ const el=$('#asEditName'); if(el){ el.focus(); el.select(); } }, 60);
+}
+function asDelType(i){
+  const d = curData(), t = d.actTypes[i];
+  if(!t) return;
+  if(!confirm('删除活动类型「'+t.name+'」？\n已有的活动记录不会删除，只是不再有这个类型配置。')) return;
+  d.actTypes.splice(i, 1);
+  save(); renderActSet(); toast('已删除「'+t.name+'」');
 }
 
 /* =========================================================
@@ -12425,6 +12653,7 @@ const TITLES = {
   daily:['本丸','每日统计'],
   resources:['本丸','资源记录'],
   records:['本丸','活动记录'],
+  actset:['本丸','活动设置'],
   tpl:['刀帐','全服模板']
 };
 function renderAll(){
@@ -12434,6 +12663,7 @@ function renderAll(){
   if(ui.tab === 'daily') renderDaily();
   if(ui.tab === 'resources') renderResources();
   if(ui.tab === 'records') renderCalc();
+  if(ui.tab === 'actset') renderActSet();
   vsSchedule();   /* 列表长度变了（筛选 / 搜索），滚动条跟着重算 */
 }
 function vsSchedule(){
@@ -12448,6 +12678,7 @@ function switchTab(tab){
   $('#viewDaily').hidden = tab !== 'daily';
   $('#viewResources').hidden = tab !== 'resources';
   $('#viewRecords').hidden = tab !== 'records';
+  $('#viewActSet').hidden = tab !== 'actset';
   $('#viewTpl').hidden = tab !== 'tpl';
   const tplEntryEl = $('#tplEntry'); if(tplEntryEl) tplEntryEl.classList.toggle('on', tab === 'tpl');
   $('#pageTitle').innerHTML = '<span>'+TITLES[tab][0]+'</span>'+TITLES[tab][1];
@@ -12600,7 +12831,32 @@ function initEvents(){
   $('#btnOpenPool').onclick = openOpenPool;
 
   $('#btnNotice').onclick = openNotice;
-  $('#btnFeedback').onclick = openFeedback;
+  /* 活动设置页：改名 / 删除 / 新增 / 门票单价 */
+  const asBody = $('#actSetBody');
+  if(asBody){
+    asBody.addEventListener('click', function(e){
+      if(e.target.closest('#btnAsAdd')){ asAddType(); return; }
+      const rs = e.target.closest('#btnAsReset');
+      if(rs){
+        if(!confirm('恢复默认的 5 个活动类型？会覆盖你现在的类型和门票单价。')) return;
+        const d = curData(); d.actTypes = seedActTypes();
+        save(); renderActSet(); toast('已恢复默认活动类型'); return;
+      }
+      const ed = e.target.closest('[data-asedit]');
+      if(ed){ asEditType(Number(ed.dataset.asedit)); return; }
+      const dl = e.target.closest('[data-asdel]');
+      if(dl){ asDelType(Number(dl.dataset.asdel)); return; }
+    });
+    asBody.addEventListener('change', function(e){
+      const px = e.target.closest('[data-asprice]');
+      if(!px) return;
+      const i = Number(px.dataset.asprice);
+      const d = curData(), t = d.actTypes[i];
+      if(!t) return;
+      t.price = clampNum(px.value, 0, RES_MAX, 0);
+      save(); renderActSet(); toast('「'+t.name+'」门票单价已设为 '+(t.price ? t.price+' 小判/张' : '不需要门票'));
+    });
+  }
 
   const search = $('#fSearch');
   search.addEventListener('input', function(){
