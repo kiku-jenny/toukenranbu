@@ -2046,7 +2046,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.27</div>
+        <div class="brand-sub">HONMARU KEEPER V3.28</div>
       </div>
     </div>
 
@@ -2449,27 +2449,7 @@
         <!-- ① 当前记录卡：置顶显示 活动›记录·状态·振数·起止，点卡片任意处展开下方切换区 -->
         <div class="calc-current" id="calcCurrent"></div>
 
-        <!-- ② 登记框上移：打开页面就能录，不必先滚过活动/记录列表 -->
-        <div class="calc-box">
-          <div class="calc-box-title">掉落登记 · 掉一把就点一次</div>
-          <div class="calc-drop-row">
-            <div class="calc-picker" id="calcPicker">
-              <input type="text" id="calcInput" placeholder="搜刀名或编号，回车直接登记…" autocomplete="off">
-              <button class="calc-clear" id="calcClear" title="清空">✕</button>
-              <div class="calc-suggest" id="calcSuggest"></div>
-            </div>
-            <button class="btn primary" id="btnAddDrop">掉了一把</button>
-          </div>
-          <div class="calc-tools">
-            <label class="calc-check"><input type="checkbox" id="calcBoost"><span>登记时同步乱舞进度（喂满自动 +1）</span></label>
-            <button class="btn calc-addsw" id="btnAddSwordCalc">＋ 图鉴没有？补录一把</button>
-            <button class="btn calc-addsw" id="btnFillFlowerCalc" hidden>🌸 补全花数</button>
-            <button class="btn calc-undo" id="btnUndoDrop" hidden title="撤销最近一把登记，乱舞/日志/统计一并回退">↩ 撤销一把</button>
-            <span class="calc-status" id="calcStatus"></span>
-          </div>
-        </div>
-
-        <!-- ③ 活动 / 记录切换区：折叠收纳，点上方当前卡或这里展开；新建入口也在里面 -->
+        <!-- ② 活动 / 记录切换区：紧跟当前卡，点当前卡即展开；新建入口也在里面 -->
         <details class="calc-pick" id="calcPick">
           <summary><span class="calc-pick-t">⇄ 切换活动 / 记录</span><span class="calc-pick-hint" id="calcPickHint"></span><span class="calc-pick-arrow">▾</span></summary>
           <div class="calc-pick-body">
@@ -2495,6 +2475,26 @@
             </div>
           </div>
         </details>
+
+        <!-- ③ 登记框：打开页面就能录 -->
+        <div class="calc-box">
+          <div class="calc-box-title">掉落登记 · 掉一把就点一次</div>
+          <div class="calc-drop-row">
+            <div class="calc-picker" id="calcPicker">
+              <input type="text" id="calcInput" placeholder="搜刀名或编号，回车直接登记…" autocomplete="off">
+              <button class="calc-clear" id="calcClear" title="清空">✕</button>
+              <div class="calc-suggest" id="calcSuggest"></div>
+            </div>
+            <button class="btn primary" id="btnAddDrop">登记</button>
+          </div>
+          <div class="calc-tools">
+            <label class="calc-check"><input type="checkbox" id="calcBoost"><span>登记时同步乱舞进度（喂满自动 +1）</span></label>
+            <button class="btn calc-addsw" id="btnAddSwordCalc">＋ 图鉴没有？补录一把</button>
+            <button class="btn calc-addsw" id="btnFillFlowerCalc" hidden>🌸 补全花数</button>
+            <button class="btn calc-undo" id="btnUndoDrop" hidden title="撤销最近一把登记，乱舞/日志/统计一并回退">↩ 撤销一把</button>
+            <span class="calc-status" id="calcStatus"></span>
+          </div>
+        </div>
 
         <div id="calcStats"></div>
         <div id="calcDrops"></div>
@@ -8616,7 +8616,7 @@ function normCalc(c){
             buys: Array.isArray(t.buys) ? t.buys.filter(function(b){
               return b && Number(b.q) > 0 && Number(b.cost) >= 0 && /^\d{4}-\d{2}-\d{2}$/.test(String(b.date || ''));
             }).map(function(b){
-              return {q:clampNum(b.q,1,99,1), cost:clampNum(b.cost,0,RES_MAX,0), date:String(b.date), ts:Number(b.ts)||Date.now(),
+              return {q:clampNum(b.q,1,RES_MAX,1), cost:clampNum(b.cost,0,RES_MAX,0), date:String(b.date), ts:Number(b.ts)||Date.now(),
                       logId: b.logId ? String(b.logId) : ''};
             }) : [],
             ticketResId: t.ticketResId ? String(t.ticketResId) : ''
@@ -8934,12 +8934,16 @@ function calcSesMetaHTML(act, ses){
   return h + '</div>';
 }
 
-/* 门票小判区：勾选需要门票 → 填单价 → 买 1-99 张（可多次）→ 花费与明细。
+/* 门票小判区：勾选需要门票 → 填单价 → 买 N 张（可多次、张数不限）→ 花费与明细。
+   秘宝之里默认单价 300，其他活动留空待填；已填过的以用户值为准。
    购买按天合并写一条资源快照（小判减少），每笔写一条资源日志。 */
-function calcTicketHTML(ses){
+function isTreasureAct(act){ return /秘宝/.test(String((act && act.name) || '')); }
+function calcTicketHTML(act, ses){
   const t = (ses && ses.ticket) || {need:0, price:0, buys:[], ticketResId:''};
   const closed = !!(ses && ses.closed);
   const dis = closed ? ' disabled' : '';
+  /* 秘宝之里：单价从没填过时默认 300（写入数据，用户可改）；其他活动不预填 */
+  if(isTreasureAct(act) && !t.price && !t.buys.length) t.price = 300;
   let h = '<div class="calc-ticket">' +
     '<div class="calc-tk-head">🎫 门票小判' +
       '<label class="calc-check"><input type="checkbox" data-tkf="need"' + (t.need ? ' checked' : '') + dis +
@@ -8953,7 +8957,7 @@ function calcTicketHTML(ses){
   const totalCost = t.buys.reduce(function(s,b){ return s + (Number(b.cost)||0); }, 0);
   h += '<div class="calc-tk-set">' +
       '<label class="calc-mf"><span>每张门票</span><input type="number" min="0" max="999999999" step="1" data-tkf="price" value="' + price + '" placeholder="小判/张"' + dis + '></label>' +
-      '<label class="calc-mf"><span>买几张(1-99)</span><input type="number" min="1" max="99" step="1" id="tkQty" value="1"' + dis + '></label>' +
+      '<label class="calc-mf"><span>买几张</span><input type="number" min="1" step="1" id="tkQty" value="1"' + dis + '></label>' +
       (closed ? '' : '<button class="btn calc-tk-buy" data-tkact="buy">🪙 购买</button>') +
     '</div>';
   if(t.buys.length){
@@ -8985,7 +8989,7 @@ function calcBuyTicket(){
   const price = clampNum(t.price, 0, RES_MAX, 0);
   if(!price){ toast('先填每张门票的小判数', true); return; }
   const qtyEl = $('#tkQty');
-  const q = clampNum(qtyEl ? qtyEl.value : 1, 1, 99, 1);
+  const q = clampNum(qtyEl ? qtyEl.value : 1, 1, RES_MAX, 1);
   const cost = price * q;
   const now = new Date();
   const date = calcDayKey(now);
@@ -9096,7 +9100,7 @@ function calcStatsHTML(act, ses){
   const closed = !!ses.closed;
   let h = '<div class="calc-stats">';
   h += calcSesMetaHTML(act, ses);
-  h += calcTicketHTML(ses);
+  h += calcTicketHTML(act, ses);
   if(closed){
     h += '<div class="calc-closed-bar">🔒 这次活动已于 ' + esc(fmtDate(new Date(ses.closed))) + ' 结束，记录已锁定</div>';
   }
@@ -9646,6 +9650,7 @@ function addDrop(){
   renderCalc();
   calcStatus('🌸 ' + swordName(no) + ' 已登记（今日 ' + ses.daily[day][no] + ' 振·本次 ' + sesTotal(ses) + ' 振）' +
     (isFirst ? ' · 本次首振' : '') + boostTxt + addedTip + ' · 可点「↩ 撤销一把」回退');
+  toast('🌸 已登记 ' + swordName(no) + ' · 本次 ' + sesTotal(ses) + ' 振');
   const inp = $('#calcInput');
   if(inp && inp.value) inp.select();
 }
@@ -11778,6 +11783,9 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.28 登记反馈与门票微调',
+     '<p>① 按钮「掉了一把」改为<b>「登记」</b>，登记成功会弹出提示。② <b>秘宝之里</b>门票单价<b>默认 300 小判</b>（可改），其他活动仍留空待填。③ 门票<b>购买张数不再限 99</b>，想买多少填多少。④「切换活动 / 记录」移到当前卡正下方，不再夹在登记框和统计中间。</p>',
+     '2026.11'],
     ['V3.27 活动记录页界面重排：打开就能录',
      '<p>按之前预览的方向做了界面重排，功能一个没删，只是把常用的挪到眼前：</p>' +
      '<p>① 顶部新增<b>「当前记录卡」</b>：一眼看清现在在哪个活动 › 哪条记录、进行中还是已结束、本次多少振、起止日期；点这张卡就能展开切换区。</p>' +
