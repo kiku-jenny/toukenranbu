@@ -1355,14 +1355,16 @@
   .calc-drop-item{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px dashed var(--line);font-size:12px;}
   .calc-drop-item:last-child{border-bottom:none;}
   .calc-drop-item:hover{background:var(--surface-2);}
-  .calc-drop-name{flex:0 1 auto;min-width:0;max-width:44%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;}
-  .calc-drop-name:hover{color:var(--accent-deep);text-decoration:underline dotted;}
+  .calc-drop-name{flex:0 1 auto;min-width:0;max-width:44%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .calc-drop-no{flex:0 0 auto;font-family:ui-monospace,Menlo,monospace;font-size:9.5px;color:#c6b1b7;letter-spacing:.01em;}
-  .calc-drop-edit{
-    flex:0 0 auto;width:20px;height:20px;border-radius:50%;border:1px dashed var(--line-strong);background:var(--surface);
-    color:var(--muted);font-size:10px;line-height:1;display:grid;place-items:center;padding:0;
+  /* 掉落明细标亮：未拥有 / 新刀，一眼看出哪些还没拿到 */
+  .calc-drop-item.hi-unowned{background:rgba(200,150,95,.10);}
+  .calc-drop-item.hi-new{background:rgba(79,131,101,.12);}
+  .calc-drop-badge{
+    flex:0 0 auto;font-size:9px;line-height:1.5;border-radius:5px;padding:1px 5px;white-space:nowrap;letter-spacing:.03em;
   }
-  .calc-drop-edit:hover{border-color:var(--accent);color:var(--accent-deep);background:var(--surface-2);}
+  .calc-drop-badge.unowned{background:rgba(200,150,95,.18);color:#9c6a35;border:1px solid rgba(200,150,95,.32);}
+  .calc-drop-badge.new{background:rgba(79,131,101,.16);color:#3f7a5b;border:1px solid rgba(79,131,101,.3);}
   .calc-drop-type{flex:0 0 auto;font-size:10px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:0 5px;line-height:1.65;}
   .calc-drop-flower{flex:0 0 34px;margin-left:auto;text-align:right;font-size:10.5px;color:#b98d5a;}
   .calc-drop-ctrl{display:flex;align-items:center;gap:8px;flex:0 0 auto;margin-left:0;}
@@ -1952,7 +1954,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.20</div>
+        <div class="brand-sub">HONMARU KEEPER V3.21</div>
       </div>
     </div>
 
@@ -2346,7 +2348,7 @@
       <div class="panel">
         <div class="panel-head">
           <h2>🎪 活动记录</h2>
-          <p>掉一把记一次 · 点刀名可改名称 / 花数并同步图鉴 · 同一个活动可以开多条记录，结束后进历史总表</p>
+          <p>掉一把记一次 · 未拥有 / 新刀会高亮标出 · 改名称花数到图鉴页 · 同一个活动可以开多条记录，结束后进历史总表</p>
         </div>
 
         <div class="filter-row">
@@ -2381,6 +2383,7 @@
 
         <div class="calc-acts">
           <button class="btn" id="btnShare">🖼 生成分享图</button>
+          <button class="btn" id="btnOpsToggle" hidden>⚙ 管理操作</button>
           <button class="btn" id="btnCloseSes">🔒 结束本次活动</button>
           <button class="btn" id="btnClearSes">🧹 清空本记录</button>
           <button class="btn" id="btnDelSes">🗑 删除本记录</button>
@@ -8400,6 +8403,7 @@ function clearLogs(){
 
 let calcPickNo = 0;
 let calcSortMode = 'no';
+let calcOpsOpen = false;   /* 已结束记录：管理操作是否展开（默认收起，防误触） */
 let calcStatusTimer = null;
 let calcSuggestIdx = -1;
 
@@ -8566,8 +8570,9 @@ function renderCalc(){
   const actBox = $('#calcActs');
   if(actBox){
     actBox.innerHTML = c.acts.map(function(a){
-      const n = a.sessions.reduce(function(s, x){ return s + sesTotal(x); }, 0);
-      return '<button class="chip' + (a.id === c.cur ? ' active' : '') + '" data-cact="' + a.id + '">' +
+      const n = a.sessions.length;   /* 一个活动对应几条记录（不是振数，后续记录会很多） */
+      return '<button class="chip' + (a.id === c.cur ? ' active' : '') + '" data-cact="' + a.id + '"' +
+        ' title="' + n + ' 条记录">' +
         esc(a.name) + (n ? '<span class="cnt">' + n + '</span>' : '') + '</button>';
     }).join('') + '<button class="chip ghost" data-cact="new">＋ 新建活动</button>';
   }
@@ -8608,17 +8613,28 @@ function renderCalc(){
   $('#calcDrops').innerHTML = calcDropsHTML(ses);
   $('#calcHistory').innerHTML = calcHistHTML();
 
-  /* ⑤ 操作按钮 */
+  /* ⑤ 操作按钮：记录已结束时，修改/删除类默认收起，点「⚙ 管理操作」才展开，防误触 */
   const closeBtn = $('#btnCloseSes');
   closeBtn.textContent = closed ? '🔓 重新打开' : '🔒 结束本次活动';
   closeBtn.disabled = !ses;
-  ['btnCloseSes','btnClearSes','btnDelSes','btnShare'].forEach(function(id){
+  const opsToggle = $('#btnOpsToggle');
+  const mgmt = ['btnCloseSes','btnClearSes','btnDelSes','btnDelAct'];
+  /* closed 时：收起状态隐藏所有修改/删除，只留开关；展开时全显示 */
+  if(opsToggle){
+    opsToggle.hidden = !closed;
+    opsToggle.textContent = calcOpsOpen ? '✕ 收起管理操作' : '⚙ 管理操作';
+    opsToggle.disabled = !ses;
+    opsToggle.style.opacity = !ses ? .45 : '';
+  }
+  mgmt.forEach(function(id){
     const b = document.getElementById(id);
-    if(b){ b.disabled = !ses; b.style.opacity = !ses ? .45 : ''; }
+    if(!b) return;
+    b.hidden = !!(closed && !calcOpsOpen);
+    b.disabled = (id === 'btnDelAct' ? !act : !ses);
+    b.style.opacity = b.disabled ? .45 : '';
   });
-  const delActBtn = $('#btnDelAct');
-  delActBtn.disabled = !act;
-  delActBtn.style.opacity = !act ? .45 : '';
+  const shareBtn = $('#btnShare');
+  if(shareBtn){ shareBtn.disabled = !ses; shareBtn.style.opacity = !ses ? .45 : ''; }
 }
 
 /* 活动的时间区间（优先用户填的日期，其次掉落日期） */
@@ -8813,18 +8829,24 @@ function calcDropsHTML(ses){
       '</span></div>' +
     rows.map(function(no){
       const t = swordType(no);
-      const canRename = !isTplSword(no);
-      const editTip = canRename ? '点这里改名称 / 花数，同步到图鉴' : '点这里改花数，同步到图鉴';
-      return '<div class="calc-drop-item">' +
+      /* 标亮：账号里未拥有 / 自己补录的新刀（模板里没有），一眼看出哪些还没拿到 */
+      const row = rowOf(no);
+      const isNew = !isTplSword(no);
+      const unowned = row && Number(row.own) === 0;
+      const hi = isNew ? ' hi-new' : (unowned ? ' hi-unowned' : '');
+      const badge = isNew
+        ? '<span class="calc-drop-badge new">新刀</span>'
+        : (unowned ? '<span class="calc-drop-badge unowned">未拥有</span>' : '');
+      /* 掉落明细只登记数量，不再提供改编号 / 花数 / 名称的入口（那些到图鉴页改） */
+      return '<div class="calc-drop-item' + hi + '">' +
         '<span class="calc-drop-no">No.' + String(no).padStart(3, '0') + '</span>' +
-        '<span class="calc-drop-name" data-cedit="' + no + '" title="' + editTip + '">' + esc(swordName(no)) + '</span>' +
+        '<span class="calc-drop-name">' + esc(swordName(no)) + '</span>' + badge +
         (t ? '<span class="calc-drop-type">' + esc(t) + '</span>' : '') +
         '<span class="calc-drop-flower">' + flowerLabel(no) + '</span>' +
         '<span class="calc-drop-ctrl">' +
           (closed ? '' : '<button class="calc-drop-undo" data-cminus="' + no + '">－</button>') +
           '<span class="calc-drop-count">× ' + st.drops[no] + '</span>' +
           (closed ? '' : '<button class="calc-drop-undo" data-cplus="' + no + '">＋</button>') +
-          '<button class="calc-drop-edit" data-cedit="' + no + '" title="' + editTip + '">✎</button>' +
         '</span>' +
         '</div>';
     }).join('') +
@@ -9058,7 +9080,7 @@ function calcNewSwordFromCalc(){
         '<label class="fld full"><span>名称</span><input type="text" id="csName" maxlength="20" placeholder="如 山姥切国広" value="' + esc(preName.slice(0, 20)) + '"></label>' +
         '<label class="fld"><span>刀种</span><select id="csType">' + typeOptions('打刀') + '</select></label>' +
         '</div>' +
-        '<p class="calc-form-tip" id="csTip">花数之后还能在掉落明细里点名字改；不确定就先选「未知」。</p>',
+        '<p class="calc-form-tip" id="csTip">花数不确定就先选「未知」，之后到图鉴页改；这里只登记掉落次数。</p>',
     actions:[
       {text:'取消', cls:'btn', onClick:closeModal},
       {text:'补录并登记', cls:'btn primary', onClick:function(){
@@ -9150,7 +9172,7 @@ function calcNewSwordFromCalc(){
     if(!csN || !csTip) return;
     const nm = (csN.value || '').trim();
     if(!nm){
-      csTip.textContent = '花数之后还能在掉落明细里点名字改；不确定就先选「未知」。';
+      csTip.textContent = '花数不确定就先选「未知」，之后到图鉴页改；这里只登记掉落次数。';
       if(csBtn) csBtn.textContent = '补录并登记';
       return;
     }
@@ -9830,6 +9852,7 @@ function bindCalc(){
     c.cur = b.dataset.cact;
     const a = c.acts.find(function(x){ return x.id === c.cur; });
     c.curS = (a && a.sessions.length) ? a.sessions[a.sessions.length-1].id : '';
+    calcOpsOpen = false;
     save(); renderCalc();
   });
   $('#calcSes').addEventListener('click', function(e){
@@ -9838,11 +9861,10 @@ function bindCalc(){
     if(b.dataset.cses === 'new'){ calcNewSes(); return; }
     const c = calcStateOf();
     c.curS = b.dataset.cses;
+    calcOpsOpen = false;
     save(); renderCalc();
   });
   $('#calcDrops').addEventListener('click', function(e){
-    const edit = e.target.closest('[data-cedit]');
-    if(edit){ openSwordMeta(Number(edit.dataset.cedit)); return; }
     const sortBtn = e.target.closest('[data-csort]');
     if(sortBtn){ calcSortMode = sortBtn.dataset.csort; renderCalc(); return; }
     const plus = e.target.closest('[data-cplus]');
@@ -9856,10 +9878,12 @@ function bindCalc(){
     const parts = row.dataset.hist.split('|');
     const c = calcStateOf();
     c.cur = parts[0]; c.curS = parts[1];
+    calcOpsOpen = false;
     save(); renderCalc();
     window.scrollTo({top:0, behavior:'smooth'});
   });
 
+  $('#btnOpsToggle').onclick = function(){ calcOpsOpen = !calcOpsOpen; renderCalc(); };
   $('#btnShare').onclick = calcShareImage;
   $('#btnCloseSes').onclick = calcCloseSes;
   $('#btnClearSes').onclick = calcClearSes;
@@ -11257,6 +11281,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.21 活动记录页：角标/标亮/防误触',
+     '<p>①「活动」行角标改为显示<b>记录条数</b>（一个活动对应几条存档），不再是振数——振数看下面「记录存档」行，后续记录多了也不会挤成一长串。</p>' +
+     '<p>② 掉落明细<b>不再提供改编号 / 花数 / 名称</b>的入口，只管登记次数，要改资料请到图鉴页；③ 记录结束后「清空 / 删除记录 / 删除活动 / 重新打开」等按钮<b>默认收起</b>，点「⚙ 管理操作」才展开，防误触；④ 掉落里<b>未拥有</b>（橙）和<b>新刀</b>（绿）整行高亮并挂标签，一眼看出哪些还没拿到。</p>',
+     '2026.11'],
     ['V3.20 修复查看弹窗经验数字显示不全',
      '<p>修复每日统计「查看」弹窗里经验数字被裁的问题：经验动辄上亿（如 <b>+5,111,500</b>），卡片太窄时被截成「+5,111,5」。现在手机端汇总卡片改成 <b>2×2 两列</b>，数字长时自动缩小字号且不再裁切，无论几位经验都完整显示；桌面保持四列。逐条明细里的经验数字同样完整。</p>',
      '2026.11'],
