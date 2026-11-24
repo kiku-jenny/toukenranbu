@@ -1,16 +1,15 @@
 /* 刀剑乱舞管家 · 离线缓存
    第一次打开正常下载，之后缓存优先，几乎瞬时出页面。
 
-   更新机制（v18 起改为标准 Service Worker 流程）：
-   - 去掉了原来「每次打开都发 HEAD 探测」的逻辑：HEAD 返回的 content-length 是
-     压缩后的大小，和缓存里 GET 响应的解压大小对不上，会一直误报「有新版本」。
-   - 改由 sw.js 自身当版本清单：发版时把 CACHE 版本号 +1，浏览器发现 sw.js 变了
-     就会安装新 SW、预缓存新页面；activate 时提示一次「新版本已就绪」。
-   - 平时不发任何探测请求，不会误报；不点提示也没关系，下次打开自动就是新版。 */
+   更新机制（v44 起改为静默更新）：
+   - sw.js 当版本清单：发版时把 CACHE 版本号 +1，浏览器发现 sw.js 变了就安装新 SW、
+     预缓存新页面，activate 时清掉旧缓存并自动接管（skipWaiting + clients.claim）。
+   - 全程静默：不再弹「载入新版本」提示条、不发任何消息；用户下次打开或刷新即新版。
+   - 平时不发任何探测请求，不会误报；离线时用缓存照常可用。 */
 
-const CACHE = 'honmaru-cache-v43';
-/* build 2026-11-24h 日志：按日期+整点精确对应活动，匹配不到留空：每版必升 CACHE，确保「载入新版本」提示能弹；
-   页面端按 CACHE 版本去重（hk_seen_update），多标签 / 连发版也只弹一次，不会反复催。 */
+const CACHE = 'honmaru-cache-v44';
+/* build 2026-11-24i 更新改为静默：后台预缓存新页面、清旧缓存并接管，不再弹「载入新版本」提示；
+   每版仍升 CACHE，确保浏览器能识别 sw.js 变化并重新预缓存。 */
 const PAGE = './';
 
 self.addEventListener('install', function(e){
@@ -24,14 +23,9 @@ self.addEventListener('install', function(e){
 
 self.addEventListener('activate', function(e){
   e.waitUntil(
-    caches.keys().then(function(keys){
-      /* 存在旧版本缓存 = 这是一次「更新」而非首次安装，提示一次即可 */
-      const hadOld = keys.some(function(k){ return k !== CACHE && k.indexOf('honmaru-cache-') === 0; });
-      return Promise.all(keys.map(function(k){ return k === CACHE ? null : caches.delete(k); }))
-        .then(function(){ return hadOld; });
-    })
-    .then(function(hadOld){ return self.clients.claim().then(function(){ return hadOld; }); })
-    .then(function(hadOld){ if(hadOld) notifyUpdate(); })
+    caches.keys()
+      .then(function(keys){ return Promise.all(keys.map(function(k){ return k === CACHE ? null : caches.delete(k); })); })
+      .then(function(){ return self.clients.claim(); })
   );
 });
 
@@ -61,11 +55,4 @@ async function serve(req){
     return new Response('现在打不开，也没有本地缓存。等网络恢复后再试。',
       {status: 503, headers: {'Content-Type': 'text/plain; charset=utf-8'}});
   }
-}
-
-function notifyUpdate(){
-  /* 带上版本号，页面端据此按版本去重：同一版本只提示一次 */
-  self.clients.matchAll({type:'window'}).then(function(list){
-    list.forEach(function(c){ c.postMessage({type:'hk-update', ver:CACHE}); });
-  });
 }
