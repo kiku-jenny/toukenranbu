@@ -1243,6 +1243,51 @@
   .table-hint{display:none;margin:0 0 8px;}
 
   /* ---------- 活动记录 · 掉刀计算器 ---------- */
+  /* 说明：一行 + 可展开详情 */
+  .calc-help{margin-top:6px;}
+  .calc-help summary{font-size:11px;color:var(--accent-deep);cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:3px;letter-spacing:.03em;}
+  .calc-help summary::-webkit-details-marker{display:none;}
+  .calc-help[open] summary{color:var(--muted);}
+  .calc-help>div{font-size:11px;color:var(--muted-2);line-height:1.7;margin-top:5px;padding:8px 11px;background:var(--tint-a);border:1px dashed var(--line);border-radius:9px;}
+
+  /* ① 当前记录卡：置顶、点一下展开切换区 */
+  .calc-current{
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer;
+    border:1px solid var(--line-strong);border-radius:14px;padding:11px 14px;margin-bottom:11px;
+    background:linear-gradient(135deg,var(--pink-soft) 0%,var(--surface) 72%);
+    transition:.16s;
+  }
+  .calc-current:hover{border-color:var(--accent);box-shadow:0 6px 18px -12px rgba(177,83,106,.8);}
+  .calc-current.cur-empty{cursor:default;background:var(--surface);border-style:dashed;}
+  .cur-flow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0;flex:1 1 100%;}
+  .cur-act{font-size:14px;font-weight:700;color:var(--accent-deep);letter-spacing:.02em;max-width:62%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cur-sep{color:var(--muted-3);font-size:12px;flex:0 0 auto;}
+  .cur-ses{font-size:12.5px;color:var(--sub);max-width:34%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cur-badge{
+    font-size:10px;letter-spacing:.04em;padding:2px 8px;border-radius:10px;white-space:nowrap;flex:0 0 auto;
+    background:var(--pink-soft);border:1px solid var(--line-soft);color:var(--accent-deep);
+  }
+  .cur-badge.live{background:#eaf7ee;border-color:#bfe3cb;color:#2f8a4e;}
+  .cur-badge.closed{background:var(--tint-a);border-color:var(--line);color:var(--muted);}
+  .cur-sub{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1 1 auto;}
+  .cur-sub b{color:var(--accent-deep);font-size:13px;}
+  .cur-go{margin-left:auto;font-size:11px;color:var(--muted-2);white-space:nowrap;flex:0 0 auto;}
+  .calc-current:hover .cur-go{color:var(--accent-deep);}
+
+  /* ③ 活动 / 记录切换区：折叠 */
+  .calc-pick{border:1px solid var(--line);border-radius:12px;background:var(--surface);margin:0 0 14px;overflow:hidden;}
+  .calc-pick>summary{
+    list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;
+    padding:9px 13px;font-size:12px;color:var(--muted);letter-spacing:.03em;user-select:none;
+  }
+  .calc-pick>summary::-webkit-details-marker{display:none;}
+  .calc-pick>summary:hover{color:var(--accent-deep);background:var(--tint-a);}
+  .calc-pick-t{font-weight:600;}
+  .calc-pick-hint{font-size:11px;color:var(--muted-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+  .calc-pick-arrow{margin-left:auto;transition:transform .18s;color:var(--muted-2);font-size:11px;}
+  .calc-pick[open] .calc-pick-arrow{transform:rotate(180deg);}
+  .calc-pick-body{padding:4px 13px 12px;border-top:1px dashed var(--line);}
+
   .calc-box{border:1px solid var(--line);border-radius:14px;padding:13px 14px 11px;background:linear-gradient(160deg,var(--surface) 0%,var(--tint-a) 100%);margin:2px 0 14px;}
   .calc-box-title{font-size:11px;color:var(--muted);letter-spacing:.12em;margin-bottom:9px;}
   .calc-drop-row{display:flex;gap:8px;align-items:center;}
@@ -1325,6 +1370,11 @@
   .calc-koban .calc-mf input{width:100px;}
   .calc-koban-tip{font-size:10px;color:var(--muted-2);letter-spacing:.02em;}
   @media (max-width:700px){
+    .calc-current{padding:10px 12px;gap:8px;}
+    .cur-act{font-size:13px;max-width:100%;}
+    .cur-ses{font-size:12px;max-width:100%;}
+    .cur-sub{font-size:10.5px;gap:8px;}
+    .calc-pick>summary{padding:9px 11px;}
     .calc-koban{gap:6px;}
     .calc-koban .calc-mf{flex:0 0 auto;}
     .calc-koban .calc-mf input{flex:0 0 auto;width:96px;}
@@ -1996,7 +2046,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.26</div>
+        <div class="brand-sub">HONMARU KEEPER V3.27</div>
       </div>
     </div>
 
@@ -2390,30 +2440,16 @@
       <div class="panel">
         <div class="panel-head">
           <h2>🎪 活动记录</h2>
-          <p>掉一把记一次 · 未拥有 / 新刀会高亮标出 · 改名称花数到图鉴页 · 同一个活动可以开多条记录，结束后进历史总表</p>
+          <p>掉一把记一次 · 未拥有 / 新刀会高亮</p>
+          <details class="calc-help"><summary>操作说明 ▾</summary>
+            <div>改名称 / 花数到图鉴页 · 同一个活动可开多条记录，结束后进历史总表 · 登记时勾选「同步乱舞」会自动喂进度 · 登错可点「撤销一把」完整回退 · 需要门票的活动可勾选后按张购买。</div>
+          </details>
         </div>
 
-        <div class="act-filter-bar">
-          <div class="search" id="actSearchWrap">
-            <span class="icon">🔍</span>
-            <input id="actSearch" placeholder="搜活动名…" autocomplete="off">
-            <button class="clear" id="btnClearActSearch" aria-label="清空">✕</button>
-          </div>
-          <div class="act-state-filters" id="actStateFilters">
-            <button data-asf="all" class="on">全部</button>
-            <button data-asf="live">进行中</button>
-            <button data-asf="closed">已结束</button>
-          </div>
-        </div>
-        <div class="filter-row">
-          <span class="filter-label">活动</span>
-          <div class="chips" id="calcActs"></div>
-        </div>
-        <div class="filter-row">
-          <span class="filter-label">记录存档</span>
-          <div class="chips" id="calcSes"></div>
-        </div>
+        <!-- ① 当前记录卡：置顶显示 活动›记录·状态·振数·起止，点卡片任意处展开下方切换区 -->
+        <div class="calc-current" id="calcCurrent"></div>
 
+        <!-- ② 登记框上移：打开页面就能录，不必先滚过活动/记录列表 -->
         <div class="calc-box">
           <div class="calc-box-title">掉落登记 · 掉一把就点一次</div>
           <div class="calc-drop-row">
@@ -2432,6 +2468,33 @@
             <span class="calc-status" id="calcStatus"></span>
           </div>
         </div>
+
+        <!-- ③ 活动 / 记录切换区：折叠收纳，点上方当前卡或这里展开；新建入口也在里面 -->
+        <details class="calc-pick" id="calcPick">
+          <summary><span class="calc-pick-t">⇄ 切换活动 / 记录</span><span class="calc-pick-hint" id="calcPickHint"></span><span class="calc-pick-arrow">▾</span></summary>
+          <div class="calc-pick-body">
+            <div class="act-filter-bar">
+              <div class="search" id="actSearchWrap">
+                <span class="icon">🔍</span>
+                <input id="actSearch" placeholder="搜活动名…" autocomplete="off">
+                <button class="clear" id="btnClearActSearch" aria-label="清空">✕</button>
+              </div>
+              <div class="act-state-filters" id="actStateFilters">
+                <button data-asf="all" class="on">全部</button>
+                <button data-asf="live">进行中</button>
+                <button data-asf="closed">已结束</button>
+              </div>
+            </div>
+            <div class="filter-row">
+              <span class="filter-label">活动</span>
+              <div class="chips" id="calcActs"></div>
+            </div>
+            <div class="filter-row">
+              <span class="filter-label">记录存档</span>
+              <div class="chips" id="calcSes"></div>
+            </div>
+          </div>
+        </details>
 
         <div id="calcStats"></div>
         <div id="calcDrops"></div>
@@ -8664,6 +8727,40 @@ function renderCalc(){
   const act = curAct();
   const ses = curSes();
 
+  /* ⓪ 当前记录卡：置顶显示「活动 › 记录 · 状态 · 本次振数 · 起止」，点它展开切换区 */
+  const curBox = $('#calcCurrent');
+  if(curBox){
+    if(!act || !ses){
+      curBox.className = 'calc-current cur-empty';
+      curBox.innerHTML = '<div class="cur-flow">' +
+        '<span class="cur-act">' + (act ? esc(act.name) : '还没有活动') + '</span>' +
+        '<span class="cur-sep">›</span>' +
+        '<span class="cur-ses">' + (act ? '还没有记录' : '先建个活动') + '</span></div>' +
+        '<div class="cur-sub">' + (act ? '点下方「切换活动 / 记录」新建一条记录就能开始登记' : '点下方「切换活动 / 记录」新建活动，比如「秘宝之里」') + '</div>';
+    }else{
+      const sp = sesSpan(ses);
+      const st = sesStats(ses);
+      const days = Object.keys(ses.daily || {}).length;
+      const live = !ses.closed;
+      curBox.className = 'calc-current';
+      curBox.innerHTML =
+        '<div class="cur-flow">' +
+          '<span class="cur-act">' + esc(act.name) + '</span>' +
+          '<span class="cur-sep">›</span>' +
+          '<span class="cur-ses">' + esc(ses.name) + '</span>' +
+          '<span class="cur-badge ' + (live ? 'live' : 'closed') + '">' + (live ? '● 进行中' : '🔒 已结束') + '</span>' +
+        '</div>' +
+        '<div class="cur-sub">' +
+          '<span>本次 <b>' + st.total + '</b> 振</span>' +
+          '<span>' + days + ' 天</span>' +
+          '<span>' + esc(sesSpanText(ses, sp)) + '</span>' +
+          '<span class="cur-go">⇄ 点此切换活动 / 记录</span>' +
+        '</div>';
+    }
+    const pickHint = $('#calcPickHint');
+    if(pickHint) pickHint.textContent = (act && ses) ? (act.name + ' · ' + ses.name) : '';
+  }
+
   /* ① 活动：搜索 + 状态筛选 + 折叠（当前选中的活动始终显示，避免误切到看不见的活动） */
   const actBox = $('#calcActs');
   if(actBox){
@@ -10201,6 +10298,20 @@ function bindCalc(){
     if(tkDel){ calcDelTicket(Number(tkDel.dataset.tkdel)); return; }
   });
 
+  /* 当前记录卡：点一下展开/收起「切换活动 / 记录」区；展开态持久化 */
+  const curCard = $('#calcCurrent');
+  const pickBox = $('#calcPick');
+  if(curCard && pickBox){
+    try{ pickBox.open = (localStorage.getItem('hk_recpick_open') === '1'); }catch(e){}
+    curCard.addEventListener('click', function(){
+      pickBox.open = !pickBox.open;
+      try{ localStorage.setItem('hk_recpick_open', pickBox.open ? '1' : '0'); }catch(e){}
+    });
+    pickBox.addEventListener('toggle', function(){
+      try{ localStorage.setItem('hk_recpick_open', pickBox.open ? '1' : '0'); }catch(e){}
+    });
+  }
+
   $('#calcActs').addEventListener('click', function(e){
     if(e.target.closest('[data-actmore]')){
       calcActShowAll = !calcActShowAll;
@@ -11667,6 +11778,11 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.27 活动记录页界面重排：打开就能录',
+     '<p>按之前预览的方向做了界面重排，功能一个没删，只是把常用的挪到眼前：</p>' +
+     '<p>① 顶部新增<b>「当前记录卡」</b>：一眼看清现在在哪个活动 › 哪条记录、进行中还是已结束、本次多少振、起止日期；点这张卡就能展开切换区。</p>' +
+     '<p>② <b>登记框上移到首屏</b>，打开页面直接录，不用先滚过一长串活动和记录。③ 活动/记录列表收进<b>「⇄ 切换活动 / 记录」</b>折叠区（展开状态会记住）。④ 顶部说明压成一句，详细操作点「操作说明」展开。</p>',
+     '2026.11'],
     ['V3.26 记录更顺手：乱舞同步、撤销、门票小判',
      '<p>① 掉落明细的<b>± 改数量</b>现在同步乱舞：加一把喂一次、减一把回退一次，乱舞满 10 不再加进度。</p>' +
      '<p>② 新增<b>「↩ 撤销一把」</b>：登错了一键回退，乱舞、日志、统计一起还原。③ 每条记录可勾选<b>「需要门票」</b>：填单价后买 1–99 张、可买多次，花费小判<b>按天合并</b>写进资源记录并记一条日志，明细带日期时间。</p>',
