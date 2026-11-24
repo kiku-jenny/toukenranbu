@@ -903,6 +903,19 @@
   .chip .cnt{font-size:10px;margin-left:4px;opacity:.55;letter-spacing:0;}
   .chip.active .cnt{opacity:.8;}
 
+  /* ---------- 活动记录：搜索 + 状态筛选 + 折叠 ---------- */
+  .act-filter-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+  .act-filter-bar .search{flex:1;min-width:180px;max-width:340px;}
+  .act-state-filters{display:flex;gap:5px;flex-wrap:wrap;}
+  .act-state-filters button{
+    border:1px solid var(--line);background:var(--surface);color:var(--muted);
+    border-radius:10px;padding:6px 12px;font-size:11.5px;cursor:pointer;transition:.16s;
+    font-family:inherit;letter-spacing:.02em;white-space:nowrap;
+  }
+  .act-state-filters button:hover{border-color:var(--line-strong);color:var(--accent-deep);}
+  .act-state-filters button.on{border-color:var(--accent);color:var(--accent-deep);background:var(--surface-2);font-weight:700;}
+  .chip.chip-more{border-style:dashed;color:var(--accent-deep);}
+
   /* ---------- 图鉴网格 ---------- */
   .grid-meta{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted);letter-spacing:.06em;margin:14px 0 10px;gap:10px;flex-wrap:wrap;}
   .meta-right{display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;}
@@ -1954,7 +1967,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.21</div>
+        <div class="brand-sub">HONMARU KEEPER V3.22</div>
       </div>
     </div>
 
@@ -2351,6 +2364,18 @@
           <p>掉一把记一次 · 未拥有 / 新刀会高亮标出 · 改名称花数到图鉴页 · 同一个活动可以开多条记录，结束后进历史总表</p>
         </div>
 
+        <div class="act-filter-bar">
+          <div class="search" id="actSearchWrap">
+            <span class="icon">🔍</span>
+            <input id="actSearch" placeholder="搜活动名…" autocomplete="off">
+            <button class="clear" id="btnClearActSearch" aria-label="清空">✕</button>
+          </div>
+          <div class="act-state-filters" id="actStateFilters">
+            <button data-asf="all" class="on">全部</button>
+            <button data-asf="live">进行中</button>
+            <button data-asf="closed">已结束</button>
+          </div>
+        </div>
         <div class="filter-row">
           <span class="filter-label">活动</span>
           <div class="chips" id="calcActs"></div>
@@ -8406,6 +8431,10 @@ let calcSortMode = 'no';
 let calcOpsOpen = false;   /* 已结束记录：管理操作是否展开（默认收起，防误触） */
 let calcStatusTimer = null;
 let calcSuggestIdx = -1;
+let calcActQ = '';         /* 活动名搜索词 */
+let calcActState = 'all';  /* 活动状态筛选：all | live | closed */
+let calcActShowAll = false;/* 活动列表：是否展开更早的活动（默认只显最近几条） */
+const CALC_ACT_FOLD = 6;   /* 默认显示最近几条活动，其余折叠 */
 
 function flowerOf(no){
   const x = rowOf(no);
@@ -8566,15 +8595,37 @@ function renderCalc(){
   const act = curAct();
   const ses = curSes();
 
-  /* ① 活动 */
+  /* ① 活动：搜索 + 状态筛选 + 折叠（当前选中的活动始终显示，避免误切到看不见的活动） */
   const actBox = $('#calcActs');
   if(actBox){
-    actBox.innerHTML = c.acts.map(function(a){
+    const q = calcActQ.trim().toLowerCase();
+    const list = c.acts.filter(function(a){
+      if(q && String(a.name).toLowerCase().indexOf(q) < 0) return false;
+      if(calcActState === 'live' && actIsLive(a) === false) return false;
+      if(calcActState === 'closed' && actIsLive(a) !== false) return false;
+      return true;
+    });
+    let shown = list, hiddenN = 0;
+    const canFold = !q && calcActState === 'all' && list.length > CALC_ACT_FOLD && !calcActShowAll;
+    if(canFold){
+      const head = list.slice(0, CALC_ACT_FOLD);
+      const curAct = list.find(function(a){ return a.id === c.cur; });
+      shown = (curAct && !head.some(function(a){ return a.id === curAct.id; }))
+        ? head.slice(0, CALC_ACT_FOLD - 1).concat([curAct]) : head;
+      hiddenN = list.length - shown.length;
+    }
+    let actHTML = shown.map(function(a){
       const n = a.sessions.length;   /* 一个活动对应几条记录（不是振数，后续记录会很多） */
       return '<button class="chip' + (a.id === c.cur ? ' active' : '') + '" data-cact="' + a.id + '"' +
         ' title="' + n + ' 条记录">' +
         esc(a.name) + (n ? '<span class="cnt">' + n + '</span>' : '') + '</button>';
-    }).join('') + '<button class="chip ghost" data-cact="new">＋ 新建活动</button>';
+    }).join('');
+    if(canFold && hiddenN > 0){
+      actHTML += '<button class="chip chip-more" data-actmore>更早的活动 ' + hiddenN + ' 条 ▾</button>';
+    }else if(!q && calcActState === 'all' && calcActShowAll && list.length > CALC_ACT_FOLD){
+      actHTML += '<button class="chip chip-more" data-actmore>收起 ▲</button>';
+    }
+    actBox.innerHTML = actHTML + '<button class="chip ghost" data-cact="new">＋ 新建活动</button>';
   }
 
   /* ② 记录存档 */
@@ -8633,6 +8684,9 @@ function renderCalc(){
     b.disabled = (id === 'btnDelAct' ? !act : !ses);
     b.style.opacity = b.disabled ? .45 : '';
   });
+  /* 「✎ 记录资料」同属编辑类入口：结束后一并收进「⚙ 管理操作」，避免误触 */
+  const editSesBtn = $('#calcStats [data-sesact="edit"]');
+  if(editSesBtn) editSesBtn.hidden = !!(closed && !calcOpsOpen);
   const shareBtn = $('#btnShare');
   if(shareBtn){ shareBtn.disabled = !ses; shareBtn.style.opacity = !ses ? .45 : ''; }
 }
@@ -8678,6 +8732,11 @@ function sesSpanText(ses, sp){
 }
 function isDungeonAct(act){
   return /大阪城|千两箱|地下城/.test(String((act && act.name) || ''));
+}
+/* 活动是否进行中：有任意一条记录未结束即视为进行中（纯展示口径，不改数据） */
+function actIsLive(act){
+  const ss = (act && Array.isArray(act.sessions)) ? act.sessions : [];
+  return ss.some(function(s){ return !s.closed; });
 }
 function calcSesMetaHTML(act, ses){
   const sp = sesSpan(ses);
@@ -9845,6 +9904,11 @@ function bindCalc(){
   });
 
   $('#calcActs').addEventListener('click', function(e){
+    if(e.target.closest('[data-actmore]')){
+      calcActShowAll = !calcActShowAll;
+      renderCalc();
+      return;
+    }
     const b = e.target.closest('[data-cact]');
     if(!b) return;
     const c = calcStateOf();
@@ -9881,6 +9945,30 @@ function bindCalc(){
     calcOpsOpen = false;
     save(); renderCalc();
     window.scrollTo({top:0, behavior:'smooth'});
+  });
+
+  /* 活动搜索：输入即筛，× 清空后收键盘、不重新聚焦 */
+  const actSearch = $('#actSearch');
+  if(actSearch){
+    actSearch.addEventListener('input', function(){
+      calcActQ = this.value.trim();
+      $('#actSearchWrap').classList.toggle('has-text', !!this.value);
+      renderCalc();
+    });
+    $('#btnClearActSearch').onclick = function(){
+      actSearch.value = ''; calcActQ = '';
+      $('#actSearchWrap').classList.remove('has-text');
+      renderCalc();
+      actSearch.blur();
+    };
+  }
+  $('#actStateFilters').addEventListener('click', function(e){
+    const b = e.target.closest('[data-asf]');
+    if(!b) return;
+    calcActState = b.dataset.asf;
+    this.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x === b); });
+    calcActShowAll = false;
+    renderCalc();
   });
 
   $('#btnOpsToggle').onclick = function(){ calcOpsOpen = !calcOpsOpen; renderCalc(); };
@@ -11281,6 +11369,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.22 活动多了也不乱：搜索＋折叠',
+     '<p>活动记录页的「活动」一行现在带<b>搜索框</b>和<b>状态筛选</b>（全部 / 进行中 / 已结束）：输入活动名即时筛出，点 ✕ 清空直接收键盘。</p>' +
+     '<p>活动超过 6 个时，剩下的折进「<b>更早的活动 N 条 ▾</b>」，点开展开、再点收起；<b>当前正在看的活动始终显示</b>，不会被折进去找不到。另外「✎ 记录资料」按钮也一并收进结束后的「⚙ 管理操作」，防误触。</p>',
+     '2026.11'],
     ['V3.21 活动记录页：角标/标亮/防误触',
      '<p>①「活动」行角标改为显示<b>记录条数</b>（一个活动对应几条存档），不再是振数——振数看下面「记录存档」行，后续记录多了也不会挤成一长串。</p>' +
      '<p>② 掉落明细<b>不再提供改编号 / 花数 / 名称</b>的入口，只管登记次数，要改资料请到图鉴页；③ 记录结束后「清空 / 删除记录 / 删除活动 / 重新打开」等按钮<b>默认收起</b>，点「⚙ 管理操作」才展开，防误触；④ 掉落里<b>未拥有</b>（橙）和<b>新刀</b>（绿）整行高亮并挂标签，一眼看出哪些还没拿到。</p>',
