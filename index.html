@@ -1967,7 +1967,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.22</div>
+        <div class="brand-sub">HONMARU KEEPER V3.23</div>
       </div>
     </div>
 
@@ -6958,8 +6958,7 @@ function logChangeHTML(c, kind){
   }
   if(c.f === 'plv'){
     const a = Number(c.from) || 0, b = Number(c.to) || 0;
-    return '<span class="chg chg-plv"><em>极化等级</em> <s>Lv ' + a + '</s> → <b>Lv ' + b + '</b>' +
-           (b > a ? ' ⬆' : '') + '</span>';
+    return '<span class="chg chg-plv"><em>极化等级</em> <s>Lv ' + a + '</s> → <b>Lv ' + b + '</b></span>';
   }
   if(c.f === 'res'){
     const it = resItemOf(c.key);
@@ -11369,6 +11368,9 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.23 去掉极化等级后面的上箭头',
+     '<p>每日统计「查看」和日志明细里，「极化等级 Lv35 → Lv72 ⬆」末尾那个上箭头去掉了，只保留「极化等级 Lv35 → Lv72」。等级涨了从数字变化本身就看得出来，界面更清爽。</p>',
+     '2026.11'],
     ['V3.22 活动多了也不乱：搜索＋折叠',
      '<p>活动记录页的「活动」一行现在带<b>搜索框</b>和<b>状态筛选</b>（全部 / 进行中 / 已结束）：输入活动名即时筛出，点 ✕ 清空直接收键盘。</p>' +
      '<p>活动超过 6 个时，剩下的折进「<b>更早的活动 N 条 ▾</b>」，点开展开、再点收起；<b>当前正在看的活动始终显示</b>，不会被折进去找不到。另外「✎ 记录资料」按钮也一并收进结束后的「⚙ 管理操作」，防误触。</p>',
