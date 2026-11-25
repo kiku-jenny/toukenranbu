@@ -1155,6 +1155,7 @@
   .panel-head h2{margin:0 0 6px;font-size:16.5px;letter-spacing:.08em;color:var(--accent-deep);}
   .panel-head p{margin:0 0 16px;font-size:11.5px;color:var(--sub);letter-spacing:.03em;}
   .calc-newrec{margin:-6px 0 14px;}
+  .calc-focusin{margin:-6px 0 14px;border-color:var(--accent);color:var(--accent-deep);}
   .block-title{font-size:11.5px;color:var(--muted);letter-spacing:.12em;margin-bottom:9px;display:flex;align-items:center;gap:8px;}
   .muted{font-size:11px;color:var(--muted-2);}
   .actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap;}
@@ -2172,7 +2173,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.32</div>
+        <div class="brand-sub">HONMARU KEEPER V3.33</div>
       </div>
     </div>
 
@@ -2568,6 +2569,7 @@
           <h2>🎪 活动记录</h2>
           <p>掉一把记一次 · 未拥有 / 新刀会高亮</p>
           <button class="btn primary calc-newrec" id="btnNewRecord">＋ 新建活动记录</button>
+          <button class="btn calc-focusin" id="btnFocusIn" title="进入聚焦页：整页只显示当前这一条记录">🎯 聚焦查看</button>
           <details class="calc-help"><summary>操作说明 ▾</summary>
             <div>改名称 / 花数到图鉴页 · 同一个活动可开多条记录，结束后进历史总表 · 登记时勾选「同步乱舞」会自动喂进度 · 登错可点「撤销一把」完整回退 · 需要门票的活动可勾选后按张购买。</div>
           </details>
@@ -2592,7 +2594,7 @@
 
         <!-- 聚焦模式顶栏：整页只显示当前一条活动记录，返回回总览 -->
         <div class="calc-focusbar" id="calcFocusBar" hidden>
-          <button class="cf-back" id="cfBack" title="返回总览：可切换 / 查看 / 新建">← 返回</button>
+          <button class="cf-back" id="cfBack" title="返回总览：可切换 / 查看 / 新建">← 返回总览</button>
           <span class="cf-title" id="cfTitle"></span>
           <button class="cf-undo" id="cfUndo" hidden title="撤销最近一把登记">↩ 撤销</button>
           <span class="cf-tag">聚焦</span>
@@ -10758,6 +10760,15 @@ function bindCalc(){
   if(cnpGo) cnpGo.onclick = submitNewRecord;
   const btnNewRecord = $('#btnNewRecord');
   if(btnNewRecord) btnNewRecord.onclick = calcNewRecord;
+  /* 总览页「🎯 聚焦查看」：进入当前记录的聚焦页（顶部有「← 返回总览」） */
+  const btnFocusIn = $('#btnFocusIn');
+  if(btnFocusIn) btnFocusIn.onclick = function(){
+    const a = curAct(), s = curSes();
+    if(!a || !s){ toast('还没有记录，先新建一条', true); return; }
+    calcNewOpen = false; calcFocus = true; renderCalc();
+    window.scrollTo({top:0, behavior:'smooth'});
+    calcStatus('已进入「' + s.name + '」聚焦页 · 点左上「← 返回总览」回总览');
+  };
 
   /* 当前记录卡：点一下弹出「切换活动 / 记录」搜索面板（方案B）；聚焦时不弹，保持单条专注 */
   const curCard = $('#calcCurrent');
@@ -12229,6 +12240,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.33 聚焦页返回入口更清楚',
+     '<p>针对「返回在哪里」：总览页新增<b>「🎯 聚焦查看」</b>按钮，点它直接进入当前记录的聚焦页；聚焦页顶部的返回按钮文字也改成更明确的<b>「← 返回总览」</b>。</p>' +
+     '<p>聚焦页 = 整页只显示这一条活动记录（登记框、门票、统计、掉落明细），顶部「← 返回总览」随时退回总览去切换 / 查看 / 新建。新建活动记录改整页表单、类型下拉选、日期自填、记录名自动拼等改动都还在。</p>',
+     '2026.11'],
     ['V3.32 新建改整页表单 · 类型下拉 / 顶部返回',
      '<p>按你的反馈重做了「新建活动记录」：不再是弹窗，而是<b>整页表单</b>——顶部就有醒目的<b>「← 返回」</b>，随时退回总览。</p>' +
      '<p><b>活动类型改成下拉选</b>，从「⚙️ 活动设置」里配置的类型直接挑，不用再手填；日期自己填，<b>记录名自动拼成「日期 + 活动名」</b>，也能手改。建好直接进入这一条的聚焦页，返回后再切换 / 查看 / 新建。</p>',
