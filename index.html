@@ -2265,7 +2265,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.37</div>
+        <div class="brand-sub">HONMARU KEEPER V3.38</div>
       </div>
     </div>
 
@@ -10325,7 +10325,14 @@ function calcPlusMinus(no, plus){
   ses.lastOp = null;
   save();
   renderCalc();
-  calcStatus('🌸 ' + swordName(no) + ' ' + (plus ? '+1' : '-1') + '（本次 ' + sesTotal(ses) + ' 振）' + rbTxt);
+  /* 增减后给出明确提示：哪把刀、+1/−1、现在几振、本次共几振、乱舞是否跟着动。
+     原来只有登记框旁一行小字，手机上滑到明细列表根本看不到，改用居中的 toast。 */
+  const nowCnt = (sesStats(ses).drops || {})[no] || 0;
+  const msg = '🌸 ' + swordName(no) + ' ' + (plus ? '+1' : '−1') +
+    (nowCnt ? ' · 现在 ×' + nowCnt : ' · 已移除') +
+    '（本次共 ' + sesTotal(ses) + ' 振）' + rbTxt;
+  calcStatus(msg);
+  toast(msg, false, 2800);
 }
 
 /* 撤销最近一次登记：完整回退 daily / 乱舞 / 日志 / 首振 / 补录新刀。
@@ -12578,6 +12585,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.38 活动记录：增减数量现在有提示了',
+     '<p>掉落明细里每把刀旁边的 <b>－／＋</b> 增减数量，点一下会在<b>屏幕中间弹出提示</b>，写清楚：哪把刀、是 +1 还是 −1、这把现在几振、本次一共几振，乱舞跟着动了也会一并写上。减到 0 移出本次时会提示「已移除」。</p>' +
+     '<p>以前只在你打字登记的框旁边显示一行小字，滑到下面的明细列表根本看不见——现在不管滑到哪儿都看得到。</p>',
+     '2026.11'],
     ['V3.37 模板页：搜索修好 · 编辑防误触 · 改完告诉你改了什么',
      '<p><b>搜索修好了</b>：手机端每行是卡片式排版，把「隐藏」样式压掉了，所以搜了没反应。现在搜索真正生效，支持<b>刀名 / 编号 / 刀种 / 获取方式</b>，右边显示「命中 / 总数」；进出编辑也会<b>保住搜索词</b>，不会被清空。</p>' +
      '<p><b>编辑不再误触</b>：去掉了「点整行就进编辑」——手机上滑一下就误进、还容易点错行。现在只认行尾那个加大的<b>「编辑」</b>按钮；进去也不会自动弹键盘抢焦点。删除改为<b>二次确认</b>，写明会删掉整个刀位。</p>' +
