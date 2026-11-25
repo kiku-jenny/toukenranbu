@@ -2173,7 +2173,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.33</div>
+        <div class="brand-sub">HONMARU KEEPER V3.34</div>
       </div>
     </div>
 
@@ -12240,6 +12240,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.34 更新更快 · 打开即最新版',
+     '<p>优化了版本更新：现在<b>每次打开都会主动核对新版</b>，一旦发现新版本就在后台装好并<b>静默自动刷新一次</b>，一次打开就是最新版，不用再手动下拉刷新、也不用开两次。</p>' +
+     '<p>全程不弹任何提示；如果你正在输入或开着弹窗，不会打断你，留到下次再更新。离线时照常从本地缓存打开。</p>',
+     '2026.11'],
     ['V3.33 聚焦页返回入口更清楚',
      '<p>针对「返回在哪里」：总览页新增<b>「🎯 聚焦查看」</b>按钮，点它直接进入当前记录的聚焦页；聚焦页顶部的返回按钮文字也改成更明确的<b>「← 返回总览」</b>。</p>' +
      '<p>聚焦页 = 整页只显示这一条活动记录（登记框、门票、统计、掉落明细），顶部「← 返回总览」随时退回总览去切换 / 查看 / 新建。新建活动记录改整页表单、类型下拉选、日期自填、记录名自动拼等改动都还在。</p>',
@@ -13465,16 +13469,29 @@ function initPetals(){
   if(!('serviceWorker' in navigator) || !secure) return;   /* 本地双击打开（file://）直接跳过 */
   window.addEventListener('load', function(){
     try{
-      /* updateViaCache:'none'：sw.js 每次打开都绕过 HTTP 缓存核对，
-         否则服务端发了新版，浏览器还可能拿 10 分钟前的旧 sw.js，页面就一直不刷新 */
-      /* 只注册，不额外 reg.update()：浏览器自己会按更新间隔核对 sw.js，
-         反复强制 update 会让 SW 反复 install/activate，无谓地重装缓存。 */
-      navigator.serviceWorker.register('./sw.js', {updateViaCache:'none'}).catch(function(){});
+      /* 页面加载时是否已有老 SW 在控制：只有「老版本 → 新版本接管」才自动刷新，首次安装不刷 */
+      const hadController = !!navigator.serviceWorker.controller;
+      let upgraded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function(){
+        if(upgraded || !hadController) return;
+        /* 正在输入 / 开着弹窗时不打断，避免吞掉没保存的内容 */
+        const ae = document.activeElement;
+        const typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
+        const modalOpen = !!document.querySelector('#modalRoot .modal');
+        if(typing || modalOpen) return;
+        upgraded = true;
+        location.reload();     /* 静默刷新：新 SW 已备好新页面，一次打开即最新版 */
+      });
+      /* updateViaCache:'none' + 主动 update()：每次打开都核对 sw.js，
+         不再等浏览器自己的慢节奏（可能要一天或开好几次才发现新版） */
+      navigator.serviceWorker.register('./sw.js', {updateViaCache:'none'}).then(function(reg){
+        try{ reg.update(); }catch(e){}
+      }).catch(function(){});
     }catch(e){}
   });
 })();
-/* 静默更新：SW 在后台预缓存好新页面后自动接管，不再弹「载入新版本」提示条、
-   也不发任何消息。用户下次打开或刷新页面即自动用上新版。 */
+/* 静默更新：SW 后台装好新页面后自动接管并静默刷新一次，一次打开即最新版，
+   全程不弹「载入新版本」提示条；正在输入或弹窗打开时不打断，留到下次。 */
 </script>
 </body>
 </html>
