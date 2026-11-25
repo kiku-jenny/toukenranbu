@@ -1466,6 +1466,36 @@
   .calc-day-count{flex:0 0 48px;color:var(--sub);font-size:10.5px;}
   .calc-day-names{flex:1;color:var(--ink-2);line-height:1.75;word-break:break-word;}
 
+  /* 精简后的统计入口：一行按钮 + 小计，点开弹窗看明细 */
+  .calc-stat-open{
+    display:flex;align-items:center;gap:10px;width:100%;text-align:left;cursor:pointer;
+    border:1px solid var(--line);border-radius:11px;background:var(--tint-a);
+    padding:10px 13px;margin-top:2px;font:inherit;color:var(--ink);
+  }
+  .calc-stat-open:hover{border-color:var(--accent);background:var(--surface);}
+  .cso-ico{font-size:17px;flex:0 0 auto;}
+  .cso-main{flex:1 1 auto;font-size:12.5px;font-weight:600;color:var(--accent-deep);line-height:1.35;}
+  .cso-sub{display:block;font-size:10px;font-weight:400;color:var(--muted);letter-spacing:.03em;margin-top:2px;}
+  .cso-brief{flex:0 0 auto;font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--sub);}
+  .cso-arrow{flex:0 0 auto;font-size:18px;color:var(--muted-3);}
+
+  /* 统计弹窗内部 */
+  .st-sum{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:6px;}
+  .st-sum-i{text-align:center;background:var(--tint-a);border-radius:10px;padding:10px 2px;}
+  .st-sum-i b{display:block;font-family:ui-monospace,Menlo,monospace;font-size:18px;color:var(--accent-deep);line-height:1.2;}
+  .st-sum-i span{font-size:10px;color:var(--muted);letter-spacing:.05em;}
+  .st-sec{margin-top:14px;padding-top:11px;border-top:1px dashed var(--line);}
+  .st-sec-t{font-size:11px;color:var(--muted);letter-spacing:.08em;margin-bottom:7px;}
+  .st-buy{display:flex;gap:9px;align-items:baseline;font-size:11.5px;padding:4px 0;border-bottom:1px dotted var(--line-soft);}
+  .st-buy span:first-child{flex:0 0 104px;font-family:ui-monospace,Menlo,monospace;color:var(--sub);}
+  .st-buy span:nth-child(2){flex:1;color:var(--ink-2);}
+  .st-buy span:last-child{font-family:ui-monospace,Menlo,monospace;color:var(--accent-deep);}
+  .st-day{display:flex;gap:9px;align-items:baseline;font-size:11.5px;padding:5px 0;border-bottom:1px dotted var(--line-soft);}
+  .st-day:last-child{border-bottom:none;}
+  .st-day-d{flex:0 0 40px;font-family:ui-monospace,Menlo,monospace;color:var(--accent-deep);}
+  .st-day-c{flex:0 0 44px;color:var(--sub);font-size:10.5px;}
+  .st-day-n{flex:1;color:var(--ink-2);line-height:1.7;word-break:break-word;}
+
   .calc-empty{
     border:1px dashed var(--line-strong);border-radius:14px;padding:22px 16px;text-align:center;
     font-size:12px;color:var(--muted);line-height:1.95;background:var(--card);margin-bottom:14px;
@@ -1515,6 +1545,13 @@
     .calc-nums{grid-template-columns:repeat(2,1fr);gap:12px 6px;}
     .calc-num b{font-size:19px;}
     .calc-bar-val{flex:0 0 88px;font-size:10px;}
+    .calc-stat-open{gap:8px;padding:9px 11px;}
+    .cso-brief{display:none;}
+    .st-sum{grid-template-columns:repeat(4,1fr);gap:5px;}
+    .st-sum-i b{font-size:15px;}
+    .st-sum-i span{font-size:9px;}
+    .st-buy span:first-child{flex-basis:88px;font-size:10.5px;}
+    .st-day-d{flex-basis:36px;}
     .calc-drop-item{padding:7px 11px 8px;gap:6px;flex-wrap:wrap;row-gap:4px;}
     .calc-drop-type{display:none;}
     .calc-drop-name{max-width:none;flex:1 1 auto;font-size:12px;}
@@ -2087,7 +2124,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.29</div>
+        <div class="brand-sub">HONMARU KEEPER V3.30</div>
       </div>
     </div>
 
@@ -9183,34 +9220,52 @@ function calcStatsHTML(act, ses){
   if(closed){
     h += '<div class="calc-closed-bar">🔒 这次活动已于 ' + esc(fmtDate(new Date(ses.closed))) + ' 结束，记录已锁定</div>';
   }
-  h += '<div class="calc-nums">' +
-    '<div class="calc-num"><b>' + st.total + '</b><span>共计振数</span></div>' +
-    '<div class="calc-num"><b>' + st.kinds + '</b><span>种刀剑男士</span></div>' +
-    '<div class="calc-num"><b>' + st.rare + '</b><span>五花及以上</span></div>' +
-    '<div class="calc-num"><b>' + st.days + '</b><span>记录天数</span></div>' +
+  /* 统计收进「查看统计」弹窗：主页面保持精简，按钮上带一行小计 */
+  const spend = (ses.ticket && Array.isArray(ses.ticket.buys))
+    ? ses.ticket.buys.reduce(function(s, b){ return s + (Number(b.cost) || 0); }, 0) : 0;
+  h += '<button class="calc-stat-open" data-sesact="stats">' +
+    '<span class="cso-ico">📊</span>' +
+    '<span class="cso-main">查看统计<span class="cso-sub">振数 · 花费小判 · 每日登记的刀</span></span>' +
+    '<span class="cso-brief">' + st.total + ' 振 · ' + fmtNum(spend) + ' 小判 · ' + st.days + ' 天</span>' +
+    '<span class="cso-arrow">›</span>' +
+    '</button>';
+  h += '</div>';
+  return h;
+}
+
+/* 查看统计弹窗：振数 / 花费小判数 / 每日登记的刀，从主页面收进来按需查看 */
+function openCalcStats(){
+  const act = curAct();
+  const ses = curSes();
+  if(!ses){ toast('先新建一条记录再看统计', true); return; }
+  const st = sesStats(ses);
+  const t = ses.ticket || {buys:[]};
+  const buys = Array.isArray(t.buys) ? t.buys : [];
+  const spend = buys.reduce(function(s, b){ return s + (Number(b.cost) || 0); }, 0);
+  const qty = buys.reduce(function(s, b){ return s + (Number(b.q) || 0); }, 0);
+
+  let body = '<div class="st-sum">' +
+    '<div class="st-sum-i"><b>' + st.total + '</b><span>振数</span></div>' +
+    '<div class="st-sum-i"><b>' + fmtNum(spend) + '</b><span>花费小判</span></div>' +
+    '<div class="st-sum-i"><b>' + st.days + '</b><span>登记天数</span></div>' +
+    '<div class="st-sum-i"><b>' + st.kinds + '</b><span>刀种</span></div>' +
     '</div>';
 
-  const keys = Object.keys(st.byFlower).map(Number).sort(function(a, b){
-    if(a === 0) return 1;
-    if(b === 0) return -1;
-    return b - a;
-  });
-  if(!keys.length){
-    h += '<div class="muted" style="text-align:center;padding:14px 0 4px;">还没有掉落记录，上面登记一把试试～</div>';
-  }else{
-    keys.forEach(function(k){
-      const c = st.byFlower[k];
-      const pct = st.total > 0 ? (c / st.total * 100) : 0;
-      h += '<div class="calc-bar-row">' +
-        '<div class="calc-bar-label">' + (k ? k + '花' : '未知') + '</div>' +
-        '<div class="calc-bar-track"><div class="calc-bar-fill" style="width:' + pct.toFixed(1) + '%"></div></div>' +
-        '<div class="calc-bar-val">' + c + ' 振 · ' + pct.toFixed(1) + '%</div>' +
-        '</div>';
-    });
+  /* 花费小判明细：每笔购买的日期与金额 */
+  if(buys.length){
+    body += '<div class="st-sec"><div class="st-sec-t">🎫 花费小判明细 · 共 ' + qty + ' 张 / ' + fmtNum(spend) + ' 小判</div>';
+    body += buys.slice().reverse().map(function(b){
+      const dt = new Date(b.ts || Date.now());
+      const tm = ('0'+dt.getHours()).slice(-2) + ':' + ('0'+dt.getMinutes()).slice(-2);
+      return '<div class="st-buy"><span>' + esc(b.date) + ' ' + tm + '</span>' +
+        '<span>× ' + b.q + ' 张</span><span>-' + fmtNum(b.cost) + '</span></div>';
+    }).join('');
+    body += '</div>';
   }
 
-  if(st.days > 0){
-    h += '<div class="calc-daily"><div class="calc-daily-title">每日收获</div>';
+  /* 每日登记的刀：按日期列当天登记的刀名与数量 */
+  if(st.dayList.length){
+    body += '<div class="st-sec"><div class="st-sec-t">📅 每日登记的刀</div>';
     st.dayList.slice().reverse().forEach(function(day){
       const m = ses.daily[day] || {};
       let cnt = 0;
@@ -9218,16 +9273,42 @@ function calcStatsHTML(act, ses){
         cnt += m[no];
         return esc(swordName(no)) + '×' + m[no];
       }).join('、');
-      h += '<div class="calc-day-row">' +
-        '<span class="calc-day-date">' + day.slice(5).replace('-', '/') + '</span>' +
-        '<span class="calc-day-count">' + cnt + ' 振</span>' +
-        '<span class="calc-day-names">' + names + '</span>' +
+      body += '<div class="st-day"><span class="st-day-d">' + esc(day.slice(5).replace('-', '/')) + '</span>' +
+        '<span class="st-day-c">' + cnt + ' 振</span><span class="st-day-n">' + names + '</span></div>';
+    });
+    body += '</div>';
+  }
+
+  /* 花数分布 */
+  const keys = Object.keys(st.byFlower).map(Number).sort(function(a, b){
+    if(a === 0) return 1;
+    if(b === 0) return -1;
+    return b - a;
+  });
+  if(keys.length){
+    body += '<div class="st-sec"><div class="st-sec-t">🌸 花数分布</div>';
+    keys.forEach(function(k){
+      const c = st.byFlower[k];
+      const pct = st.total > 0 ? (c / st.total * 100) : 0;
+      body += '<div class="calc-bar-row">' +
+        '<div class="calc-bar-label">' + (k ? k + '花' : '未知') + '</div>' +
+        '<div class="calc-bar-track"><div class="calc-bar-fill" style="width:' + pct.toFixed(1) + '%"></div></div>' +
+        '<div class="calc-bar-val">' + c + ' 振 · ' + pct.toFixed(1) + '%</div>' +
         '</div>';
     });
-    h += '</div>';
+    body += '</div>';
   }
-  h += '</div>';
-  return h;
+
+  if(!buys.length && !st.dayList.length){
+    body += '<div class="muted" style="text-align:center;padding:18px 0;">还没有登记掉落或买门票，先在上面登记一把试试～</div>';
+  }
+
+  openModal({
+    title: '📊 统计 · ' + ((act && act.name) || '活动'),
+    sub: esc(ses.name) + (ses.closed ? '（已结束）' : '') + '　振数 / 花费小判 / 每日登记的刀，都在这儿看。',
+    body: body,
+    actions: [{text:'关闭', cls:'btn', onClick:closeModal}]
+  });
 }
 
 function calcDropsHTML(ses){
@@ -10477,6 +10558,7 @@ function bindCalc(){
     setTimeout(renderCalc, 0);
   });
   $('#calcStats').addEventListener('click', function(e){
+    if(e.target.closest('[data-sesact="stats"]')){ openCalcStats(); return; }
     if(e.target.closest('[data-sesact="edit"]')){ calcEditSes(); return; }
     if(e.target.closest('[data-sesact="koban"]')) syncKobanRes();
     if(e.target.closest('[data-tkact="buy"]')){ calcBuyTicket(); return; }
@@ -11954,6 +12036,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.30 活动记录页精简 · 统计改按钮查看',
+     '<p>活动记录页做了精简：<b>原来一长串的统计（振数 / 花数分布 / 每日收获）收进了「📊 查看统计」按钮</b>，主页面只留一行小计（振数 · 花费小判 · 天数），想要明细点一下弹窗看。</p>' +
+     '<p>统计弹窗里集中了你要的三项：<b>振数</b>、<b>花费小判数</b>（每笔门票的日期与金额）、<b>每日登记的刀</b>（当天登记了哪些刀、各几振），花数分布也一并挪了进去。元信息（起止日期 / 门票购买）仍在原处可改，没动。</p>',
+     '2026.11'],
     ['V3.29 新增「活动设置」页，切换改搜索弹窗',
      '<p>① 侧栏新增<b>「⚙️ 活动设置」</b>页：预置现在 5 个活动类型，每个可改名、删除、新增；<b>门票单价和活动类型放一起</b>、可直接改（秘宝之里默认 300，留空=不要门票）。活动记录页的门票单价改为<b>读取这里的配置、只读</b>，不再在记录里填。</p>' +
      '<p>② 「＋ 新建活动」仿「新增刀剑」：<b>输入即出候选</b>，点一行反填。③ 点顶部当前记录卡改为弹出<b>搜索面板</b>，搜活动/记录名即筛、点记录即切换。④ 移除了「反馈与支持」入口。</p>',
