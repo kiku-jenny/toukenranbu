@@ -1295,6 +1295,15 @@
   .cf-undo[hidden]{display:none;}
   .cf-tag{flex:0 0 auto;font-size:10px;color:var(--muted);border:1px solid var(--line);
     border-radius:6px;padding:1px 6px;letter-spacing:.1em;}
+
+  /* 新建活动记录：整页表单（非弹窗），顶部返回 */
+  .calc-newpage[hidden]{display:none;}
+  .cnp-head{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--line);}
+  .cnp-title{font-size:14px;font-weight:600;color:var(--accent-deep);letter-spacing:.05em;}
+  .cnp-body>.fld{margin-top:12px;}
+  .cnp-body .fld input,.cnp-body .fld select{font-size:13px;padding:8px 9px;}
+  .cnp-go{width:100%;margin-top:18px;padding:11px;font-size:12.5px;letter-spacing:.06em;}
+
   /* 聚焦时收起总览专属区块：面板说明、当前卡的切搜索提示、历史总表、管理按钮区 */
   #viewRecords.focus-on .panel-head,
   #viewRecords.focus-on .cur-go,
@@ -1302,6 +1311,16 @@
   #viewRecords.focus-on .calc-acts{display:none;}
   #viewRecords.focus-on .calc-current{cursor:default;}
   #viewRecords.focus-on .calc-current:hover{border-color:var(--line);box-shadow:none;}
+  /* 新建模式：整页只留新建表单，其余总览区块全部收起（panel-head 带内联 display，须 !important 覆盖） */
+  #viewRecords.new-on .panel-head,
+  #viewRecords.new-on .calc-current,
+  #viewRecords.new-on .calc-pick,
+  #viewRecords.new-on .calc-focusbar,
+  #viewRecords.new-on .calc-box,
+  #viewRecords.new-on #calcStats,
+  #viewRecords.new-on #calcDrops,
+  #viewRecords.new-on .calc-acts,
+  #viewRecords.new-on #calcHistory{display:none !important;}
 
   /* ③ 活动 / 记录切换区：折叠 */
   .calc-pick{border:1px solid var(--line);border-radius:12px;background:var(--surface);margin:0 0 14px;overflow:hidden;}
@@ -2153,7 +2172,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.31</div>
+        <div class="brand-sub">HONMARU KEEPER V3.32</div>
       </div>
     </div>
 
@@ -2552,6 +2571,23 @@
           <details class="calc-help"><summary>操作说明 ▾</summary>
             <div>改名称 / 花数到图鉴页 · 同一个活动可开多条记录，结束后进历史总表 · 登记时勾选「同步乱舞」会自动喂进度 · 登错可点「撤销一把」完整回退 · 需要门票的活动可勾选后按张购买。</div>
           </details>
+        </div>
+
+        <!-- 新建活动记录：整页表单（不是弹窗）。顶部返回 → 回总览；类型下拉选，日期自填，记录名自动拼 -->
+        <div class="calc-newpage" id="calcNewPage" hidden>
+          <div class="cnp-head">
+            <button class="cf-back" id="cnpBack" title="返回总览">← 返回</button>
+            <span class="cnp-title">＋ 新建活动记录</span>
+          </div>
+          <div class="cnp-body">
+            <label class="fld"><span>活动类型（从活动设置里选）</span>
+              <select id="nrActSel"></select>
+            </label>
+            <label class="fld"><span>日期</span><input type="date" id="nrDate"></label>
+            <label class="fld"><span>记录名（自动拼：日期 + 活动名）</span><input type="text" id="nrName" maxlength="30" placeholder="可手动改"></label>
+            <p class="calc-form-tip" id="nrTip">记录名 = 日期 + 活动名，改日期或类型会自动重算，也能手动改。建好直接进入这一条的聚焦页。</p>
+            <button class="btn primary cnp-go" id="cnpGo">建好开记</button>
+          </div>
         </div>
 
         <!-- 聚焦模式顶栏：整页只显示当前一条活动记录，返回回总览 -->
@@ -8690,6 +8726,7 @@ function clearLogs(){
 let calcPickNo = 0;
 let calcSortMode = 'no';
 let calcFocus = false;     /* 聚焦模式：只显示当前这一条活动记录（新建后自动进入，返回回总览） */
+let calcNewOpen = false;   /* 新建模式：整页表单（顶部返回 → 回总览），类型下拉选 */
 let calcOpsOpen = false;   /* 已结束记录：管理操作是否展开（默认收起，防误触） */
 let calcStatusTimer = null;
 let calcSuggestIdx = -1;
@@ -8884,10 +8921,15 @@ function renderCalc(){
   const act = curAct();
   const ses = curSes();
 
-  /* 聚焦模式：没活动 / 没记录时自动退回总览；填顶栏并给视图加标记 */
+  /* 视图模式：新建整页 / 聚焦单条 / 总览，三者互斥 */
   if(calcFocus && (!act || !ses)) calcFocus = false;
   const recView = $('#viewRecords');
-  if(recView) recView.classList.toggle('focus-on', calcFocus);
+  if(recView){
+    recView.classList.toggle('new-on', calcNewOpen);
+    recView.classList.toggle('focus-on', calcFocus && !calcNewOpen);
+  }
+  const np = $('#calcNewPage');
+  if(np) np.hidden = !calcNewOpen;
   const fbar = $('#calcFocusBar');
   if(fbar){
     fbar.hidden = !calcFocus;
@@ -10092,84 +10134,81 @@ function openActSwitch(){
 }
 /* 安全取名（活动名不涉及刀名，做个兜底避免 undefined 显示） */
 function safeNameOf(s){ return String(s || '该活动'); }
-/* 新建活动记录（统一入口）：从活动设置的类型里选 → 日期自填 → 记录名自动「日期 + 活动名」；
-   建好后直接进入聚焦页，整页只显示这一条记录；返回回总览再切换 / 查看 / 新建。 */
+/* 新建活动记录（统一入口）：整页表单（非弹窗）——顶部「← 返回」回总览；
+   活动类型从「活动设置」的类型里下拉选（不用手填）；日期自填；记录名自动「日期 + 活动名」；
+   建好后直接进入这一条的聚焦页。 */
 function calcNewRecord(){
   const d = curData();
+  if(!d) return;
   const c = calcStateOf();
-  if(!d || !c) return;
-  const types = (d && Array.isArray(d.actTypes)) ? d.actTypes.map(function(t){ return String(t.name || '').trim(); }).filter(Boolean) : [];
+  if(!c) return;
+  const types = (Array.isArray(d.actTypes)) ? d.actTypes.map(function(t){ return String(t.name || '').trim(); }).filter(Boolean) : [];
   const today = calcDayKey();
-  const validDate = function(v){ return /^\d{4}-\d{2}-\d{2}$/.test(v || ''); };
   const shortDate = function(dt){
     const p = String(dt || '').split('-');
     return p.length === 3 ? (Number(p[1]) + '.' + Number(p[2])) : '';
   };
-  let pickedType = '';   /* 当前选中的活动类型（驱动记录名自动拼接） */
 
-  openModal({
-    title:'＋ 新建活动记录',
-    sub:'从「⚙️ 活动设置」的活动类型里选，或直接输入新名字；日期自己填，记录名自动拼成「日期 + 活动名」。建好直接进入这一条的聚焦页。',
-    body:'<div class="asw-hint info" id="nrhint">打一个字试试，如「秘宝」「大阪」；点候选就填好活动名。</div>' +
-      '<label class="fld"><span>活动类型</span><input type="text" id="nrAct" maxlength="40" placeholder="搜活动类型，或直接输入新名字" autocomplete="off"></label>' +
-      '<div class="asw-sug" id="nrSug" hidden></div>' +
-      '<label class="fld"><span>日期</span><input type="date" id="nrDate" value="' + today + '"></label>' +
-      '<label class="fld"><span>记录名（自动）</span><input type="text" id="nrName" maxlength="30" placeholder="日期 + 活动名"></label>' +
-      '<p class="calc-form-tip" id="nrTip">记录名 = 日期 + 活动名，改日期或活动会自动重算，也能手动改。</p>',
-    actions:[
-      {text:'取消', cls:'btn', onClick:closeModal},
-      {text:'建好开记', cls:'btn primary', onClick:function(){
-        const typeName = ($('#nrAct').value || '').trim();
-        if(!typeName){ toast('先选或输入活动类型', true); $('#nrAct').focus(); return; }
-        const date = validDate($('#nrDate').value) ? $('#nrDate').value : today;
-        let name = ($('#nrName').value || '').trim();
-        if(!name) name = shortDate(date) + typeName;
-        /* 找到同名活动复用，没有就建一个；再在其下新建一条记录 */
-        let act = c.acts.find(function(a){ return String(a.name) === typeName; });
-        if(!act){ act = {id:uid(), name:typeName.slice(0,40), created:Date.now(), sessions:[]}; c.acts.push(act); }
-        const ses = {id:uid(), name:name.slice(0, 30), created:Date.now(), closed:0,
-                     start:date, startT:'15:00', end:'', endT:'',
-                     koban:0, resId:'', daily:{}, firsts:{},
-                     ticket:{need:0, price:0, buys:[], ticketResId:''}, lastOp:null};
-        act.sessions.push(ses);
-        c.cur = act.id; c.curS = ses.id;
-        calcOpsOpen = false; calcFocus = true;
-        save(); closeModal(); renderCalc();
-        window.scrollTo({top:0, behavior:'smooth'});
-        calcStatus('已进入「' + ses.name + '」聚焦页 · 搜刀名开记，点左上「← 返回」回总览');
-      }}
-    ]
-  });
-  setTimeout(function(){
-    const actInp = $('#nrAct'), dateInp = $('#nrDate'), nameInp = $('#nrName'), box = $('#nrSug');
-    if(!actInp) return;
-    function autoName(){
-      if(!nameInp) return;
-      nameInp.value = shortDate(dateInp ? dateInp.value : today) + (pickedType || (actInp.value || '').trim());
-    }
-    actInp.focus();
-    actInp.addEventListener('input', function(){
-      const q = actInp.value.trim();
-      if(!q){ box.hidden = true; box.innerHTML = ''; pickedType = ''; autoName(); return; }
-      const hit = types.filter(function(t){ return t.indexOf(q) >= 0; });
-      let rows = hit.map(function(t){
+  /* 组装活动类型下拉选项：带门票单价提示，没配置时给占位 */
+  const sel = $('#nrActSel');
+  if(sel){
+    if(!types.length){
+      sel.innerHTML = '<option value="">（活动设置里还没有类型，请先添加）</option>';
+    }else{
+      sel.innerHTML = types.map(function(t){
         const p = ticketPriceOf(t);
-        return '<div class="asw-sug-item" data-nr="'+esc(t)+'">🎪 '+esc(t)+'<i>'+(p?p+' 小判/张':'无门票')+'</i></div>';
+        return '<option value="'+esc(t)+'">'+esc(t)+(p ? ' · '+p+' 小判/张' : ' · 无门票')+'</option>';
       }).join('');
-      rows += '<div class="asw-sug-empty">都不对，用「'+esc(q)+'」作为新活动 <button class="asw-sug-add" data-nr="'+esc(q)+'">建这个</button></div>';
-      box.innerHTML = rows; box.hidden = false;
-      pickedType = hit.length ? hit[0] : q;
-      autoName();
-    });
-    box.addEventListener('click', function(e){
-      const it = e.target.closest('[data-nr]');
-      if(!it) return;
-      pickedType = it.getAttribute('data-nr');
-      actInp.value = pickedType; box.hidden = true; autoName();
-    });
-    if(dateInp) dateInp.addEventListener('change', autoName);
-    autoName();
-  }, 60);
+    }
+  }
+  const dateInp = $('#nrDate'), nameInp = $('#nrName');
+  if(dateInp) dateInp.value = today;
+
+  /* 记录名自动拼：日期(短) + 选中的活动类型；手动改过就不再覆盖 */
+  let nameTouched = false;
+  function autoName(){
+    if(!nameInp || nameTouched) return;
+    const t = sel ? sel.value : '';
+    nameInp.value = shortDate(dateInp ? dateInp.value : today) + t;
+  }
+  if(sel) sel.addEventListener('change', autoName);
+  if(dateInp) dateInp.addEventListener('change', autoName);
+  if(nameInp) nameInp.addEventListener('input', function(){ nameTouched = true; });
+  autoName();
+
+  calcNewOpen = true;
+  calcFocus = false;
+  renderCalc();
+  window.scrollTo({top:0, behavior:'smooth'});
+  setTimeout(function(){ if(sel) sel.focus(); }, 60);
+}
+
+/* 提交整页新建表单：读下拉类型 + 日期 + 记录名，建活动 / 记录后进聚焦页 */
+function submitNewRecord(){
+  const c = calcStateOf();
+  if(!c) return;
+  const sel = $('#nrActSel'), dateInp = $('#nrDate'), nameInp = $('#nrName');
+  const typeName = sel ? (sel.value || '').trim() : '';
+  if(!typeName){ toast('先在活动设置里添加活动类型', true); return; }
+  const rawDate = dateInp ? dateInp.value : '';
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(rawDate || '')){ toast('请填日期', true); if(dateInp) dateInp.focus(); return; }
+  const p = rawDate.split('-');
+  const shortDate = (Number(p[1]) + '.' + Number(p[2]));
+  let name = nameInp ? (nameInp.value || '').trim() : '';
+  if(!name) name = shortDate + typeName;
+  /* 找到同名活动复用，没有就建一个；再在其下新建一条记录 */
+  let act = c.acts.find(function(a){ return String(a.name) === typeName; });
+  if(!act){ act = {id:uid(), name:typeName.slice(0,40), created:Date.now(), sessions:[]}; c.acts.push(act); }
+  const ses = {id:uid(), name:name.slice(0, 30), created:Date.now(), closed:0,
+               start:rawDate, startT:'15:00', end:'', endT:'',
+               koban:0, resId:'', daily:{}, firsts:{},
+               ticket:{need:0, price:0, buys:[], ticketResId:''}, lastOp:null};
+  act.sessions.push(ses);
+  c.cur = act.id; c.curS = ses.id;
+  calcNewOpen = false; calcOpsOpen = false; calcFocus = true;
+  save(); renderCalc();
+  window.scrollTo({top:0, behavior:'smooth'});
+  calcStatus('已进入「' + ses.name + '」聚焦页 · 搜刀名开记，点左上「← 返回」回总览');
 }
 
 /* 新建活动：仿「新增刀剑」——输入即出候选（活动类型来自活动设置），点候选反填；
@@ -10708,6 +10747,15 @@ function bindCalc(){
   };
   const cfUndo = $('#cfUndo');
   if(cfUndo) cfUndo.onclick = function(){ undoLastDrop(); };
+
+  /* 新建整页表单：顶部返回 → 回总览；建好开记 → 提交进聚焦页 */
+  const cnpBack = $('#cnpBack');
+  if(cnpBack) cnpBack.onclick = function(){
+    calcNewOpen = false; renderCalc();
+    window.scrollTo({top:0, behavior:'smooth'});
+  };
+  const cnpGo = $('#cnpGo');
+  if(cnpGo) cnpGo.onclick = submitNewRecord;
   const btnNewRecord = $('#btnNewRecord');
   if(btnNewRecord) btnNewRecord.onclick = calcNewRecord;
 
@@ -12181,6 +12229,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.32 新建改整页表单 · 类型下拉 / 顶部返回',
+     '<p>按你的反馈重做了「新建活动记录」：不再是弹窗，而是<b>整页表单</b>——顶部就有醒目的<b>「← 返回」</b>，随时退回总览。</p>' +
+     '<p><b>活动类型改成下拉选</b>，从「⚙️ 活动设置」里配置的类型直接挑，不用再手填；日期自己填，<b>记录名自动拼成「日期 + 活动名」</b>，也能手改。建好直接进入这一条的聚焦页，返回后再切换 / 查看 / 新建。</p>',
+     '2026.11'],
     ['V3.31 新建活动记录 · 聚焦页 / 返回',
      '<p>① 新增统一入口<b>「＋ 新建活动记录」</b>（页面上方，切换面板里也有）：从<b>「⚙️ 活动设置」的类型里选</b>（输入即出候选），日期自己填，<b>记录名自动拼成「日期 + 活动名」</b>，也能手改。同名活动自动复用，没有就建一个。</p>' +
      '<p>② <b>建好直接进入聚焦页</b>：整页只显示这一条记录——登记框、门票、统计、掉落明细，没有别的活动来打扰；顶栏有<b>「← 返回」</b>和「↩ 撤销」。③ 返回后回到总览，随时切换 / 查看 / 再新建。切换面板的旧「新建活动」收成「＋ 只建活动」备用。</p>',
