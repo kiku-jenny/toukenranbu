@@ -1525,6 +1525,26 @@
   .as-foot{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;}
   .as-foot .btn{font-size:11.5px;padding:7px 14px;}
   .as-tip{font-size:10.5px;color:var(--muted-2);line-height:1.7;margin-top:10px;padding:9px 11px;background:var(--tint-a);border:1px dashed var(--line);border-radius:9px;}
+  /* 编辑锁：锁定徽章 / 只读行 / 解锁条 */
+  .as-lockbadge{display:inline-flex;align-items:center;gap:3px;font-size:9.5px;font-weight:700;border-radius:8px;
+    padding:2px 7px;letter-spacing:.03em;margin-left:auto;}
+  .as-lockbadge.lock{color:var(--muted);background:rgba(127,127,127,.12);border:1px solid var(--line);}
+  .as-lockbadge.edit{color:#fff;background:var(--accent);border:1px solid var(--accent);}
+  .as-card h3 .as-lockbadge{flex:0 0 auto;}
+  /* 锁定时：门票单价显示为只读文本，隐藏编辑/删除/新增/恢复按钮 */
+  #actSetBody.locked .as-price{display:none;}
+  #actSetBody.locked .as-ops{display:none;}
+  #actSetBody.locked #btnAsAdd{display:none;}
+  .as-price-ro{display:none;font-size:11.5px;color:var(--accent-deep);font-weight:600;font-family:ui-monospace,Menlo,monospace;text-align:right;}
+  .as-price-ro.off{color:var(--muted-2);font-weight:400;}
+  #actSetBody.locked .as-price-ro{display:block;}
+  /* 锁定时表格降成「名称 + 单价」两列，表头同步去掉「操作」列 */
+  #actSetBody.locked .as-row{grid-template-columns:1fr 128px;}
+  #actSetBody.locked .as-head{grid-template-columns:1fr 128px;}
+  #actSetBody.locked .as-head span:last-child{display:none;}
+  #actSetBody.locked .as-price-ro{text-align:center;font-size:11.5px;padding:6px 8px;}
+  .as-lockbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px;}
+  .as-locknote{font-size:10.5px;color:var(--muted-2);line-height:1.6;}
   /* 切换弹窗：活动 + 记录列表 */
   .sw-list{margin-top:10px;max-height:52vh;overflow:auto;display:flex;flex-direction:column;gap:9px;}
   .sw-act{border:1px solid var(--line);border-radius:11px;overflow:hidden;background:var(--surface);}
@@ -2224,7 +2244,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.35</div>
+        <div class="brand-sub">HONMARU KEEPER V3.36</div>
       </div>
     </div>
 
@@ -2734,7 +2754,7 @@
       <div class="panel">
         <div class="panel-head">
           <h2>⚙️ 活动设置</h2>
-          <p>活动类型与门票单价统一在这里维护 · 活动记录读取此处的配置</p>
+          <p>活动类型与门票单价统一在这里维护 · 默认锁定，输密码解锁后才能修改</p>
         </div>
         <div id="actSetBody"></div>
       </div>
@@ -8801,6 +8821,13 @@ let calcOvState = 'live';  /* 总览状态分段：live | closed | all（默认�
 let calcActShowAll = false;/* 活动列表：是否展开更早的活动（默认只显最近几条） */
 const CALC_ACT_FOLD = 6;   /* 默认显示最近几条活动，其余折叠 */
 
+/* 活动设置编辑锁：默认锁定只读，输密码才解锁编辑（密码只存本机，不随存档同步） */
+let asUnlocked = false;
+const AS_PW_KEY = 'honmaru_actset_pw';
+function asGetPw(){ try{ return localStorage.getItem(AS_PW_KEY) || ''; }catch(e){ return ''; } }
+function asSetPw(v){ try{ localStorage.setItem(AS_PW_KEY, v); }catch(e){} }
+function asEnc(s){ try{ return btoa(unescape(encodeURIComponent(String(s)))); }catch(e){ return String(s); } }
+
 function flowerOf(no){
   const x = rowOf(no);
   if(x && Number(x.fl) > 0) return Number(x.fl);
@@ -12385,6 +12412,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.36 活动设置默认锁定 · 密码解锁编辑',
+     '<p>活动设置页现在<b>默认锁定只读</b>：活动类型和门票单价照常显示，但改名、改价、增删都点不动。点「🔓 解锁编辑」<b>输入密码</b>才能改，改完点「🔒 锁定」收起；离开这一页也会自动重新锁定。</p>' +
+     '<p>第一次解锁会让你<b>设一个密码</b>，只存在本机、不随存档同步，所以只有你能改。同时去掉了原来多余的「恢复默认 5 个」按钮。</p>',
+     '2026.11'],
     ['V3.35 总览页改状态分段 + 记录列表',
      '<p>活动记录总览页重做：顶部是<b>进行中 / 已结束 / 全部</b>三个分段（带条数），下面列出对应状态的每条记录（活动 › 记录 · 起止 · 振数），点「进入」即到那一条的详情页。</p>' +
      '<p>打开活动记录页时，<b>如果有进行中记录，默认直接进入最新一条的详情页</b>；没有才停总览。详情页左上「← 返回总览」回列表，返回后可切换状态、查看、新建。</p>',
@@ -13027,30 +13058,78 @@ function renderActSet(){
   if(!box) return;
   const d = curData();
   const list = (d && Array.isArray(d.actTypes)) ? d.actTypes : [];
+  const edit = !!asUnlocked;
+  box.classList.toggle('locked', !edit);
   let h = '<div class="as-card">' +
-    '<h3>🎪 活动类型</h3>' +
+    '<h3>🎪 活动类型' +
+      '<span class="as-lockbadge ' + (edit ? 'edit' : 'lock') + '">' + (edit ? '🔓 编辑中' : '🔒 已锁定') + '</span>' +
+    '</h3>' +
     '<p class="as-sub">这里维护所有活动类型，新增活动记录时从这里选。门票单价和类型放在一起，改一处全局生效。</p>' +
     '<div class="as-head"><span>活动类型</span><span>门票单价（小判/张）</span><span>操作</span></div>' +
     '<div class="as-list">' +
       (list.length ? list.map(function(t, i){
+        const pr = Number(t.price) > 0 ? (t.price + ' 小判/张') : '不需要门票';
         return '<div class="as-row" data-asi="'+i+'">' +
           '<span class="as-name" title="'+esc(t.name)+'">'+esc(t.name)+'</span>' +
-          '<input class="as-price" data-asprice="'+i+'" type="number" min="0" max="999999999" step="1" ' +
-            'value="'+(Number(t.price)>0 ? t.price : '')+'" placeholder="留空=不需要门票">' +
-          '<span class="as-ops">' +
-            '<button data-asedit="'+i+'" title="改名">✎</button>' +
-            '<button class="danger" data-asdel="'+i+'" title="删除">🗑</button>' +
-          '</span>' +
+          (edit
+            ? '<input class="as-price" data-asprice="'+i+'" type="number" min="0" max="999999999" step="1" ' +
+                'value="'+(Number(t.price)>0 ? t.price : '')+'" placeholder="留空=不需要门票">' +
+              '<span class="as-ops">' +
+                '<button data-asedit="'+i+'" title="改名">✎</button>' +
+                '<button class="danger" data-asdel="'+i+'" title="删除">🗑</button>' +
+              '</span>'
+            : '<span class="as-price-ro' + (Number(t.price) > 0 ? '' : ' off') + '">' + pr + '</span>') +
         '</div>';
-      }).join('') : '<div class="muted" style="padding:12px 2px;font-size:11.5px;">还没有活动类型，点下面「＋ 新增活动类型」</div>') +
+      }).join('') : '<div class="muted" style="padding:12px 2px;font-size:11.5px;">还没有活动类型' +
+        (edit ? '，点下面「＋ 新增活动类型」' : '') + '</div>') +
     '</div>' +
-    '<div class="as-foot">' +
-      '<button class="btn primary" id="btnAsAdd">＋ 新增活动类型</button>' +
-      '<button class="btn" id="btnAsReset">↻ 恢复默认 5 个</button>' +
-    '</div>' +
+    (edit
+      ? '<div class="as-foot"><button class="btn primary" id="btnAsAdd">＋ 新增活动类型</button>' +
+        '<button class="btn" id="btnAsLock">🔒 锁定</button></div>'
+      : '<div class="as-lockbar"><button class="btn primary" id="btnAsUnlock">🔓 解锁编辑</button>' +
+        '<span class="as-locknote">已锁定：不能改名、改价、增删。点「解锁编辑」输入密码后才能修改。</span></div>') +
     '<div class="as-tip">门票单价留空 = 该活动不需要门票，活动记录页不会显示门票区。<b>秘宝之里</b>默认 300 小判/张；改完自动保存，活动记录页立即读取新值。已买过的门票记录不会被改动。</div>' +
   '</div>';
   box.innerHTML = h;
+}
+
+/* 解锁编辑：没设过密码 → 引导设密码；已设过 → 输密码校验 */
+function asUnlockFlow(){
+  if(!asGetPw()){
+    openModal({
+      title:'🔐 设置编辑密码',
+      sub:'活动设置默认锁定，只有输入密码才能修改。先设一个密码，只存在本机（不随存档同步），以后每次解锁都要输它。',
+      body:'<label class="fld"><span>设置密码</span><input type="password" id="asPw1" maxlength="32" placeholder="输入密码" autocomplete="off"></label>' +
+        '<label class="fld"><span>再输一次</span><input type="password" id="asPw2" maxlength="32" placeholder="确认密码" autocomplete="off"></label>' +
+        '<div class="as-tip" style="margin-top:12px;">密码忘了会被锁住：到时清除浏览器本网站的本地数据即可重设（会同时清空本应用数据，请谨慎）。</div>',
+      actions:[
+        {text:'取消', cls:'btn', onClick:closeModal},
+        {text:'设定并解锁', cls:'btn primary', onClick:function(){
+          const a = ($('#asPw1').value || ''), b = ($('#asPw2').value || '');
+          if(a.length < 4){ toast('密码至少 4 位', true); $('#asPw1').focus(); return; }
+          if(a !== b){ toast('两次输入不一致', true); $('#asPw2').focus(); return; }
+          asSetPw(asEnc(a));
+          asUnlocked = true; closeModal(); renderActSet(); toast('密码已设定，可以编辑了');
+        }}
+      ]
+    });
+    setTimeout(function(){ const el = $('#asPw1'); if(el) el.focus(); }, 60);
+    return;
+  }
+  openModal({
+    title:'🔓 解锁编辑',
+    sub:'输入编辑密码才能修改活动类型和门票单价。',
+    body:'<label class="fld"><span>密码</span><input type="password" id="asPwIn" maxlength="32" placeholder="输入密码" autocomplete="off"></label>',
+    actions:[
+      {text:'取消', cls:'btn', onClick:closeModal},
+      {text:'解锁', cls:'btn primary', onClick:function(){
+        const v = ($('#asPwIn').value || '');
+        if(asEnc(v) !== asGetPw()){ toast('密码不对', true); $('#asPwIn').select(); return; }
+        asUnlocked = true; closeModal(); renderActSet(); toast('已解锁，可以编辑了');
+      }}
+    ]
+  });
+  setTimeout(function(){ const el = $('#asPwIn'); if(el) el.focus(); }, 60);
 }
 function asAddType(){
   openModal({
@@ -13134,6 +13213,8 @@ function switchTab(tab){
   $('#viewResources').hidden = tab !== 'resources';
   $('#viewRecords').hidden = tab !== 'records';
   $('#viewActSet').hidden = tab !== 'actset';
+  /* 离开活动设置页即自动重新锁定，必须再次输密码才能改 */
+  if(tab !== 'actset') asUnlocked = false;
   $('#viewTpl').hidden = tab !== 'tpl';
   /* 进入活动记录页：有进行中记录则默认进入最新一条的详情页，否则停总览列表 */
   if(tab === 'records'){
@@ -13309,21 +13390,19 @@ function initEvents(){
   const asBody = $('#actSetBody');
   if(asBody){
     asBody.addEventListener('click', function(e){
-      if(e.target.closest('#btnAsAdd')){ asAddType(); return; }
-      const rs = e.target.closest('#btnAsReset');
-      if(rs){
-        if(!confirm('恢复默认的 5 个活动类型？会覆盖你现在的类型和门票单价。')) return;
-        const d = curData(); d.actTypes = seedActTypes();
-        save(); renderActSet(); toast('已恢复默认活动类型'); return;
-      }
+      if(e.target.closest('#btnAsUnlock')){ asUnlockFlow(); return; }
+      if(e.target.closest('#btnAsLock')){ asUnlocked = false; renderActSet(); toast('已锁定'); return; }
+      /* 以下编辑操作仅在解锁后可用（锁定时按钮已隐藏，这里再兜底一次） */
+      if(e.target.closest('#btnAsAdd')){ if(!asUnlocked) return; asAddType(); return; }
       const ed = e.target.closest('[data-asedit]');
-      if(ed){ asEditType(Number(ed.dataset.asedit)); return; }
+      if(ed){ if(!asUnlocked) return; asEditType(Number(ed.dataset.asedit)); return; }
       const dl = e.target.closest('[data-asdel]');
-      if(dl){ asDelType(Number(dl.dataset.asdel)); return; }
+      if(dl){ if(!asUnlocked) return; asDelType(Number(dl.dataset.asdel)); return; }
     });
     asBody.addEventListener('change', function(e){
       const px = e.target.closest('[data-asprice]');
       if(!px) return;
+      if(!asUnlocked) return;
       const i = Number(px.dataset.asprice);
       const d = curData(), t = d.actTypes[i];
       if(!t) return;
