@@ -2233,6 +2233,8 @@
     .sidebar.open{transform:translateX(0);}
     .main{min-height:calc(100vh - 24px);padding:18px 16px 22px;}
     .page-head{padding-left:44px;}
+    /* 编辑态吸顶操作栏给左上角菜单按钮留位，避免「取消」被菜单盖住造成误触 */
+    .card-actionbar{padding-left:20px;}
     .p-side{width:100%;justify-content:space-around;gap:10px;border-top:1px dashed var(--line);padding-top:12px;}
     .rec-form{grid-template-columns:1fr 1fr;}
     .rec-form .input:first-child,.rec-form .input:nth-child(4){grid-column:1 / -1;}
@@ -2291,7 +2293,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.45</div>
+        <div class="brand-sub">HONMARU KEEPER V3.46</div>
       </div>
     </div>
 
@@ -12814,6 +12816,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.46 修误触 · 修切页滚动',
+     '<p><b>修误触</b>：编辑卡片往下滚时，「取消」按钮不再与左上角的菜单按钮重叠——点取消就是取消，不会误开侧边栏。</p>' +
+     '<p><b>修切页</b>：从设置页等页面切回图鉴，会回到页面顶部，不再停在原来的滚动位置（看着像「跳到最底部」）。</p>',
+     '2026.11'],
     ['V3.45 编辑面板再精简 · 取消/保存置顶可点',
      '<p><b>去掉重复</b>：花数、刀种右上角卡片头已经有了，编辑面板里不再重复（内置刀只读；自己新增的刀仍保留可改入口）；乱舞到 10 就是终点，不再显示「满级共需多少把」。</p>' +
      '<p><b>免划屏</b>：点「✎ 修改」进来，<b>取消 / 保存</b>就在卡片顶部，往下填表时也会吸在屏幕顶上，随时可点。极化相关全部保持原样。</p>',
@@ -13675,6 +13681,11 @@ function switchTab(tab){
   const tplEntryEl = $('#tplEntry'); if(tplEntryEl) tplEntryEl.classList.toggle('on', tab === 'tpl');
   $('#pageTitle').innerHTML = '<span>'+TITLES[tab][0]+'</span>'+TITLES[tab][1];
   renderAll();
+  /* 切页后回到顶部：否则从设置页滚到底再切回图鉴，图鉴会停在相同的滚距（看似「到最底部」）。
+     用即时跳转（非 smooth），避免跨页长距离滚动动画拖慢响应。 */
+  try{ window.scrollTo(0, 0); }catch(e){ window.scrollY = 0; }
+  const tplWrap = document.querySelector('#tplPage .tpl-table-wrap');
+  if(tplWrap) tplWrap.scrollTop = 0;
   $('#sidebar').classList.remove('open');
   $('#scrim').classList.remove('on');
   vsUpdate();
