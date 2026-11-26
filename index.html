@@ -2285,7 +2285,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.43</div>
+        <div class="brand-sub">HONMARU KEEPER V3.44</div>
       </div>
     </div>
 
@@ -5880,13 +5880,12 @@ function cardHTML(x){
   /* 刀种 / 花数来自全服模板：模板里有的刀一律只读；纯本地新增的刀不受限 */
   const tplLock = !!tplRowByNo(x.no);
   const flTxt = fl ? (fl + ' 花') : '未知';
+  /* 全服统一的说明并进刀种标签，不再单独占一行 */
+  const lockTip = tplLock ? (nameLock ? '刀名、刀种、花数全服统一' : '刀种、花数全服统一') : '';
   const typeHTML = tplLock
-    ? '<label class="fld ro"><span>刀种</span>' +
-        '<input type="text" value="' + esc(v.type) + '" readonly title="刀种随全服刀帐统一，不能修改"></label>'
+    ? '<label class="fld ro"><span title="' + esc(lockTip) + '，不能修改">刀种·统一</span>' +
+        '<input type="text" value="' + esc(v.type) + '" readonly title="' + esc(lockTip) + '"></label>'
     : '<label class="fld"><span>刀种</span><select data-no="'+x.no+'" data-f="type">'+typeOpts+'</select></label>';
-  const lockTip = tplLock
-    ? (nameLock ? '刀名、刀种、花数全服统一' : '刀种、花数全服统一')
-    : '';
   return '<div class="card kw-edit' + (v.k===1?' kw':'') + (owned?'':' unowned') + (fav?' fav':'') + ' editing" data-no="'+x.no+'">' + head +
     '<div class="card-ctrl">' +
       '<div class="seg" data-no="'+x.no+'">' +
@@ -5905,21 +5904,21 @@ function cardHTML(x){
     '</div>' +
     (open ? '' : '<div class="lock-tip">该刀尚未开放极化 · 名单由全服模板统一维护（⚙ 极化开放 可查看）</div>') +
     (nameLock
-      ? (lockTip ? '<div class="fld-ro">' + lockTip + '</div>' : '') + typeHTML
+      ? typeHTML
       : '<div class="card-grid2 name-row">' +
           '<label class="fld"><span>名称</span>' +
             '<input type="text" maxlength="20" data-no="'+x.no+'" data-f="name" value="'+esc(v.name)+'" placeholder="刀剑名称"></label>' +
           typeHTML +
-        '</div>' +
-        (lockTip ? '<div class="fld-ro">' + lockTip + '</div>' : '')) +
+        '</div>') +
     '<div class="card-grid2">' +
       '<label class="fld"><span>乱舞</span><select data-no="'+x.no+'" data-f="r">'+opts.join('')+'</select></label>' +
-      '<label class="fld"><span title="填还差几把才能升到下一级乱舞；填 0 表示下一把就升">' +
-        (r >= RB_MAX() ? '乱舞已满' : '升乱舞 ' + (r+1) + ' 还需') + '</span>' +
+      '<label class="fld"><span title="' + (r >= RB_MAX() ? '该刀乱舞已满级' : '填还差几把才能升到下一级乱舞；填 0 表示下一把就升') + '">' +
+        (r >= RB_MAX() ? '满级共需 ' + ranbuTotal(fl) + ' 把' : '升乱舞 ' + (r+1) + ' 还需') + '</span>' +
         '<input type="number" min="0" max="' + (r >= RB_MAX() ? 0 : (needNext || 0)) + '" step="1" data-no="'+x.no+'" data-f="rp" value="' +
-        (r >= RB_MAX() ? 0 : Math.max(0, (needNext || 0) - rp)) + '"' + (r >= RB_MAX() ? ' disabled' : '') + '></label>' +
+        (r >= RB_MAX() ? 0 : Math.max(0, (needNext || 0) - rp)) + '"' +
+        (r >= RB_MAX() ? ' disabled style="display:none"' : '') + '></label>' +
     '</div>' +
-    '<div class="rb-tip" data-rbtip="1">' + ranbuTipHTML(fl, r, rp) + '</div>' +
+    '<div class="rb-tip" data-rbtip="1"' + (r >= RB_MAX() ? ' style="display:none"' : '') + '>' + ranbuTipHTML(fl, r, rp) + '</div>' +
     '<div class="card-grid2">' +
       '<label class="fld"><span>等级</span><input type="number" min="1" max="'+(v.k===1?POL_MAX():99)+'" step="1" ' +
         'title="'+(v.k===1?'极化刀上限 '+POL_MAX():'普刀上限 99')+'" data-no="'+x.no+'" data-f="lv" value="'+v.lv+'"></label>' +
@@ -6026,19 +6025,24 @@ function refreshRanbu(card, draft){
   if(draft.r >= RB_MAX()) draft.rp = 0;
   const cap = ranbuNeed(draft.fl, draft.r);
   if(draft.rp > cap) draft.rp = cap;
+  const isMax = draft.r >= RB_MAX();
   const inp = card.querySelector('[data-f="rp"]');
   if(inp){
-    inp.value = draft.r >= RB_MAX() ? 0 : Math.max(0, (cap || 0) - draft.rp);   /* 显示「还差几把」 */
+    inp.value = isMax ? 0 : Math.max(0, (cap || 0) - draft.rp);   /* 显示「还差几把」 */
     inp.max = String(cap || 0);
-    inp.disabled = draft.r >= RB_MAX();
+    inp.disabled = isMax;
+    inp.style.display = isMax ? 'none' : '';                      /* 满级时不占一行 */
     const lb = inp.parentNode.querySelector('span');
     if(lb){
-      lb.textContent = draft.r >= RB_MAX() ? '乱舞已满' : '升乱舞 ' + (draft.r + 1) + ' 还需';
-      lb.title = '填还差几把才能升到下一级乱舞；填 0 表示下一把就升';
+      lb.textContent = isMax ? '满级共需 ' + ranbuTotal(draft.fl) + ' 把' : '升乱舞 ' + (draft.r + 1) + ' 还需';
+      lb.title = isMax ? '该刀乱舞已满级' : '填还差几把才能升到下一级乱舞；填 0 表示下一把就升';
     }
   }
   const tip = card.querySelector('[data-rbtip="1"]');
-  if(tip) tip.innerHTML = ranbuTipHTML(draft.fl, draft.r, draft.rp);
+  if(tip){
+    tip.innerHTML = ranbuTipHTML(draft.fl, draft.r, draft.rp);
+    tip.style.display = isMax ? 'none' : '';                      /* 满级时提示并入上面那格，隐藏 */
+  }
 }
 
 /* 收藏置顶：可以同时置顶多振；收藏时间决定先后，先收藏的排前面 */
@@ -12789,6 +12793,9 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.44 图鉴编辑面板精简：去掉重复行',
+     '<p>编辑卡片太长了，去掉几处重复：<b>「刀名、刀种、花数全服统一」</b>不再单独占一行，并进刀种标签；乱舞满级时那个<b>禁用的「乱舞已满」输入框</b>和重复的「已乱舞 MAX」提示合并，只留一行「满级共需 X 把」。<b>极化相关（极/普、等级、极化经验、极化等级）都没动。</b></p>',
+     '2026.11'],
     ['V3.43 登记时间只算活动登记，排除图鉴乱舞操作',
      '<p>活动记录的登记时间以前可能混入<b>刀账/图鉴里改乱舞、补花数、普图获取</b>的时间（那些日志没有活动归属）。现在只认<b>本次活动 + 这条记录</b>的登记操作，登记几振就显示几条时间。</p>',
      '2026.11'],
