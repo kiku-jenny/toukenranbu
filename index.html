@@ -2285,7 +2285,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.42</div>
+        <div class="brand-sub">HONMARU KEEPER V3.43</div>
       </div>
     </div>
 
@@ -9213,22 +9213,34 @@ function dtsArr(v){
 function dropTimeOf(ses, no){
   if(!ses) return null;
   const dm = dtsArr(ses.dtimes && ses.dtimes[no]);
-  if(dm.length) return {ts:dm[dm.length-1], times:dm, precise:true};
-  /* 兜底 1：从变动日志里找这把刀在本活动/本记录的全部登记时间 */
+  if(dm.length){
+    /* 登记几振就几条：多于振数时只取最近的 N 条 */
+    const n = (((sesStats(ses) || {}).drops || {})[no]) || 0;
+    const times = n > 0 && dm.length > n ? dm.slice(-n) : dm;
+    return {ts:times[times.length-1], times:times, precise:true};
+  }
+  /* 兜底 1：从变动日志反推登记时间——只认「本次活动 + 这条记录」的登记操作。
+     刀账/图鉴里改乱舞、补花数、普图获取等日志没有活动归属（act/ses 为空），
+     或属于 ranbu/res/new/del 类型，都不是活动登记，必须排除，
+     否则「登记几振」就会混入乱舞等操作的时间。 */
   const d = curData();
   const act = curAct();
+  const dropCnt = (((sesStats(ses) || {}).drops || {})[no]) || 0;
   const fromLogs = [];
-  if(d && Array.isArray(d.logs)){
+  if(d && Array.isArray(d.logs) && act && act.name && ses.name){
     d.logs.forEach(function(l){
       if(!l || Number(l.no) !== Number(no)) return;
-      const actOk = !act || !l.act || l.act === act.name;
-      const sesOk = !ses.name || !l.ses || l.ses === ses.name;
-      if(actOk && sesOk && Number(l.ts) > 0) fromLogs.push(Number(l.ts));
+      const k = l.kind || 'sword';
+      if(k === 'ranbu' || k === 'res' || k === 'new' || k === 'del') return;
+      if(l.act !== act.name || l.ses !== ses.name) return;   /* 严格归属：无活动/记录归属的一律不算 */
+      if(Number(l.ts) > 0) fromLogs.push(Number(l.ts));
     });
   }
   if(fromLogs.length){
     fromLogs.sort(function(a,b){ return a - b; });
-    return {ts:fromLogs[fromLogs.length-1], times:fromLogs, precise:true};
+    /* 登记几振就几条：日志多于振数时只取最近 N 条（含登记附带的 own/fl 日志） */
+    const times = dropCnt > 0 && fromLogs.length > dropCnt ? fromLogs.slice(-dropCnt) : fromLogs;
+    return {ts:times[times.length-1], times:times, precise:true};
   }
   /* 兜底 2：从 daily 里找这把刀登记的日期（只有日期，无时分） */
   const days = Object.keys((ses.daily || {})).filter(function(dk){
@@ -12777,6 +12789,9 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.43 登记时间只算活动登记，排除图鉴乱舞操作',
+     '<p>活动记录的登记时间以前可能混入<b>刀账/图鉴里改乱舞、补花数、普图获取</b>的时间（那些日志没有活动归属）。现在只认<b>本次活动 + 这条记录</b>的登记操作，登记几振就显示几条时间。</p>',
+     '2026.11'],
     ['V3.42 点时间看全部登记时间 · 三维度六档排序',
      '<p><b>点时间看全部</b>：一把刀多次登记，会在时间旁显示「×次数」；点一下弹出<b>每一次的登记时间</b>列表（精确到秒）。</p>' +
      '<p><b>排序三维度六档</b>：掉落明细标题栏有「数量 / 时间 / 刀账」三个按钮，点当前按钮切正反方向——数量多→少·少→多、时间先→后·后→先、编号前→后·后→前。</p>',
