@@ -1661,8 +1661,10 @@
   .calc-undo-last:hover{background:var(--pink-soft);border-color:var(--accent);}
   .calc-drop-time{
     flex:0 0 auto;font-size:9.5px;color:var(--muted-2);letter-spacing:.02em;
-    font-variant-numeric:tabular-nums;white-space:nowrap;
+    font-variant-numeric:tabular-nums;white-space:nowrap;cursor:pointer;
+    border-bottom:1px dotted var(--line-strong);line-height:1.4;
   }
+  .calc-drop-time:active{color:var(--accent-deep);}
   .calc-drop-item{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px dashed var(--line);font-size:12px;}
   .calc-drop-item:last-child{border-bottom:none;}
   .calc-drop-item:hover{background:var(--surface-2);}
@@ -2275,7 +2277,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.40</div>
+        <div class="brand-sub">HONMARU KEEPER V3.41</div>
       </div>
     </div>
 
@@ -9797,11 +9799,10 @@ function calcDropsHTML(ses){
     }
     return a - b;
   });
-  const canUndo = !closed && ses.lastOp && ses.lastOp.no;
   return '<div class="calc-drops">' +
     '<div class="calc-drops-title"><span>掉落明细（' + rows.length + ' 种 · ' + st.total + ' 振）</span>' +
       '<span class="calc-drops-tools">' +
-        (canUndo ? '<button class="calc-undo-last" data-undolast="1" title="撤回最近登记的一把，乱舞/日志/统计一并回退">↩ 撤回上一把</button>' : '') +
+        (closed ? '' : '<button class="calc-undo-last" data-undolast="1" title="撤回最近登记的一把，乱舞/日志/统计一并回退">↩ 撤回上一把</button>') +
         '<span class="calc-sort">' +
           '<button class="calc-sort-btn' + (calcSortMode === 'no' ? ' active' : '') + '" data-csort="no">刀帐顺序</button>' +
           '<button class="calc-sort-btn' + (calcSortMode === 'count' ? ' active' : '') + '" data-csort="count">数量多→少</button>' +
@@ -9819,7 +9820,8 @@ function calcDropsHTML(ses){
         : (unowned ? '<span class="calc-drop-badge unowned">未拥有</span>' : '');
       /* 掉落明细只登记数量，不再提供改编号 / 花数 / 名称的入口（那些到图鉴页改） */
       const dt = dropTimeOf(ses, no);
-      const timeTip = dt ? ' title="' + (dt.precise ? '最近登记 ' + esc(fmtTime(dt.ts)) : '登记于 ' + esc(fmtDate(new Date(dt.ts))) + '（早期记录未记具体时间）') + '"' : '';
+      const fullTime = dt ? (dt.precise ? '最近登记 ' + fmtTime(dt.ts) : '登记于 ' + fmtDate(new Date(dt.ts)) + '（早期记录未记具体时间）') : '';
+      const timeTip = dt ? ' title="' + esc(fullTime) + '" data-dtime="' + esc(fullTime) + '" role="button" tabindex="0"' : '';
       return '<div class="calc-drop-item' + hi + '">' +
         '<span class="calc-drop-no">No.' + String(no).padStart(3, '0') + '</span>' +
         '<span class="calc-drop-name">' + esc(swordName(no)) + '</span>' + badge +
@@ -10413,7 +10415,18 @@ function calcPlusMinus(no, plus){
 function undoLastDrop(){
   const d = curData();
   const ses = curSes();
-  if(!d || !ses || ses.closed || !ses.lastOp){ toast('没有可撤销的登记', true); return; }
+  if(!d || !ses || ses.closed){ toast('这次记录已结束，不能撤回', true); return; }
+  /* 没有精确快照（登记后又用 ± 调过）→ 按最近登记时间退一把，保证按钮随时可用 */
+  if(!ses.lastOp){
+    const dts = ses.dtimes || {};
+    let bestNo = 0, bestTs = 0;
+    Object.keys(dts).forEach(function(k){
+      const n = Number(k), ts = Number(dts[k]);
+      if(ts > bestTs && (sesDrops(ses)[n] || 0) > 0){ bestTs = ts; bestNo = n; }
+    });
+    if(bestNo){ calcPlusMinus(bestNo, false); return; }
+    toast('没有可撤回的登记', true); return;
+  }
   const op = ses.lastOp;
   const no = op.no;
   /* 1) 回退这一把的每日计数 */
@@ -11224,6 +11237,8 @@ function bindCalc(){
   });
   $('#calcDrops').addEventListener('click', function(e){
     if(e.target.closest('[data-undolast]')){ undoLastDrop(); return; }
+    const dtimeEl = e.target.closest('[data-dtime]');
+    if(dtimeEl){ toast(dtimeEl.getAttribute('data-dtime') + ' · 点时间可再看', false, 3400); return; }
     const sortBtn = e.target.closest('[data-csort]');
     if(sortBtn){ calcSortMode = sortBtn.dataset.csort; renderCalc(); return; }
     const plus = e.target.closest('[data-cplus]');
@@ -12664,6 +12679,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.41 手机也能看完整时间 · 撤回按钮一直在',
+     '<p><b>时间直接点一下就能看</b>：手机上没法悬停，现在点那行「🕐 时间」，屏幕中间会弹出完整登记时间（精确到秒）。</p>' +
+     '<p><b>「↩ 撤回上一把」一直在</b>：固定在「掉落明细」标题栏右边，登记后随时可点。以前用 ＋／− 调过数量就把撤回快照清掉、按钮不见了——现在即使没快照，也会按<b>最近登记时间</b>退一把，按钮不会消失。记录已结束的才不显示。</p>',
+     '2026.11'],
     ['V3.40 老记录也显示登记时间',
      '<p>上次加的「每把刀登记时间」只有<b>新版之后登记的刀</b>才有——之前的老记录当时没存时间，所以看不到。现在老记录也会显示：能找到变动日志的按<b>具体时分</b>显示，找不到就按<b>登记日期</b>兜底（悬停会注明「早期记录未记具体时间」）。</p>' +
      '<p>如果还是没看到，往下翻到<b>「掉落明细」</b>那一栏（在「查看统计」下面），时间就在每把刀名字的右边。</p>',
