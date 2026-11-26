@@ -1653,6 +1653,16 @@
     font-size:10px;color:var(--muted);letter-spacing:.02em;transition:.16s;
   }
   .calc-sort-btn.active{background:linear-gradient(120deg,var(--accent-3),var(--accent-2));border-color:transparent;color:var(--on-accent);}
+  .calc-drops-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .calc-undo-last{
+    border:1px solid var(--line-strong);background:var(--tint-a);border-radius:14px;padding:3px 10px;
+    font-size:10.5px;color:var(--accent-deep);letter-spacing:.02em;transition:.16s;
+  }
+  .calc-undo-last:hover{background:var(--pink-soft);border-color:var(--accent);}
+  .calc-drop-time{
+    flex:0 0 auto;font-size:9.5px;color:var(--muted-2);letter-spacing:.02em;
+    font-variant-numeric:tabular-nums;white-space:nowrap;
+  }
   .calc-drop-item{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px dashed var(--line);font-size:12px;}
   .calc-drop-item:last-child{border-bottom:none;}
   .calc-drop-item:hover{background:var(--surface-2);}
@@ -2265,7 +2275,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.38</div>
+        <div class="brand-sub">HONMARU KEEPER V3.39</div>
       </div>
     </div>
 
@@ -9060,6 +9070,15 @@ function normCalc(c){
         resId: s.resId ? String(s.resId) : '',
         daily: daily,
         firsts: firsts,
+        /* 每把刀最近一次登记时间：{no: ts}，明细行显示「最近登记 M/D HH:MM」 */
+        dtimes: (function(m){
+          const o = {};
+          if(m && typeof m === 'object') Object.keys(m).forEach(function(k){
+            const n = parseInt(k, 10), ts = Number(m[k]);
+            if(n > 0 && ts > 0) o[n] = ts;
+          });
+          return o;
+        })(s.dtimes),
         /* 门票小判：need 是否需要门票；price 每张小判；buys 购买明细 [{q,cost,date,ts}]；ticketResId 当日合并的资源快照 */
         ticket: (function(t){
           t = (t && typeof t === 'object') ? t : {};
@@ -9080,6 +9099,7 @@ function normCalc(c){
           no: clampNum(s.lastOp.no, 0, 99999, 0),
           day: /^\d{4}-\d{2}-\d{2}$/.test(String(s.lastOp.day || '')) ? String(s.lastOp.day) : '',
           ts: Number(s.lastOp.ts) || 0,
+          prevDts: Number(s.lastOp.prevDts) || 0,  /* 登记前的登记时间，撤销时恢复 */
           rb: !!s.lastOp.rb,          /* 这次是否喂了乱舞 */
           fromR: clampNum(s.lastOp.fromR, 1, RB_MAX(), 1),
           fromRp: clampNum(s.lastOp.fromRp, 0, 999, 0),
@@ -9155,6 +9175,15 @@ function sesStats(ses){
   return {total:total, kinds:kinds, rare:rare, byFlower:byFlower, drops:drops, days:days.length, dayList:days.sort()};
 }
 function sesTotal(ses){ return sesStats(ses).total; }
+/* 登记时间显示：跨天显示「M/D HH:MM」，同一天只显示「HH:MM」，省地方 */
+function dropTimeLabel(ts){
+  if(!ts) return '';
+  const d = new Date(ts);
+  const hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0');
+  const today = new Date();
+  const sameDay = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+  return sameDay ? (hh + ':' + mm) : ((d.getMonth() + 1) + '/' + d.getDate() + ' ' + hh + ':' + mm);
+}
 function swordName(no){
   const x = rowOf(no);
   return x ? x.name : 'No.' + no + '（已删除）';
@@ -9740,11 +9769,15 @@ function calcDropsHTML(ses){
     }
     return a - b;
   });
+  const canUndo = !closed && ses.lastOp && ses.lastOp.no;
   return '<div class="calc-drops">' +
     '<div class="calc-drops-title"><span>掉落明细（' + rows.length + ' 种 · ' + st.total + ' 振）</span>' +
-      '<span class="calc-sort">' +
-        '<button class="calc-sort-btn' + (calcSortMode === 'no' ? ' active' : '') + '" data-csort="no">刀帐顺序</button>' +
-        '<button class="calc-sort-btn' + (calcSortMode === 'count' ? ' active' : '') + '" data-csort="count">数量多→少</button>' +
+      '<span class="calc-drops-tools">' +
+        (canUndo ? '<button class="calc-undo-last" data-undolast="1" title="撤回最近登记的一把，乱舞/日志/统计一并回退">↩ 撤回上一把</button>' : '') +
+        '<span class="calc-sort">' +
+          '<button class="calc-sort-btn' + (calcSortMode === 'no' ? ' active' : '') + '" data-csort="no">刀帐顺序</button>' +
+          '<button class="calc-sort-btn' + (calcSortMode === 'count' ? ' active' : '') + '" data-csort="count">数量多→少</button>' +
+        '</span>' +
       '</span></div>' +
     rows.map(function(no){
       const t = swordType(no);
@@ -9757,10 +9790,13 @@ function calcDropsHTML(ses){
         ? '<span class="calc-drop-badge new">新刀</span>'
         : (unowned ? '<span class="calc-drop-badge unowned">未拥有</span>' : '');
       /* 掉落明细只登记数量，不再提供改编号 / 花数 / 名称的入口（那些到图鉴页改） */
+      const dts = (ses.dtimes || {})[no] || 0;
+      const timeTip = dts ? ' title="最近登记 ' + esc(fmtTime(dts)) + '"' : '';
       return '<div class="calc-drop-item' + hi + '">' +
         '<span class="calc-drop-no">No.' + String(no).padStart(3, '0') + '</span>' +
         '<span class="calc-drop-name">' + esc(swordName(no)) + '</span>' + badge +
         (t ? '<span class="calc-drop-type">' + esc(t) + '</span>' : '') +
+        (dts ? '<span class="calc-drop-time"' + timeTip + '>🕐 ' + dropTimeLabel(dts) + '</span>' : '') +
         '<span class="calc-drop-flower">' + flowerLabel(no) + '</span>' +
         '<span class="calc-drop-ctrl">' +
           (closed ? '' : '<button class="calc-drop-undo" data-cminus="' + no + '">－</button>') +
@@ -10174,6 +10210,11 @@ function addDrop(){
     renderCatalog();
   }
   const day = calcDayKey();
+  const nowTs = Date.now();
+  /* 记录这一把的最近登记时间（明细行显示），并留下旧值供撤销精确回退 */
+  ses.dtimes = ses.dtimes || {};
+  const prevDts = ses.dtimes[no] || 0;
+  ses.dtimes[no] = nowTs;
   /* 撤销快照：记下登记前的日志 id 集合，登记后 diff 出这次新增的日志 */
   const oldLogIds = {};
   (d.logs || []).forEach(function(l){ oldLogIds[l.id] = 1; });
@@ -10214,7 +10255,7 @@ function addDrop(){
   /* 收集这次登记产生的所有日志 id，供撤销精确删除 */
   const newLogIds = (d.logs || []).filter(function(l){ return !oldLogIds[l.id]; }).map(function(l){ return String(l.id); });
   ses.lastOp = {
-    no:no, day:day, ts:Date.now(),
+    no:no, day:day, ts:nowTs, prevDts:prevDts,
     rb: !!rbDidFeed,
     fromR: rbBefore ? rbBefore.r : 1,
     fromRp: rbBefore ? rbBefore.rp : 0,
@@ -10305,10 +10346,12 @@ function calcPlusMinus(no, plus){
   if(!ses || ses.closed) return;
   ses.daily = ses.daily || {};
   let rbTxt = '';
+  ses.dtimes = ses.dtimes || {};
   if(plus){
     const day = calcDayKey();
     ses.daily[day] = ses.daily[day] || {};
     ses.daily[day][no] = (ses.daily[day][no] || 0) + 1;
+    ses.dtimes[no] = Date.now();
     /* 加：同步喂乱舞（满级不加），和「掉了一把」口径一致 */
     if(c && c.lvlSync) rbTxt = applyRanbuGain(no, act, ses);
   }else{
@@ -10318,6 +10361,8 @@ function calcPlusMinus(no, plus){
     ses.daily[day][no] -= 1;
     if(ses.daily[day][no] <= 0) delete ses.daily[day][no];
     if(!Object.keys(ses.daily[day]).length) delete ses.daily[day];
+    /* 这把刀减到本次为 0 → 时间也没意义了，清掉 */
+    if(!(sesDrops(ses)[no] > 0)) delete ses.dtimes[no];
     /* 减：乱舞同步回退（跨级退回，乱舞1·0不再退） */
     if(c && c.lvlSync) rbTxt = applyRanbuRewind(no, act, ses);
   }
@@ -10349,7 +10394,12 @@ function undoLastDrop(){
     if(ses.daily[op.day][no] <= 0) delete ses.daily[op.day][no];
     if(!Object.keys(ses.daily[op.day]).length) delete ses.daily[op.day];
   }
-  /* 2) 首振回退 */
+  /* 2) 最近登记时间回退：还有这把刀就恢复旧时间，没了就清掉 */
+  if(ses.dtimes){
+    if(sesDrops(ses)[no] > 0){ if(op.prevDts) ses.dtimes[no] = op.prevDts; else delete ses.dtimes[no]; }
+    else delete ses.dtimes[no];
+  }
+  /* 首振回退 */
   if(op.wasFirst && ses.firsts){ delete ses.firsts[no]; }
   /* 3) 乱舞恢复到登记前（用快照精确回退，不写新日志） */
   if(op.rb){
@@ -11145,6 +11195,7 @@ function bindCalc(){
     save(); renderCalc();
   });
   $('#calcDrops').addEventListener('click', function(e){
+    if(e.target.closest('[data-undolast]')){ undoLastDrop(); return; }
     const sortBtn = e.target.closest('[data-csort]');
     if(sortBtn){ calcSortMode = sortBtn.dataset.csort; renderCalc(); return; }
     const plus = e.target.closest('[data-cplus]');
@@ -12585,6 +12636,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.39 活动记录：每把刀显示登记时间 · 明细区可直接撤回上一把',
+     '<p><b>每把刀都带登记时间</b>：掉落明细里每一把刀的名字后面，会显示它<b>最近一次登记的时间</b>（当天只显示「时:分」，跨天显示「月/日 时:分」）。鼠标悬停或长按能看到完整日期时间。撤销/加减/再登记都会跟着更新。</p>' +
+     '<p><b>撤回上一把更顺手</b>：掉落明细标题栏多了一个<b>「↩ 撤回上一把」</b>按钮，滑到明细列表也能直接撤回最近登记的那把，乱舞 / 日志 / 统计一并回退，不用再滚回登记框。</p>',
+     '2026.11'],
     ['V3.38 活动记录：增减数量现在有提示了',
      '<p>掉落明细里每把刀旁边的 <b>－／＋</b> 增减数量，点一下会在<b>屏幕中间弹出提示</b>，写清楚：哪把刀、是 +1 还是 −1、这把现在几振、本次一共几振，乱舞跟着动了也会一并写上。减到 0 移出本次时会提示「已移除」。</p>' +
      '<p>以前只在你打字登记的框旁边显示一行小字，滑到下面的明细列表根本看不见——现在不管滑到哪儿都看得到。</p>',
