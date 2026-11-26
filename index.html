@@ -1665,6 +1665,14 @@
     border-bottom:1px dotted var(--line-strong);line-height:1.4;
   }
   .calc-drop-time:active{color:var(--accent-deep);}
+  .dt-multi{font-size:8px;color:var(--accent);margin-left:2px;}
+  /* 点时间弹出的「全部登记时间」列表 */
+  .dt-list{max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:12px;}
+  .dt-row{display:flex;align-items:center;gap:12px;padding:9px 13px;border-bottom:1px dashed var(--line);font-size:12px;}
+  .dt-row:last-child{border-bottom:none;}
+  .dt-i{flex:0 0 24px;height:24px;line-height:24px;text-align:center;border-radius:50%;background:var(--tint-a);color:var(--accent-deep);font-size:10px;font-variant-numeric:tabular-nums;}
+  .dt-t{font-variant-numeric:tabular-nums;letter-spacing:.02em;}
+  .dt-note{margin:9px 2px 0;font-size:10.5px;color:var(--muted-2);}
   .calc-drop-item{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px dashed var(--line);font-size:12px;}
   .calc-drop-item:last-child{border-bottom:none;}
   .calc-drop-item:hover{background:var(--surface-2);}
@@ -2277,7 +2285,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.41</div>
+        <div class="brand-sub">HONMARU KEEPER V3.42</div>
       </div>
     </div>
 
@@ -8987,7 +8995,16 @@ function clearLogs(){
 /* 花数：按 No.1 → No.130 顺序（取自公开刀帐数据），No.131 及之后由模板 fl 提供 */
 
 let calcPickNo = 0;
-let calcSortMode = 'no';
+/* 掉落明细排序：数量 / 时间 / 刀账 三维度 × 正反两向 = 6 档，点同一维度切方向 */
+const SORT_MODES = [
+  {dim:'count', dir:'desc', label:'数量多→少'},
+  {dim:'count', dir:'asc',  label:'数量少→多'},
+  {dim:'time',  dir:'asc',  label:'时间先→后'},
+  {dim:'time',  dir:'desc', label:'时间后→先'},
+  {dim:'no',    dir:'asc',  label:'编号前→后'},
+  {dim:'no',    dir:'desc', label:'编号后→前'}
+];
+let calcSortMode = 0;      /* SORT_MODES 索引，0 = 数量多→少 */
 let calcFocus = false;     /* 聚焦模式：只显示当前这一条活动记录（新建后自动进入，返回回总览） */
 let calcNewOpen = false;   /* 新建模式：整页表单（顶部返回 → 回总览），类型下拉选 */
 let calcOpsOpen = false;   /* 已结束记录：管理操作是否展开（默认收起，防误触） */
@@ -9072,12 +9089,17 @@ function normCalc(c){
         resId: s.resId ? String(s.resId) : '',
         daily: daily,
         firsts: firsts,
-        /* 每把刀最近一次登记时间：{no: ts}，明细行显示「最近登记 M/D HH:MM」 */
+        /* 每把刀的全部登记时间：{no: [ts1, ts2, ...]}；兼容老的单数字（转成单元素数组） */
         dtimes: (function(m){
           const o = {};
           if(m && typeof m === 'object') Object.keys(m).forEach(function(k){
-            const n = parseInt(k, 10), ts = Number(m[k]);
-            if(n > 0 && ts > 0) o[n] = ts;
+            const n = parseInt(k, 10);
+            if(n <= 0) return;
+            const arr = (Array.isArray(m[k]) ? m[k] : [m[k]])
+              .map(function(x){ return Number(x); })
+              .filter(function(x){ return x > 0; })
+              .sort(function(a,b){ return a - b; });
+            if(arr.length) o[n] = arr;
           });
           return o;
         })(s.dtimes),
@@ -9101,7 +9123,8 @@ function normCalc(c){
           no: clampNum(s.lastOp.no, 0, 99999, 0),
           day: /^\d{4}-\d{2}-\d{2}$/.test(String(s.lastOp.day || '')) ? String(s.lastOp.day) : '',
           ts: Number(s.lastOp.ts) || 0,
-          prevDts: Number(s.lastOp.prevDts) || 0,  /* 登记前的登记时间，撤销时恢复 */
+          prevDts: (Array.isArray(s.lastOp.prevDts) ? s.lastOp.prevDts : [s.lastOp.prevDts])
+            .map(function(x){ return Number(x); }).filter(function(x){ return x > 0; }),  /* 登记前的全部登记时间，撤销时恢复 */
           rb: !!s.lastOp.rb,          /* 这次是否喂了乱舞 */
           fromR: clampNum(s.lastOp.fromR, 1, RB_MAX(), 1),
           fromRp: clampNum(s.lastOp.fromRp, 0, 999, 0),
@@ -9179,28 +9202,42 @@ function sesStats(ses){
 function sesTotal(ses){ return sesStats(ses).total; }
 /* 登记时间：优先用本次存的精确时间 dtimes；老记录没有则从变动日志 / 登记日期兜底反推。
    返回 {ts, precise}：precise=false 表示只有日期、没有精确时分。 */
+/* 把 dtimes[no] 统一成时间数组（兼容老的单数字） */
+function dtsArr(v){
+  return (Array.isArray(v) ? v : (v ? [v] : [])).map(function(x){
+    return Number(x);
+  }).filter(function(x){ return x > 0; }).sort(function(a,b){ return a - b; });
+}
+/* 登记时间：优先用本次存的精确时间 dtimes（可能多次），老记录则从变动日志 / 登记日期兜底。
+   返回 {ts:最近, times:全部, precise}：precise=false 表示只有日期、没有精确时分。 */
 function dropTimeOf(ses, no){
   if(!ses) return null;
-  if(ses.dtimes && ses.dtimes[no]) return {ts:ses.dtimes[no], precise:true};
-  /* 兜底 1：从变动日志里找这把刀在本活动/本记录的登记时间（ranbu 喂刀或拥有状态变化） */
+  const dm = dtsArr(ses.dtimes && ses.dtimes[no]);
+  if(dm.length) return {ts:dm[dm.length-1], times:dm, precise:true};
+  /* 兜底 1：从变动日志里找这把刀在本活动/本记录的全部登记时间 */
   const d = curData();
   const act = curAct();
+  const fromLogs = [];
   if(d && Array.isArray(d.logs)){
-    for(let i = 0; i < d.logs.length; i++){
-      const l = d.logs[i];
-      if(!l || Number(l.no) !== Number(no)) continue;
+    d.logs.forEach(function(l){
+      if(!l || Number(l.no) !== Number(no)) return;
       const actOk = !act || !l.act || l.act === act.name;
       const sesOk = !ses.name || !l.ses || l.ses === ses.name;
-      if(actOk && sesOk && Number(l.ts) > 0) return {ts:Number(l.ts), precise:true};
-    }
+      if(actOk && sesOk && Number(l.ts) > 0) fromLogs.push(Number(l.ts));
+    });
   }
-  /* 兜底 2：从 daily 里找这把刀最近登记的日期（只有日期，无时分） */
+  if(fromLogs.length){
+    fromLogs.sort(function(a,b){ return a - b; });
+    return {ts:fromLogs[fromLogs.length-1], times:fromLogs, precise:true};
+  }
+  /* 兜底 2：从 daily 里找这把刀登记的日期（只有日期，无时分） */
   const days = Object.keys((ses.daily || {})).filter(function(dk){
     return (ses.daily[dk] || {})[no] > 0;
-  }).sort().reverse();
+  }).sort();
   if(days.length){
-    const ts = new Date(days[0] + 'T12:00:00').getTime();
-    if(ts > 0) return {ts:ts, precise:false};
+    const arr = days.map(function(dk){ return new Date(dk + 'T12:00:00').getTime(); })
+      .filter(function(x){ return x > 0; });
+    if(arr.length) return {ts:arr[arr.length-1], times:arr, precise:false};
   }
   return null;
 }
@@ -9213,6 +9250,39 @@ function dropTimeLabel(ts, precise){
   const today = new Date();
   const sameDay = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
   return sameDay ? (hh + ':' + mm) : ((d.getMonth() + 1) + '/' + d.getDate() + ' ' + hh + ':' + mm);
+}
+/* 排序按钮：点当前维度切到反方向，点别的维度切到该维度默认档 */
+function cycleSort(dim){
+  const idxs = SORT_MODES.map(function(m,i){ return m.dim === dim ? i : -1; })
+    .filter(function(i){ return i >= 0; });
+  if(!idxs.length) return;
+  const cur = SORT_MODES[calcSortMode];
+  calcSortMode = (cur && cur.dim === dim)
+    ? idxs.filter(function(i){ return i !== calcSortMode; })[0]
+    : idxs[0];
+  renderCalc();
+}
+/* 点明细行的时间：弹窗列出这把刀的全部登记时间（手机没法悬停，改为点按） */
+function openDropTimesModal(no){
+  const ses = curSes();
+  const dt = ses && dropTimeOf(ses, no);
+  if(!dt){ toast('这把刀本次还没有登记时间', true); return; }
+  const times = dt.times || [dt.ts];
+  const cnt = ((sesStats(ses) || {}).drops || {})[no] || 0;
+  const head = '🕐 ' + (dt.precise
+    ? '共 ' + times.length + ' 次登记 · 最近 ' + fmtTime(dt.ts)
+    : '早期记录未记具体时间，仅显示登记日期');
+  const body = '<div class="dt-list">' + times.map(function(ts, i){
+      return '<div class="dt-row"><span class="dt-i">' + (i + 1) + '</span>' +
+        '<span class="dt-t">' + esc(dt.precise ? fmtTime(ts) : fmtDate(new Date(ts))) + '</span></div>';
+    }).join('') + '</div>' +
+    (dt.precise && cnt > times.length
+      ? '<p class="dt-note">另有 ' + (cnt - times.length) + ' 次登记没有具体时间（早期记录）</p>' : '');
+  openModal({
+    title: 'No.' + String(no).padStart(3, '0') + ' ' + swordName(no),
+    sub: head, body: body,
+    actions: [{text:'关闭', cls:'btn', onClick:closeModal}]
+  });
 }
 function swordName(no){
   const x = rowOf(no);
@@ -9792,20 +9862,41 @@ function calcDropsHTML(ses){
   const closed = !!ses.closed;
   const rows = Object.keys(st.drops).map(Number).filter(function(n){ return st.drops[n] > 0; });
   if(!rows.length) return '';
-  rows.sort(function(a, b){
-    if(calcSortMode === 'count'){
-      const d2 = st.drops[b] - st.drops[a];
-      if(d2) return d2;
-    }
-    return a - b;
+  const mode = SORT_MODES[calcSortMode] || SORT_MODES[0];
+  /* 每把刀的最早 / 最近登记时间，供「时间先→后」「时间后→先」排序 */
+  const firstT = {}, lastT = {};
+  rows.forEach(function(n){
+    const dt = dropTimeOf(ses, n);
+    const arr = dt ? (dt.times || [dt.ts]) : [];
+    firstT[n] = arr.length ? arr[0] : 0;
+    lastT[n] = arr.length ? arr[arr.length - 1] : 0;
   });
+  rows.sort(function(a, b){
+    let d = 0;
+    if(mode.dim === 'count') d = st.drops[a] - st.drops[b];   /* 统一按升序基准，desc 时在下面翻转 */
+    else if(mode.dim === 'no') d = a - b;
+    else {
+      const map = mode.dir === 'desc' ? lastT : firstT;
+      if(!map[a] && map[b]) return 1;       /* 没时间的排最后 */
+      if(map[a] && !map[b]) return -1;
+      d = map[a] - map[b];
+    }
+    if(mode.dir === 'desc') d = -d;
+    return d || (a - b);                    /* 同值时按编号，保证顺序稳定 */
+  });
+  function sortBtn(dim, txt){
+    return '<button class="calc-sort-btn' + (mode.dim === dim ? ' active' : '') +
+      '" data-csort="' + dim + '" title="点击切换正反方向">' + txt + '</button>';
+  }
+  const btnCount = mode.dim === 'count' ? (mode.dir === 'desc' ? '数量多→少' : '数量少→多') : '数量';
+  const btnTime  = mode.dim === 'time'  ? (mode.dir === 'asc' ? '时间先→后' : '时间后→先') : '时间';
+  const btnNo    = mode.dim === 'no'    ? (mode.dir === 'asc' ? '编号前→后' : '编号后→前') : '刀账';
   return '<div class="calc-drops">' +
     '<div class="calc-drops-title"><span>掉落明细（' + rows.length + ' 种 · ' + st.total + ' 振）</span>' +
       '<span class="calc-drops-tools">' +
         (closed ? '' : '<button class="calc-undo-last" data-undolast="1" title="撤回最近登记的一把，乱舞/日志/统计一并回退">↩ 撤回上一把</button>') +
         '<span class="calc-sort">' +
-          '<button class="calc-sort-btn' + (calcSortMode === 'no' ? ' active' : '') + '" data-csort="no">刀帐顺序</button>' +
-          '<button class="calc-sort-btn' + (calcSortMode === 'count' ? ' active' : '') + '" data-csort="count">数量多→少</button>' +
+          sortBtn('count', btnCount) + sortBtn('time', btnTime) + sortBtn('no', btnNo) +
         '</span>' +
       '</span></div>' +
     rows.map(function(no){
@@ -9820,13 +9911,16 @@ function calcDropsHTML(ses){
         : (unowned ? '<span class="calc-drop-badge unowned">未拥有</span>' : '');
       /* 掉落明细只登记数量，不再提供改编号 / 花数 / 名称的入口（那些到图鉴页改） */
       const dt = dropTimeOf(ses, no);
-      const fullTime = dt ? (dt.precise ? '最近登记 ' + fmtTime(dt.ts) : '登记于 ' + fmtDate(new Date(dt.ts)) + '（早期记录未记具体时间）') : '';
-      const timeTip = dt ? ' title="' + esc(fullTime) + '" data-dtime="' + esc(fullTime) + '" role="button" tabindex="0"' : '';
+      const multi = dt && dt.times && dt.times.length > 1 ? '<span class="dt-multi">×' + dt.times.length + '</span>' : '';
+      /* 时间排序时，行内显示的时间要与排序键一致（先→后显示最早，后→先显示最近），否则看着像没排对 */
+      const shownTs = (mode.dim === 'time' && mode.dir === 'asc' && dt && dt.times && dt.times.length)
+        ? dt.times[0] : (dt ? dt.ts : 0);
+      const timeTip = dt ? ' title="点看全部登记时间" data-dtime="' + no + '" role="button" tabindex="0"' : '';
       return '<div class="calc-drop-item' + hi + '">' +
         '<span class="calc-drop-no">No.' + String(no).padStart(3, '0') + '</span>' +
         '<span class="calc-drop-name">' + esc(swordName(no)) + '</span>' + badge +
         (t ? '<span class="calc-drop-type">' + esc(t) + '</span>' : '') +
-        (dt ? '<span class="calc-drop-time"' + timeTip + '>🕐 ' + dropTimeLabel(dt.ts, dt.precise) + '</span>' : '') +
+        (dt ? '<span class="calc-drop-time"' + timeTip + '>🕐 ' + dropTimeLabel(shownTs, dt.precise) + multi + '</span>' : '') +
         '<span class="calc-drop-flower">' + flowerLabel(no) + '</span>' +
         '<span class="calc-drop-ctrl">' +
           (closed ? '' : '<button class="calc-drop-undo" data-cminus="' + no + '">－</button>') +
@@ -10241,10 +10335,10 @@ function addDrop(){
   }
   const day = calcDayKey();
   const nowTs = Date.now();
-  /* 记录这一把的最近登记时间（明细行显示），并留下旧值供撤销精确回退 */
+  /* 记录这一把的每一次登记时间（明细行显示最近、点开看全部），留下旧数组供撤销精确回退 */
   ses.dtimes = ses.dtimes || {};
-  const prevDts = ses.dtimes[no] || 0;
-  ses.dtimes[no] = nowTs;
+  const prevDts = dtsArr(ses.dtimes[no]);
+  ses.dtimes[no] = prevDts.concat([nowTs]);
   /* 撤销快照：记下登记前的日志 id 集合，登记后 diff 出这次新增的日志 */
   const oldLogIds = {};
   (d.logs || []).forEach(function(l){ oldLogIds[l.id] = 1; });
@@ -10381,7 +10475,7 @@ function calcPlusMinus(no, plus){
     const day = calcDayKey();
     ses.daily[day] = ses.daily[day] || {};
     ses.daily[day][no] = (ses.daily[day][no] || 0) + 1;
-    ses.dtimes[no] = Date.now();
+    ses.dtimes[no] = dtsArr(ses.dtimes[no]).concat([Date.now()]);
     /* 加：同步喂乱舞（满级不加），和「掉了一把」口径一致 */
     if(c && c.lvlSync) rbTxt = applyRanbuGain(no, act, ses);
   }else{
@@ -10391,8 +10485,9 @@ function calcPlusMinus(no, plus){
     ses.daily[day][no] -= 1;
     if(ses.daily[day][no] <= 0) delete ses.daily[day][no];
     if(!Object.keys(ses.daily[day]).length) delete ses.daily[day];
-    /* 这把刀减到本次为 0 → 时间也没意义了，清掉 */
+    /* 减一把 → 移除最近一条登记时间；减到本次为 0 → 时间全清掉 */
     if(!(sesDrops(ses)[no] > 0)) delete ses.dtimes[no];
+    else { const arr = dtsArr(ses.dtimes[no]); arr.pop(); ses.dtimes[no] = arr; }
     /* 减：乱舞同步回退（跨级退回，乱舞1·0不再退） */
     if(c && c.lvlSync) rbTxt = applyRanbuRewind(no, act, ses);
   }
@@ -10421,7 +10516,8 @@ function undoLastDrop(){
     const dts = ses.dtimes || {};
     let bestNo = 0, bestTs = 0;
     Object.keys(dts).forEach(function(k){
-      const n = Number(k), ts = Number(dts[k]);
+      const n = Number(k), arr = dtsArr(dts[k]);
+      const ts = arr.length ? arr[arr.length - 1] : 0;
       if(ts > bestTs && (sesDrops(ses)[n] || 0) > 0){ bestTs = ts; bestNo = n; }
     });
     if(bestNo){ calcPlusMinus(bestNo, false); return; }
@@ -10435,10 +10531,12 @@ function undoLastDrop(){
     if(ses.daily[op.day][no] <= 0) delete ses.daily[op.day][no];
     if(!Object.keys(ses.daily[op.day]).length) delete ses.daily[op.day];
   }
-  /* 2) 最近登记时间回退：还有这把刀就恢复旧时间，没了就清掉 */
+  /* 2) 登记时间回退：还有这把刀就恢复登记前的全部时间，没了就清掉 */
   if(ses.dtimes){
-    if(sesDrops(ses)[no] > 0){ if(op.prevDts) ses.dtimes[no] = op.prevDts; else delete ses.dtimes[no]; }
-    else delete ses.dtimes[no];
+    if(sesDrops(ses)[no] > 0){
+      const prev = dtsArr(op.prevDts);
+      if(prev.length) ses.dtimes[no] = prev; else delete ses.dtimes[no];
+    } else delete ses.dtimes[no];
   }
   /* 首振回退 */
   if(op.wasFirst && ses.firsts){ delete ses.firsts[no]; }
@@ -11238,9 +11336,9 @@ function bindCalc(){
   $('#calcDrops').addEventListener('click', function(e){
     if(e.target.closest('[data-undolast]')){ undoLastDrop(); return; }
     const dtimeEl = e.target.closest('[data-dtime]');
-    if(dtimeEl){ toast(dtimeEl.getAttribute('data-dtime') + ' · 点时间可再看', false, 3400); return; }
+    if(dtimeEl){ openDropTimesModal(Number(dtimeEl.getAttribute('data-dtime'))); return; }
     const sortBtn = e.target.closest('[data-csort]');
-    if(sortBtn){ calcSortMode = sortBtn.dataset.csort; renderCalc(); return; }
+    if(sortBtn){ cycleSort(sortBtn.dataset.csort); return; }
     const plus = e.target.closest('[data-cplus]');
     const minus = e.target.closest('[data-cminus]');
     if(plus) calcPlusMinus(Number(plus.dataset.cplus), true);
@@ -12679,6 +12777,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.42 点时间看全部登记时间 · 三维度六档排序',
+     '<p><b>点时间看全部</b>：一把刀多次登记，会在时间旁显示「×次数」；点一下弹出<b>每一次的登记时间</b>列表（精确到秒）。</p>' +
+     '<p><b>排序三维度六档</b>：掉落明细标题栏有「数量 / 时间 / 刀账」三个按钮，点当前按钮切正反方向——数量多→少·少→多、时间先→后·后→先、编号前→后·后→前。</p>',
+     '2026.11'],
     ['V3.41 手机也能看完整时间 · 撤回按钮一直在',
      '<p><b>时间直接点一下就能看</b>：手机上没法悬停，现在点那行「🕐 时间」，屏幕中间会弹出完整登记时间（精确到秒）。</p>' +
      '<p><b>「↩ 撤回上一把」一直在</b>：固定在「掉落明细」标题栏右边，登记后随时可点。以前用 ＋／− 调过数量就把撤回快照清掉、按钮不见了——现在即使没快照，也会按<b>最近登记时间</b>退一把，按钮不会消失。记录已结束的才不显示。</p>',
