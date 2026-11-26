@@ -2275,7 +2275,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.39</div>
+        <div class="brand-sub">HONMARU KEEPER V3.40</div>
       </div>
     </div>
 
@@ -9175,10 +9175,38 @@ function sesStats(ses){
   return {total:total, kinds:kinds, rare:rare, byFlower:byFlower, drops:drops, days:days.length, dayList:days.sort()};
 }
 function sesTotal(ses){ return sesStats(ses).total; }
+/* 登记时间：优先用本次存的精确时间 dtimes；老记录没有则从变动日志 / 登记日期兜底反推。
+   返回 {ts, precise}：precise=false 表示只有日期、没有精确时分。 */
+function dropTimeOf(ses, no){
+  if(!ses) return null;
+  if(ses.dtimes && ses.dtimes[no]) return {ts:ses.dtimes[no], precise:true};
+  /* 兜底 1：从变动日志里找这把刀在本活动/本记录的登记时间（ranbu 喂刀或拥有状态变化） */
+  const d = curData();
+  const act = curAct();
+  if(d && Array.isArray(d.logs)){
+    for(let i = 0; i < d.logs.length; i++){
+      const l = d.logs[i];
+      if(!l || Number(l.no) !== Number(no)) continue;
+      const actOk = !act || !l.act || l.act === act.name;
+      const sesOk = !ses.name || !l.ses || l.ses === ses.name;
+      if(actOk && sesOk && Number(l.ts) > 0) return {ts:Number(l.ts), precise:true};
+    }
+  }
+  /* 兜底 2：从 daily 里找这把刀最近登记的日期（只有日期，无时分） */
+  const days = Object.keys((ses.daily || {})).filter(function(dk){
+    return (ses.daily[dk] || {})[no] > 0;
+  }).sort().reverse();
+  if(days.length){
+    const ts = new Date(days[0] + 'T12:00:00').getTime();
+    if(ts > 0) return {ts:ts, precise:false};
+  }
+  return null;
+}
 /* 登记时间显示：跨天显示「M/D HH:MM」，同一天只显示「HH:MM」，省地方 */
-function dropTimeLabel(ts){
+function dropTimeLabel(ts, precise){
   if(!ts) return '';
   const d = new Date(ts);
+  if(!precise) return (d.getMonth() + 1) + '/' + d.getDate();   /* 老记录只有日期 */
   const hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0');
   const today = new Date();
   const sameDay = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
@@ -9790,13 +9818,13 @@ function calcDropsHTML(ses){
         ? '<span class="calc-drop-badge new">新刀</span>'
         : (unowned ? '<span class="calc-drop-badge unowned">未拥有</span>' : '');
       /* 掉落明细只登记数量，不再提供改编号 / 花数 / 名称的入口（那些到图鉴页改） */
-      const dts = (ses.dtimes || {})[no] || 0;
-      const timeTip = dts ? ' title="最近登记 ' + esc(fmtTime(dts)) + '"' : '';
+      const dt = dropTimeOf(ses, no);
+      const timeTip = dt ? ' title="' + (dt.precise ? '最近登记 ' + esc(fmtTime(dt.ts)) : '登记于 ' + esc(fmtDate(new Date(dt.ts))) + '（早期记录未记具体时间）') + '"' : '';
       return '<div class="calc-drop-item' + hi + '">' +
         '<span class="calc-drop-no">No.' + String(no).padStart(3, '0') + '</span>' +
         '<span class="calc-drop-name">' + esc(swordName(no)) + '</span>' + badge +
         (t ? '<span class="calc-drop-type">' + esc(t) + '</span>' : '') +
-        (dts ? '<span class="calc-drop-time"' + timeTip + '>🕐 ' + dropTimeLabel(dts) + '</span>' : '') +
+        (dt ? '<span class="calc-drop-time"' + timeTip + '>🕐 ' + dropTimeLabel(dt.ts, dt.precise) + '</span>' : '') +
         '<span class="calc-drop-flower">' + flowerLabel(no) + '</span>' +
         '<span class="calc-drop-ctrl">' +
           (closed ? '' : '<button class="calc-drop-undo" data-cminus="' + no + '">－</button>') +
@@ -12636,6 +12664,10 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.40 老记录也显示登记时间',
+     '<p>上次加的「每把刀登记时间」只有<b>新版之后登记的刀</b>才有——之前的老记录当时没存时间，所以看不到。现在老记录也会显示：能找到变动日志的按<b>具体时分</b>显示，找不到就按<b>登记日期</b>兜底（悬停会注明「早期记录未记具体时间」）。</p>' +
+     '<p>如果还是没看到，往下翻到<b>「掉落明细」</b>那一栏（在「查看统计」下面），时间就在每把刀名字的右边。</p>',
+     '2026.11'],
     ['V3.39 活动记录：每把刀显示登记时间 · 明细区可直接撤回上一把',
      '<p><b>每把刀都带登记时间</b>：掉落明细里每一把刀的名字后面，会显示它<b>最近一次登记的时间</b>（当天只显示「时:分」，跨天显示「月/日 时:分」）。鼠标悬停或长按能看到完整日期时间。撤销/加减/再登记都会跟着更新。</p>' +
      '<p><b>撤回上一把更顺手</b>：掉落明细标题栏多了一个<b>「↩ 撤回上一把」</b>按钮，滑到明细列表也能直接撤回最近登记的那把，乱舞 / 日志 / 统计一并回退，不用再滚回登记框。</p>',
