@@ -2257,9 +2257,8 @@
   }
   @media (max-width:560px){
     .grid{grid-template-columns:repeat(auto-fill,minmax(46%,1fr));gap:9px;}
-    /* 编辑中的卡片占满整行：表单字段和顶部「取消/保存/固定」都有足够宽度，
-       不再被两列窄卡片挤成小按钮；避让菜单的左边距也腾得开 */
-    .card.editing{grid-column:1 / -1;}
+    /* 编辑卡片保持正常两列宽度，不再占满整行撑得又大又空；
+       固定/删除收进右上角角标，吸顶操作栏只留取消/保存两个按钮平分 */
     .card{padding:11px 11px 10px;}
     .fav-btn{font-size:13px;padding:0;}
     .fav-movers{gap:1px;margin-left:1px;}
@@ -2303,7 +2302,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.48</div>
+        <div class="brand-sub">HONMARU KEEPER V3.49</div>
       </div>
     </div>
 
@@ -5851,6 +5850,12 @@ function cardHTML(x){
         (owned ? '' : '<span class="own-tag" title="还没拿到这振">未拥有</span>') +
         '<span class="fl-tag" title="初始花数（可在修改里改）">' + (fl ? fl + '花' : '—') + '</span>' +
         '<span class="type-tag">'+esc(v.type)+'</span>' +
+        /* 编辑态：固定/删除收进右上角标签区当小角标，把吸顶操作栏让给取消/保存 */
+        (editing ? (isTplSword(x.no)
+          ? '<span class="card-del-na" title="内置刀帐的刀固定在图鉴里，不能删除">固定</span>'
+          : (rosterLocked()
+              ? '<button class="card-del locked" data-act="dellocked" title="刀账已锁定，先在顶部解锁才能删除">🔒</button>'
+              : '<button class="card-del" data-act="del" title="从图鉴里删掉这振">🗑</button>')) : '') +
       '</span>' +
     '</div>' +
     '<div class="card-name'+(long?' long':'')+'">'+esc(v.name)+'</div>' +
@@ -5912,11 +5917,6 @@ function cardHTML(x){
     '<div class="card-actions card-actionbar">' +
       '<button class="card-btn ghost" data-act="cancel">取消</button>' +
       '<button class="card-btn primary" data-act="save">保存</button>' +
-      (isTplSword(x.no)
-        ? '<span class="card-del-na" title="内置刀帐的刀固定在图鉴里，不能删除">固定</span>'
-        : (rosterLocked()
-            ? '<button class="card-del locked" data-act="dellocked" title="刀账已锁定，先在顶部解锁才能删除">🔒</button>'
-            : '<button class="card-del" data-act="del" title="从图鉴里删掉这振">🗑</button>')) +
     '</div>' +
     '<div class="card-ctrl">' +
       '<div class="seg" data-no="'+x.no+'">' +
@@ -12847,6 +12847,9 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.49 编辑卡片回归正常大小 · 按钮照样清爽',
+     '<p>上一版把编辑卡片撑满整行，确实又大又空。这版让卡片<b>回到正常两列宽度</b>，不再撑大；同时把「固定 / 删除」收进右上角当小角标，吸顶操作栏只留<b>取消 / 保存</b>两个按钮平分——卡片不放大，按钮也不挤成小条。</p>',
+     '2026.11'],
     ['V3.48 手机编辑卡片占满整行 · 按钮不再挤扁',
      '<p>修好上一版「取消 / 保存 / 固定」被挤成小窄条的问题：手机上正在编辑的卡片现在<b>占满一整行</b>，按钮恢复正常宽度、清爽好点，表单也更宽。</p>',
      '2026.11'],
