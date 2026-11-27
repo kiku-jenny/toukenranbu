@@ -1016,6 +1016,9 @@
   .fav-move:active:not(:disabled){background:rgba(217,164,65,.34);}
   .fav-move:disabled{opacity:.22;cursor:default;background:none;}
   .fav-move:focus-visible{outline:2px solid var(--line-strong);outline-offset:1px;}
+  /* 一键置顶：比 ▲▼ 更醒目，金色实心描边 */
+  .fav-move.fav-top{color:#8a6412;background:rgba(217,164,65,.16);border-color:#e6cd96;font-size:13px;}
+  .fav-move.fav-top:hover:not(:disabled){background:rgba(217,164,65,.3);}
   .card-del.locked{opacity:.75;cursor:not-allowed;}
   .card-del.locked:hover{background:none;color:var(--muted);transform:none;}
   /* 顶部刀账锁定按钮 */
@@ -2256,6 +2259,10 @@
     .grid{grid-template-columns:repeat(auto-fill,minmax(46%,1fr));gap:9px;}
     .card{padding:11px 11px 10px;}
     .fav-btn{font-size:13px;padding:0;}
+    .fav-movers{gap:1px;margin-left:1px;}
+    .fav-move{min-width:20px;min-height:24px;padding:3px 3px;font-size:11px;}
+    .fav-move.fav-top{font-size:12px;}
+    .card-id{font-size:9px;}
     .card.fav::before{top:11px;bottom:11px;}
     .card-name{font-size:15px;}
     .card-name.long{font-size:13px;}
@@ -2293,7 +2300,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.46</div>
+        <div class="brand-sub">HONMARU KEEPER V3.47</div>
       </div>
     </div>
 
@@ -5822,6 +5829,9 @@ function cardHTML(x){
   const head = '<div class="card-top">' +
       '<span class="card-lead">' +
         (fav && ui.favSort ? '<span class="fav-movers">' +
+                '<button class="fav-move fav-top" data-act="favtop" data-no="' + x.no + '"' +
+                  (favRank <= 0 ? ' disabled' : '') +
+                  ' title="一键置顶：直接移到最前面" aria-label="一键置顶">⇈</button>' +
                 '<button class="fav-move" data-act="favup" data-no="' + x.no + '"' +
                   (favRank <= 0 ? ' disabled' : '') +
                   ' title="上移一位" aria-label="上移一位">▲</button>' +
@@ -6092,6 +6102,23 @@ function shiftFav(no, dir){
   const tmp = favs[i]; favs[i] = favs[j]; favs[j] = tmp;
   const base = Math.min.apply(null, favs.map(function(x){ return Number(x.favAt) || 0; })) || 1;
   favs.forEach(function(row, k){ row.favAt = base + k; });
+  save();
+  renderCatalog();
+  return true;
+}
+/* 一键置顶：把这振直接挪到置顶序列最前，不用连点 ▲。
+   ts 全段重排，和 shiftFav 同一套排序口径，避免并列。 */
+function topFav(no){
+  const d = curData();
+  if(!d) return false;
+  const favs = d.tw.filter(function(x){ return Number(x.fav) === 1; })
+                  .sort(function(a,b){ return (Number(a.favAt)||0) - (Number(b.favAt)||0); });
+  const i = favs.findIndex(function(x){ return x.no === no; });
+  if(i <= 0) return false;                       // 不在置顶里，或本来就在最前
+  const row = favs.splice(i, 1)[0];
+  favs.unshift(row);
+  const base = Math.min.apply(null, favs.map(function(x){ return Number(x.favAt) || 0; })) || 1;
+  favs.forEach(function(r, k){ r.favAt = base + k; });
   save();
   renderCatalog();
   return true;
@@ -6999,6 +7026,7 @@ function bindGrid(){
       const no = noOf(act);
       if(act.dataset.act === 'edit') startEdit(no);
       else if(act.dataset.act === 'fav') toggleFav(no);
+      else if(act.dataset.act === 'favtop'){ if(topFav(no)) toast('⇈ 已一键置顶「' + (rowOf(no)||{}).name + '」'); }
       else if(act.dataset.act === 'favup'){ if(shiftFav(no,-1)) toast('已上移一位'); }
       else if(act.dataset.act === 'favdown'){ if(shiftFav(no,1)) toast('已下移一位'); }
       else if(act.dataset.act === 'cancel') cancelEdit(no);
@@ -12816,6 +12844,9 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.47 收藏调整新增「⇈ 一键置顶」',
+     '<p>调整置顶顺序时，每张置顶卡片左上角多了 <b>⇈ 一键置顶</b> 按钮——点一下直接把这振移到最前面，不用连点 ▲。已在最前的会自动禁用，顺序依旧即时保存。</p>',
+     '2026.11'],
     ['V3.46 修误触 · 修切页滚动',
      '<p><b>修误触</b>：编辑卡片往下滚时，「取消」按钮不再与左上角的菜单按钮重叠——点取消就是取消，不会误开侧边栏。</p>' +
      '<p><b>修切页</b>：从设置页等页面切回图鉴，会回到页面顶部，不再停在原来的滚动位置（看着像「跳到最底部」）。</p>',
@@ -13931,7 +13962,7 @@ function initEvents(){
   if(favSortBtn) favSortBtn.onclick = function(){
     ui.favSort = !ui.favSort;
     renderCatalog();
-    toast(ui.favSort ? '排序模式：点卡片上的 ▲▼ 调顺序，调完点「完成排序」' : '已收起排序按钮');
+    toast(ui.favSort ? '排序模式：⇈ 一键置顶、▲▼ 调顺序，调完点「完成排序」' : '已收起排序按钮');
   };
   const fillFlBtn = $('#btnFillFlower');
   if(fillFlBtn) fillFlBtn.onclick = fillFlowerAll;
