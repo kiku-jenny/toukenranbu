@@ -2257,6 +2257,9 @@
   }
   @media (max-width:560px){
     .grid{grid-template-columns:repeat(auto-fill,minmax(46%,1fr));gap:9px;}
+    /* 编辑中的卡片占满整行：表单字段和顶部「取消/保存/固定」都有足够宽度，
+       不再被两列窄卡片挤成小按钮；避让菜单的左边距也腾得开 */
+    .card.editing{grid-column:1 / -1;}
     .card{padding:11px 11px 10px;}
     .fav-btn{font-size:13px;padding:0;}
     .fav-movers{gap:1px;margin-left:1px;}
@@ -2300,7 +2303,7 @@
       <div class="crest">丸</div>
       <div>
         <div class="brand-title">刀剑乱舞管家</div>
-        <div class="brand-sub">HONMARU KEEPER V3.47</div>
+        <div class="brand-sub">HONMARU KEEPER V3.48</div>
       </div>
     </div>
 
@@ -12844,6 +12847,9 @@ function closeModal(){
 
 function openNotice(){
   const items = [
+    ['V3.48 手机编辑卡片占满整行 · 按钮不再挤扁',
+     '<p>修好上一版「取消 / 保存 / 固定」被挤成小窄条的问题：手机上正在编辑的卡片现在<b>占满一整行</b>，按钮恢复正常宽度、清爽好点，表单也更宽。</p>',
+     '2026.11'],
     ['V3.47 收藏调整新增「⇈ 一键置顶」',
      '<p>调整置顶顺序时，每张置顶卡片左上角多了 <b>⇈ 一键置顶</b> 按钮——点一下直接把这振移到最前面，不用连点 ▲。已在最前的会自动禁用，顺序依旧即时保存。</p>',
      '2026.11'],
